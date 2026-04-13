@@ -10,7 +10,7 @@
     &.transaction-mode {
         border: 2px solid var(--color-warning);
         border-radius: 8px;
-        box-shadow: 0 0 20px rgba(var(--color-warning-rgb), 0.2);
+        box-shadow: 0 0 20px color-mix(in srgb, var(--color-warning), transparent 80%);
     }
 }
 
@@ -18,7 +18,7 @@
 
 .transaction-banner {
     @include flex($hor: center, $gap: 12px);
-    background: rgba(var(--color-warning-rgb), 0.15);
+    background: color-mix(in srgb, var(--color-warning), transparent 85%);
     border-bottom: 2px solid var(--color-warning);
     padding: 8px 16px;
     font-size: 0.85em;
@@ -35,6 +35,8 @@
         margin-left: auto;
 
         button {
+            --btn-min-width: 0;
+            --btn-padding: 4px 12px;
             padding: 4px 12px;
             border: none;
             border-radius: 4px;
@@ -76,7 +78,7 @@
             padding: 6px 10px;
             border: 1px solid rgba(127, 127, 127, 0.25);
             border-radius: 6px;
-            background: rgba(0, 0, 0, 0.15);
+            background: var(--surface-alt);
             color: var(--text-color);
             font-size: 0.8em;
             font-family: "Cascadia Code", "Fira Code", monospace;
@@ -90,6 +92,11 @@
                 color: rgba(127, 127, 127, 0.4);
             }
         }
+    }
+
+    .btn-new-entry {
+        @include flex;
+        flex-shrink: 0;
     }
 }
 
@@ -112,7 +119,7 @@ thead {
     position: sticky;
     top: 0;
     z-index: 5;
-    background: var(--color-dark-shade);
+    background: var(--surface-raised);
 
     th {
         position: relative;
@@ -120,12 +127,14 @@ thead {
         border-bottom: 2px solid rgba(127, 127, 127, 0.2);
         text-align: left;
         user-select: none;
+        overflow: visible;
 
         .th-content {
             @include flex($hor: flex-start, $gap: 6px);
             padding: 8px 10px;
             cursor: pointer;
             transition: background 0.1s;
+            white-space: nowrap;
 
             &:hover {
                 background: rgba(127, 127, 127, 0.08);
@@ -148,7 +157,7 @@ thead {
                 font-size: 0.65em;
                 padding: 1px 4px;
                 border-radius: 3px;
-                background: rgba(var(--color-primary-rgb), 0.15);
+                background: color-mix(in srgb, var(--color-primary), transparent 85%);
                 color: var(--color-primary);
                 white-space: nowrap;
             }
@@ -162,15 +171,28 @@ thead {
         .col-resize-handle {
             position: absolute;
             top: 0;
-            right: -4px;
-            width: 8px;
+            right: 0;
+            width: 6px;
             height: 100%;
             cursor: col-resize;
-            z-index: 6;
+            z-index: 10;
+            transform: translateX(50%);
 
-            &:hover,
-            &:active {
-                background: rgba(var(--color-primary-rgb), 0.4);
+            &::after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 50%;
+                width: 2px;
+                height: 100%;
+                transform: translateX(-50%);
+                background: transparent;
+                transition: background 0.1s;
+            }
+
+            &:hover::after,
+            &:active::after {
+                background: var(--interactive, var(--color-primary));
             }
         }
 
@@ -193,10 +215,10 @@ tbody {
         }
 
         &.selected {
-            background: rgba(var(--color-primary-rgb), 0.08);
+            background: color-mix(in srgb, var(--color-primary), transparent 92%);
 
             &:hover {
-                background: rgba(var(--color-primary-rgb), 0.12);
+                background: color-mix(in srgb, var(--color-primary), transparent 88%);
             }
         }
     }
@@ -222,6 +244,15 @@ tbody {
             font-style: italic;
         }
 
+        &.fk-cell .cell-value {
+            color: var(--color-warning);
+            cursor: pointer;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+
         &.editing {
             padding: 0;
         }
@@ -232,15 +263,16 @@ tbody {
 
         .cell-edit {
             width: 100%;
-            height: 100%;
+            height: 36px;
             padding: 4px 10px;
             border: 1px solid var(--color-primary);
             border-radius: 0;
-            background: rgba(0, 0, 0, 0.3);
+            background: none;
             color: var(--text-color);
             font-size: 1em;
             outline: none;
             font-family: inherit;
+            margin: 0;
         }
     }
 }

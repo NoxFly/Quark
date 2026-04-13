@@ -1,6 +1,6 @@
 <div class="no-table">
     <div class="icon">&#xE80F;</div>
-    <h2>Sélectionnez une table</h2>
-    <p>Choisissez une table dans le menu de gauche pour afficher ses données.</p>
-    <p class="table-info">{{ tableCount() }} table(s) disponible(s)</p>
+    <h2>{{ i18n.t("noTable.title") }}</h2>
+    <p>{{ i18n.t("noTable.hint") }}</p>
+    <p class="table-info">{{ i18n.t("noTable.tableCount", { count: tableCount() }) }}</p>
 </div>

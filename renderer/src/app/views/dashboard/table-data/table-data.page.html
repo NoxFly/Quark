@@ -2,29 +2,32 @@
 @if (inTransaction()) {
     <div class="transaction-banner">
         <span class="transaction-icon">&#xE7BA;</span>
-        <span>Mode Transaction actif</span>
+        <span>{{ i18n.t("table.transactionActive") }}</span>
         <div class="transaction-actions">
             <button class="btn-commit" (click)="commitTransaction()">
-                &#xE73E; Valider
+                {{ i18n.t("table.commit") }}
             </button>
             <button class="btn-rollback" (click)="rollbackTransaction()">
-                &#xE711; Annuler
+                {{ i18n.t("table.cancel") }}
             </button>
         </div>
     </div>
 }
 
-<!-- Toolbar (filtre uniquement) -->
+<!-- Toolbar (filtre + new entry) -->
 <div class="toolbar">
     <div class="filter-bar">
         <input
             type="text"
-            placeholder="Filtrer... ex: id = 1 and name like '%abc%'"
+            [placeholder]="i18n.t('table.filterPlaceholder')"
             [ngModel]="filterInput()"
             (ngModelChange)="onFilterInput($event)"
             class="filter-input"
         />
     </div>
+    <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [title]="i18n.t('table.newRecord')">
+        <span class="btn-icon">{{ i18n.t("short.new") }}</span>
+    </ui-button>
 </div>
 
 <!-- Table -->
@@ -64,7 +67,10 @@
         </thead>
         <tbody>
             @for (record of records(); track record["rowid"]) {
-                <tr [class.selected]="isRowSelected($any(record['rowid']))">
+                <tr
+                    [class.selected]="isRowSelected($any(record['rowid']))"
+                    (contextmenu)="onRowContextMenu($event, record)"
+                >
                     <td class="checkbox-col">
                         <input
                             type="checkbox"
@@ -76,9 +82,11 @@
                         <td
                             [style.width.px]="getColumnWidth(field.name)"
                             [style.min-width.px]="getColumnWidth(field.name)"
-                            (click)="startEdit($any(record['rowid']), field.name, record[field.name])"
+                            (click)="onCellClick($event, $any(record['rowid']), field, record[field.name])"
                             [class.null-value]="record[field.name] === null || record[field.name] === undefined"
                             [class.editing]="isEditing($any(record['rowid']), field.name)"
+                            [class.fk-cell]="!!field.fk"
+                            [title]="field.fk ? i18n.t('table.ctrlClickFk', { table: field.fk.table, column: field.fk.column }) : ''"
                         >
                             @if (isEditing($any(record['rowid']), field.name)) {
                                 <input
@@ -101,6 +109,9 @@
     </table>
 
     @if (loading()) {
-        <div class="loading-indicator">Chargement...</div>
+        <div class="loading-indicator">{{ i18n.t("table.loading") }}</div>
     }
 </div>
+
+<app-context-menu />
+

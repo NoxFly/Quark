@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
 import { DatabaseService } from "src/app/core/services/database.service";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { ThemeService } from "src/app/core/services/theme.service";
@@ -32,6 +33,7 @@ interface Menu {
 export class TitlebarComponent {
     private readonly noxus = inject(NoxusService);
     private readonly dbService = inject(DatabaseService);
+    private readonly i18n = inject(I18nService);
     protected readonly state = inject(StateService);
     protected readonly themeService = inject(ThemeService);
 
@@ -41,49 +43,57 @@ export class TitlebarComponent {
 
     protected readonly menus = computed<Menu[]>(() => {
         const connected = this.state.connected();
+        // Track locale changes to re-compute menu labels
+        const t = (key: string): string => this.i18n.t(key);
 
         return [
             {
-                label: "Fichier",
+                label: t("menu.file"),
                 items: [
-                    { label: "Ouvrir...", shortcut: "Ctrl+O", action: () => this.dbService.openFileDialog() },
-                    { label: "Nouvelle fenêtre", shortcut: "Ctrl+Shift+N", action: () => this.noxus.ipc.newWindow() },
+                    { label: t("menu.open"), shortcut: "Ctrl+O", action: () => this.dbService.openFileDialog() },
+                    { label: t("menu.newWindow"), shortcut: "Ctrl+Shift+N", action: () => this.noxus.ipc.newWindow() },
                     { label: "", separator: true },
-                    { label: "Rafraîchir", shortcut: "Ctrl+Shift+R", action: () => this.dbService.refreshDatabase(), disabled: !connected },
-                    { label: "Fermer le fichier", shortcut: "Ctrl+W", action: () => this.dbService.closeFile(), disabled: !connected },
+                    { label: t("menu.refresh"), shortcut: "Ctrl+Shift+R", action: () => this.dbService.refreshDatabase(), disabled: !connected },
+                    { label: t("menu.closeFile"), shortcut: "Ctrl+W", action: () => this.dbService.closeFile(), disabled: !connected },
                     { label: "", separator: true },
-                    { label: "Quitter", shortcut: "Alt+F4", action: () => this.noxus.ipc.quitApp() },
+                    { label: t("menu.quit"), shortcut: "Alt+F4", action: () => this.noxus.ipc.quitApp() },
                 ],
             },
             {
-                label: "Édition",
+                label: t("menu.edit"),
                 items: [
-                    { label: "Démarrer une transaction", action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
-                    { label: "Valider la transaction", action: () => this.dbService.transactionAction("commit"), disabled: !this.dbService.inTransaction() },
-                    { label: "Annuler la transaction", action: () => this.dbService.transactionAction("rollback"), disabled: !this.dbService.inTransaction() },
+                    { label: t("menu.startTransaction"), action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
+                    { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: !this.dbService.inTransaction() },
+                    { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: !this.dbService.inTransaction() },
                     { label: "", separator: true },
-                    { label: "Supprimer la sélection", action: () => this.dbService.deleteSelectedRows(), disabled: this.dbService.selectedRowIds().size === 0 },
+                    { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: this.dbService.selectedRowIds().size === 0 },
                 ],
             },
             {
-                label: "Affichage",
+                label: t("menu.view"),
                 items: [
-                    { label: "Plein écran", shortcut: "F11", action: () => this.noxus.ipc.toggleFullscreen() },
+                    { label: t("menu.fullscreen"), shortcut: "F11", action: () => this.noxus.ipc.toggleFullscreen() },
                     { label: "", separator: true },
-                    { label: "Changer le thème", shortcut: "Ctrl+K Ctrl+T", action: () => this.openThemePicker() },
+                    { label: t("menu.changeTheme"), shortcut: "Ctrl+K Ctrl+T", action: () => this.openThemePicker() },
+                    { label: "", separator: true },
+                    ...this.i18n.availableLocales.map(locale => ({
+                        label: this.i18n.localeLabels[locale],
+                        action: () => this.i18n.setLocale(locale),
+                        disabled: this.i18n.locale() === locale,
+                    })),
                 ],
             },
             {
-                label: "Exporter",
+                label: t("menu.export"),
                 items: [
-                    { label: "Exporter en JSON", action: () => this.dbService.exportData("json", this.dbService.selectedRowIds().size > 0), disabled: !connected },
-                    { label: "Exporter en CSV", action: () => this.dbService.exportData("csv", this.dbService.selectedRowIds().size > 0), disabled: !connected },
+                    { label: t("menu.exportJson"), action: () => this.dbService.exportData("json", this.dbService.selectedRowIds().size > 0), disabled: !connected },
+                    { label: t("menu.exportCsv"), action: () => this.dbService.exportData("csv", this.dbService.selectedRowIds().size > 0), disabled: !connected },
                 ],
             },
             {
-                label: "Aide",
+                label: t("menu.help"),
                 items: [
-                    { label: "À propos", action: () => this.openAbout() },
+                    { label: t("menu.about"), action: () => this.openAbout() },
                 ],
             },
         ];

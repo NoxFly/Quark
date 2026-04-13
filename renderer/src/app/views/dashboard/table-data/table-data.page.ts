@@ -1,8 +1,16 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, signal, viewChild } from "@angular/core";
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, viewChild } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { DatabaseService } from "src/app/core/services/database.service";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
-import type { FieldDef } from "@shared/types";
+import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
+import type { ContextMenuItem } from "src/app/shared/components/context-menu/context-menu.component";
+import { RecordEditorComponent } from "src/app/shared/components/record-editor/record-editor.component";
+import type { RecordEditorMode } from "src/app/shared/components/record-editor/record-editor.component";
+import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
+import type { UIDismissData } from "src/app/shared/ui/ui.types";
+import type { DbRecord, FieldDef } from "@shared/types";
+import { ButtonComponent } from "@ui/button/button.component";
 
 /**
  * Page d'affichage des données d'une table avec :
@@ -20,7 +28,7 @@ import type { FieldDef } from "@shared/types";
     templateUrl: "./table-data.page.html",
     styleUrl: "./table-data.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule],
+    imports: [FormsModule, ContextMenuComponent, ButtonComponent],
     host: {
         "[class.transaction-mode]": "dbService.inTransaction()",
     },
@@ -28,7 +36,9 @@ import type { FieldDef } from "@shared/types";
 export class TableDataPage {
     protected readonly dbService = inject(DatabaseService);
     protected readonly state = inject(StateService);
+    protected readonly i18n = inject(I18nService);
     private readonly injector = inject(Injector);
+    private readonly modalCtrl = inject(ModalController);
 
     protected readonly filterInput = signal<string>("");
     private filterTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -39,6 +49,7 @@ export class TableDataPage {
     protected readonly columnWidths = signal<Map<string, number>>(new Map());
 
     private readonly scrollContainer = viewChild<ElementRef<HTMLDivElement>>("scrollContainer");
+    private readonly contextMenu = viewChild(ContextMenuComponent);
 
     protected readonly fields = computed<FieldDef[]>(() => {
         return this.dbService.tableSchema()?.fields ?? [];
@@ -52,6 +63,18 @@ export class TableDataPage {
     protected readonly orderDir = computed(() => this.dbService.orderDir());
     protected readonly inTransaction = computed(() => this.dbService.inTransaction());
     protected readonly tableName = computed(() => this.dbService.selectedTable());
+
+    constructor() {
+        // Réinitialiser le filtre lors du changement de table
+        effect(() => {
+            this.tableName(); // Lire le signal pour déclencher l'effet
+            this.filterInput.set("");
+            if (this.filterTimeout) {
+                clearTimeout(this.filterTimeout);
+                this.filterTimeout = null;
+            }
+        });
+    }
 
     /**
      * Retourne la largeur d'une colonne, ou 150px par défaut.
@@ -101,6 +124,19 @@ export class TableDataPage {
     }
 
     // --- Édition inline ---
+
+    /**
+     * Gère le clic sur une cellule : Ctrl+Click pour FK navigation, sinon édition.
+     */
+    protected onCellClick(event: MouseEvent, rowid: number, field: FieldDef, currentValue: unknown): void {
+        // FK Ctrl+Click : naviguer vers la table référencée
+        if (event.ctrlKey && field.fk && currentValue !== null && currentValue !== undefined) {
+            this.navigateToForeignKey(field.fk.table, field.fk.column, currentValue);
+            return;
+        }
+
+        this.startEdit(rowid, field.name, currentValue);
+    }
 
     protected startEdit(rowid: number, column: string, currentValue: unknown): void {
         const current = this.editingCell();
@@ -284,6 +320,91 @@ export class TableDataPage {
 
     protected async exportCsv(): Promise<void> {
         await this.dbService.exportData("csv", this.selectedRowIds().size > 0);
+    }
+
+    // --- Menu contextuel ---
+
+    /**
+     * Ouvre le menu contextuel sur un clic droit sur une ligne.
+     */
+    protected onRowContextMenu(event: MouseEvent, record: DbRecord): void {
+        const rowid = record["rowid"] as number;
+
+        const items: ContextMenuItem[] = [
+            {
+                label: this.i18n.t("contextMenu.edit"),
+                icon: "\uE70F",
+                action: () => this.openRecordEditor("edit", record),
+            },
+            {
+                label: this.i18n.t("contextMenu.duplicate"),
+                icon: "\uE8C8",
+                action: () => this.openRecordEditor("duplicate", record),
+            },
+            {
+                label: this.i18n.t("contextMenu.new"),
+                icon: "\uE710",
+                action: () => this.openRecordEditor("create"),
+            },
+            {
+                label: "",
+                icon: "",
+                action: () => {},
+                separator: true,
+            },
+            {
+                label: this.i18n.t("contextMenu.delete"),
+                icon: "\uE74D",
+                action: () => this.dbService.deleteRow(rowid),
+                danger: true,
+            },
+        ];
+
+        this.contextMenu()?.open(event, items);
+    }
+
+    // --- Modal d'édition ---
+
+    /**
+     * Ouvre le modal d'édition/création/duplication de record.
+     */
+    protected async openRecordEditor(mode: RecordEditorMode, record?: DbRecord): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: RecordEditorComponent,
+            componentProps: {
+                mode,
+                record: record ?? null,
+                fields: this.fields(),
+            },
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+
+        // Injecter le dismiss du modal dans le composant
+        const editor = modal.getComponentInstance<RecordEditorComponent>();
+        if (editor) {
+            editor.dismiss = (data) => modal.dismiss(data as Partial<UIDismissData>);
+        }
+
+        modal.didDismiss.subscribe(result => {
+            if (result.role === "confirm") {
+                // Recharger les données après modification
+                this.dbService.loadTableData(true);
+            }
+        });
+    }
+
+    // --- FK Navigation ---
+
+    /**
+     * Navigue vers la table référencée par une clé étrangère.
+     */
+    private async navigateToForeignKey(tableName: string, columnName: string, value: unknown): Promise<void> {
+        await this.dbService.selectTable(tableName);
+        const filterExpr = `${columnName} = ${typeof value === "string" ? `'${value}'` : value}`;
+        this.filterInput.set(filterExpr);
+        this.dbService.applyFilter(filterExpr);
     }
 
     /**

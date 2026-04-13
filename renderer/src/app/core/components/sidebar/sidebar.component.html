@@ -1,15 +1,12 @@
 @if (state.connected()) {
     <div class="sidebar-header">
-        <span class="db-name" [title]="state.database()?.path ?? ''">
-            {{ state.database()?.name ?? "" }}
-        </span>
         <div class="header-actions">
-            <button class="header-btn refresh-btn" (click)="refreshDatabase()" title="Rafraîchir la base">
-                &#xE72C;
-            </button>
-            <button class="header-btn close-btn" (click)="closeFile()" title="Fermer la base">
-                &#xE711;
-            </button>
+            <ui-button class="header-btn refresh-btn" icon="e72c" (click)="refreshDatabase()" [title]="i18n.t('sidebar.refresh.tooltip')">
+                {{ i18n.t("sidebar.refresh") }}
+            </ui-button>
+            <ui-button class="header-btn close-btn" icon="e8bb" (click)="closeFile()" [title]="i18n.t('sidebar.close.tooltip')">
+                {{ i18n.t("sidebar.close") }}
+            </ui-button>
         </div>
     </div>
 
@@ -19,7 +16,7 @@
                 <li
                     [class.active]="selectedTable() === table.name"
                     (click)="selectTable(table.name)"
-                    [title]="table.name + ' (' + table.recordCount + ' lignes)'"
+                    [title]="table.name + ' (' + i18n.t('sidebar.rows', { count: table.recordCount }) + ')'"
                 >
                     <span class="table-icon">&#xE80F;</span>
                     <span class="table-name">{{ table.name }}</span>

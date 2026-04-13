@@ -283,6 +283,90 @@ export class DatabaseService {
     }
 
     /**
+     * Supprime une seule ligne par son rowid.
+     */
+    public async deleteRow(rowid: number): Promise<void> {
+        const table = this.selectedTable();
+        if (!table) {
+            return;
+        }
+
+        await this.noxus.ipc.deleteRows({ table, rowids: [rowid] });
+
+        this.tableData.update(records =>
+            records.filter(r => (r["rowid"] as number) !== rowid)
+        );
+        this.totalCount.update(c => c - 1);
+        this.selectedRowIds.update(set => {
+            const next = new Set(set);
+            next.delete(rowid);
+            return next;
+        });
+    }
+
+    /**
+     * Insère une nouvelle ligne dans la table courante.
+     */
+    public async insertRow(values: Record<string, unknown>): Promise<DbRecord | null> {
+        const table = this.selectedTable();
+        if (!table) {
+            return null;
+        }
+
+        const response = await this.noxus.ipc.insertRow({ table, values });
+
+        if (response.record) {
+            this.tableData.update(records => [...records, response.record]);
+            this.totalCount.update(c => c + 1);
+        }
+
+        return response.record;
+    }
+
+    /**
+     * Duplique une ligne existante (récupère ses valeurs puis insère une copie).
+     */
+    public async duplicateRow(rowid: number): Promise<DbRecord | null> {
+        const table = this.selectedTable();
+        if (!table) {
+            return null;
+        }
+
+        const { record } = await this.noxus.ipc.getRow({ table, rowid });
+        if (!record) {
+            return null;
+        }
+
+        // Retirer le rowid de la copie
+        const { rowid: _, ...values } = record;
+
+        // Retirer les clés primaires auto-incrémentées
+        const schema = this.tableSchema();
+        if (schema) {
+            for (const field of schema.fields) {
+                if (field.pk) {
+                    delete (values as Record<string, unknown>)[field.name];
+                }
+            }
+        }
+
+        return this.insertRow(values as Record<string, unknown>);
+    }
+
+    /**
+     * Récupère une ligne par son rowid.
+     */
+    public async getRow(rowid: number): Promise<DbRecord | null> {
+        const table = this.selectedTable();
+        if (!table) {
+            return null;
+        }
+
+        const { record } = await this.noxus.ipc.getRow({ table, rowid });
+        return record;
+    }
+
+    /**
      * Gère les actions de transaction.
      */
     public async transactionAction(action: R_TransactionAction): Promise<void> {

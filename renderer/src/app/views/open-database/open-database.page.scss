@@ -15,7 +15,7 @@
     &.dragging {
         .drop-zone {
             border-color: var(--color-primary);
-            background: rgba(var(--color-primary-rgb), 0.08);
+            background: color-mix(in srgb, var(--color-primary), transparent 92%);
 
             .drop-icon {
                 color: var(--color-primary);

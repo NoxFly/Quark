@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
 import { DatabaseService } from "src/app/core/services/database.service";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
+import { ButtonComponent } from "@ui/button/button.component";
 
 @Component({
     selector: "app-sidebar",
     standalone: true,
     templateUrl: "./sidebar.component.html",
     styleUrl: "./sidebar.component.scss",
-    imports: [],
+    imports: [ButtonComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "[style.width.px]": "width()",
@@ -17,6 +19,7 @@ import { StateService } from "src/app/core/services/state.service";
 export class SidebarComponent {
     protected readonly state = inject(StateService);
     protected readonly dbService = inject(DatabaseService);
+    protected readonly i18n = inject(I18nService);
 
     protected readonly width = signal<number>(220);
     protected readonly isResizing = signal<boolean>(false);

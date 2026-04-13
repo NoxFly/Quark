@@ -2,13 +2,13 @@
     @if (state.needsPassword()) {
         <div class="password-prompt">
             <div class="icon">&#xE72E;</div>
-            <h2>Base de données chiffrée</h2>
-            <p>Entrez le mot de passe pour déverrouiller la base de données.</p>
+            <h2>{{ "openDb.encrypted" | translate }}</h2>
+            <p>{{ "openDb.enterPassword" | translate }}</p>
 
             <div class="password-field">
                 <input
                     type="password"
-                    placeholder="Mot de passe"
+                    [placeholder]="'openDb.password' | translate"
                     [ngModel]="password()"
                     (ngModelChange)="password.set($event)"
                     (keydown)="onPasswordKeydown($event)"
@@ -16,19 +16,19 @@
                     autofocus
                 />
                 <button (click)="submitPassword()" [disabled]="submitting() || !password()">
-                    Déverrouiller
+                    {{ "openDb.unlock" | translate }}
                 </button>
             </div>
 
             @if (passwordError()) {
-                <p class="error-message">Mot de passe incorrect ou base corrompue.</p>
+                <p class="error-message">{{ "openDb.wrongPassword" | translate }}</p>
             }
         </div>
     } @else {
         <div class="drop-zone" (click)="openFileExplorer()">
             <div class="drop-icon">&#xE8E5;</div>
-            <h2>Ouvrir une base de données SQLite</h2>
-            <p>Cliquez ici ou glissez-déposez un fichier</p>
+            <h2>{{ "openDb.title" | translate }}</h2>
+            <p>{{ "openDb.dropHint" | translate }}</p>
             <p class="shortcut">Ctrl+O</p>
         </div>
     }

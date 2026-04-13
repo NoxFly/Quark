@@ -1,0 +1,31 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+@if (visible()) {
+    <div
+        class="context-menu"
+        [style.left.px]="posX()"
+        [style.top.px]="posY()"
+    >
+        @for (item of items(); track item.label) {
+            @if (item.separator) {
+                <div class="context-menu-separator"></div>
+            } @else {
+                <button
+                    class="context-menu-item"
+                    [class.danger]="item.danger"
+                    [class.disabled]="item.disabled"
+                    (click)="onItemClick(item)"
+                >
+                    @if (item.icon) {
+                        <span class="item-icon">{{ item.icon }}</span>
+                    }
+                    <span class="item-label">{{ item.label }}</span>
+                </button>
+            }
+        }
+    </div>
+}

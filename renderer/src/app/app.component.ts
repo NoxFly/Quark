@@ -229,9 +229,11 @@ export class AppComponent {
         const files = event.dataTransfer?.files;
         if (files && files.length > 0) {
             const file = files[0];
-            const filePath = (file as any).path as string;
-            if (filePath) {
-                this.dbService.openFile(filePath);
+            if (file) {
+                const filePath = this.noxus.ipc.getFilePathFromDrop(file);
+                if (filePath) {
+                    this.dbService.openFile(filePath);
+                }
             }
         }
     }

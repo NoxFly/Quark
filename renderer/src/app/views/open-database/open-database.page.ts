@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { DatabaseService } from "src/app/core/services/database.service";
+import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
+import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 
 @Component({
     selector: "app-open-database",
@@ -9,7 +11,7 @@ import { StateService } from "src/app/core/services/state.service";
     templateUrl: "./open-database.page.html",
     styleUrl: "./open-database.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule],
+    imports: [FormsModule, TranslatePipe],
     host: {
         "(dragover)": "onDragOver($event)",
         "(dragleave)": "onDragLeave($event)",
@@ -18,6 +20,7 @@ import { StateService } from "src/app/core/services/state.service";
 })
 export class OpenDatabasePage {
     private readonly dbService = inject(DatabaseService);
+    private readonly noxus = inject(NoxusService);
     protected readonly state = inject(StateService);
 
     protected readonly isDragging = signal<boolean>(false);
@@ -82,10 +85,11 @@ export class OpenDatabasePage {
         const files = event.dataTransfer?.files;
         if (files && files.length > 0) {
             const file = files[0];
-            // Electron expose le path complet via la propriété `path`
-            const filePath = (file as any).path as string;
-            if (filePath) {
-                await this.dbService.openFile(filePath);
+            if (file) {
+                const filePath = this.noxus.ipc.getFilePathFromDrop(file);
+                if (filePath) {
+                    await this.dbService.openFile(filePath);
+                }
             }
         }
     }

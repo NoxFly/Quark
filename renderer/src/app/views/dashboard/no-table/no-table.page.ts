@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 
 @Component({
@@ -11,6 +12,7 @@ import { StateService } from "src/app/core/services/state.service";
 })
 export class NoTablePage {
     protected readonly state = inject(StateService);
+    protected readonly i18n = inject(I18nService);
 
     protected readonly tableCount = computed(() => {
         return this.state.database()?.tables.length ?? 0;

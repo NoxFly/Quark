@@ -10,9 +10,9 @@
     top: 0;
     left: 0;
     z-index: 1000;
-    transition: background-color 0.15s ease-in-out;
     user-select: none;
     border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+    background: var(--surface-alt);
 
     &.draggable {
         -webkit-app-region: drag;
@@ -29,6 +29,7 @@
     @include flex($hor: flex-start, $gap: 0px);
     height: 100%;
     flex-shrink: 0;
+    padding: 6px;
 }
 
 .menu-container {
@@ -38,6 +39,7 @@
 
 .menu-trigger {
     @include flex;
+    --btn-min-width: 0;
     height: 100%;
     padding: 0 10px;
     background: none;
@@ -59,8 +61,9 @@
     position: absolute;
     top: 100%;
     left: 0;
-    min-width: 220px;
-    background: var(--color-dark-tint);
+    min-width: 180px;
+    width: max-content;
+    background: var(--surface-alt);
     border: 1px solid rgba(127, 127, 127, 0.25);
     border-radius: 6px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -90,10 +93,11 @@
     font-size: 0.8em;
     cursor: pointer;
     text-align: left;
+    white-space: nowrap;
     transition: background-color 0.08s;
 
     &:hover:not(.disabled) {
-        background: rgba(var(--color-primary-rgb), 0.15);
+        background: rgba(127, 127, 127, 0.12);
     }
 
     &.disabled {
@@ -136,7 +140,7 @@
     }
 
     .file-name {
-        color: rgba(127, 127, 127, 0.8);
+        color: rgba(127, 127, 127, 0.4);
     }
 }
 

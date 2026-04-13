@@ -26,6 +26,7 @@ export interface IpcRendererBridge {
     loadApp(): Promise<LoadAppResult>;
     newWindow(): Promise<void>;
     quitApp(): Promise<void>;
+    getFilePathFromDrop(file: File): string;
 
     openFileDialog(): Promise<string | null>;
     openFile(filePath: string): Promise<import("./types").R_OpenFileResponse>;
@@ -35,6 +36,8 @@ export interface IpcRendererBridge {
     getTableData(body: import("./types").R_TableDataBody): Promise<import("./types").R_TableDataResponse>;
     updateCell(body: import("./types").R_UpdateCellBody): Promise<void>;
     deleteRows(body: import("./types").R_DeleteRowsBody): Promise<void>;
+    insertRow(body: import("./types").R_InsertRowBody): Promise<import("./types").R_InsertRowResponse>;
+    getRow(body: import("./types").R_GetRowBody): Promise<import("./types").R_GetRowResponse>;
     transactionAction(action: import("./types").R_TransactionAction): Promise<void>;
     exportData(body: import("./types").R_ExportBody): Promise<import("./types").R_ExportResponse>;
 

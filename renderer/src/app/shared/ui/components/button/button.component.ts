@@ -36,7 +36,7 @@ export type ButtonType = "button" | "submit" | "reset";
 export class ButtonComponent implements OnInit {
     private readonly elementRef = inject(ElementRef<HTMLElement>);
 
-    public readonly type = input.required<ButtonType>();
+    public readonly type = input<ButtonType>("button");
     public readonly color = input<ExtendedUIColor>("default");
     public readonly disabled = model<boolean>(false);
     public readonly icon = input<string | null>(null);

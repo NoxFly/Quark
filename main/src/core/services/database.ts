@@ -250,6 +250,38 @@ export class Database {
     }
 
     /**
+     * Récupère une ligne par son rowid.
+     */
+    public getRow(tableName: string, rowid: number): DbRecord | null {
+        this.ensureOpen();
+
+        const safeTable = this.escapeIdentifier(tableName);
+        const row = this.db!.prepare(`SELECT rowid, * FROM ${safeTable} WHERE rowid = ?`).get(rowid) as DbRecord | undefined;
+
+        return row ?? null;
+    }
+
+    /**
+     * Insère une nouvelle ligne dans une table.
+     * @returns Le rowid de la ligne insérée.
+     */
+    public insertRow(tableName: string, values: Record<string, unknown>): number {
+        this.ensureOpen();
+
+        const safeTable = this.escapeIdentifier(tableName);
+        const columns = Object.keys(values);
+        const safeColumns = columns.map(c => this.escapeIdentifier(c)).join(", ");
+        const placeholders = columns.map(() => "?").join(", ");
+        const params = columns.map(c => values[c]);
+
+        const result = this.db!.prepare(
+            `INSERT INTO ${safeTable} (${safeColumns}) VALUES (${placeholders})`
+        ).run(...params);
+
+        return Number(result.lastInsertRowid);
+    }
+
+    /**
      * Démarre une transaction.
      */
     public beginTransaction(): void {

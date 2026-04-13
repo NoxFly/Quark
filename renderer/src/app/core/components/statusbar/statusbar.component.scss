@@ -14,7 +14,7 @@
     @include flex($hor: space-between, $ver: center);
     height: var(--statusbar-height);
     padding: 0 12px;
-    background: var(--color-dark-shade);
+    background: var(--surface-alt);
     border-top: 1px solid rgba(127, 127, 127, 0.15);
     font-size: 0.7em;
     color: rgba(127, 127, 127, 0.7);
@@ -38,7 +38,7 @@
 .transaction-badge {
     padding: 1px 6px;
     border-radius: 3px;
-    background: rgba(var(--color-warning-rgb), 0.15);
+    background: color-mix(in srgb, var(--color-warning), transparent 85%);
     color: var(--color-warning);
     font-weight: 600;
 }

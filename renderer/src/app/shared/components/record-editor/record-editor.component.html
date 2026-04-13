@@ -1,0 +1,55 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<div class="record-editor">
+    <h2 class="editor-title">{{ getTitle() }}</h2>
+
+    @if (error()) {
+        <div class="editor-error">{{ error() }}</div>
+    }
+
+    <div class="editor-fields">
+        @for (field of formFields(); track field.def.name; let i = $index) {
+            <div class="field-row">
+                <label class="field-label" [for]="'field-' + field.def.name">
+                    <span class="field-name">{{ field.def.name }}</span>
+                    <span class="field-meta">
+                        {{ field.def.type }}
+                        @if (field.def.pk) {
+                            <span class="badge pk">PK</span>
+                        }
+                        @if (field.def.fk) {
+                            <span class="badge fk">FK → {{ field.def.fk.table }}</span>
+                        }
+                        @if (field.def.notnull) {
+                            <span class="badge notnull">NOT NULL</span>
+                        }
+                    </span>
+                </label>
+                <input
+                    [id]="'field-' + field.def.name"
+                    type="text"
+                    class="field-input"
+                    [ngModel]="field.value"
+                    (ngModelChange)="onFieldChange(i, $event)"
+                    [disabled]="field.disabled"
+                    [placeholder]="getPlaceholder(field.def)"
+                />
+            </div>
+        }
+    </div>
+
+    <div class="editor-actions">
+        <button class="btn-cancel" (click)="cancel()">{{ i18n.t("editor.cancel") }}</button>
+        <button class="btn-save" (click)="save()" [disabled]="saving()">
+            @if (saving()) {
+                {{ i18n.t("editor.saving") }}
+            } @else {
+                {{ i18n.t("editor.save") }}
+            }
+        </button>
+    </div>
+</div>

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron/renderer";
+import { contextBridge, ipcRenderer, webUtils } from "electron/renderer";
 import type {
     ErrorDialogPayload,
     IpcRendererBridge,
@@ -25,6 +25,7 @@ const api: IpcRendererBridge = {
     getTitlebarState: () => ipcRenderer.invoke("get-titlebar-state") as Promise<TitlebarState>,
     newWindow: () => ipcRenderer.invoke("new-window"),
     quitApp: () => ipcRenderer.invoke("quit-app"),
+    getFilePathFromDrop: (file: File) => webUtils.getPathForFile(file),
 
     loadApp: () => ensureLoadAppResult(),
 
@@ -37,6 +38,8 @@ const api: IpcRendererBridge = {
     getTableData: (body) => ipcRenderer.invoke("db-table-data", body),
     updateCell: (body) => ipcRenderer.invoke("db-update-cell", body),
     deleteRows: (body) => ipcRenderer.invoke("db-delete-rows", body),
+    insertRow: (body) => ipcRenderer.invoke("db-insert-row", body),
+    getRow: (body) => ipcRenderer.invoke("db-get-row", body),
     transactionAction: (action) => ipcRenderer.invoke("db-transaction", action),
     exportData: (body) => ipcRenderer.invoke("db-export", body),
 

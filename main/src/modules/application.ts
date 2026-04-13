@@ -1,11 +1,13 @@
 import { IApp, inject, Injectable, Logger, WindowManager } from "@noxfly/noxus/main";
-import { app, BrowserWindow, dialog, ipcMain } from "electron/main";
+import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron/main";
 import { Window } from "src/core/services/window";
 import { normalize, basename } from "node:path";
 import { environment } from "src/core/environment";
 import type {
     R_DeleteRowsBody,
     R_ExportBody,
+    R_GetRowBody,
+    R_InsertRowBody,
     R_TableDataBody,
     R_TransactionAction,
     R_UpdateCellBody,
@@ -84,6 +86,35 @@ export class Application implements IApp {
     public async onReady(): Promise<void> {
         this.setupBridge();
         this.setupDbBridge();
+
+        // Menu contextuel de la barre des tâches (clic droit sur l'icône)
+        const dockMenu = Menu.buildFromTemplate([
+            {
+                label: "New Window",
+                click: () => {
+                    Window.create(this.wm).then(w => {
+                        this.windows.set(w.id, w);
+                    });
+                },
+            },
+        ]);
+
+        if (process.platform === "darwin") {
+            app.dock?.setMenu(dockMenu);
+        }
+        else {
+            // Sur Windows/Linux, on utilise le menu de la barre des tâches via jumplist
+            app.setUserTasks([
+                {
+                    program: process.execPath,
+                    arguments: "--new-window",
+                    iconPath: process.execPath,
+                    iconIndex: 0,
+                    title: "New Window",
+                    description: "Open a new window",
+                },
+            ]);
+        }
 
         const baseWindow = await Window.create(this.wm);
         this.windows.set(baseWindow.id, baseWindow);
@@ -283,6 +314,28 @@ export class Application implements IApp {
             }
 
             return window.database.exportData(body.table, body.format, body.rowids, body.filter);
+        });
+
+        ipcMain.handle("db-insert-row", (_event, body: R_InsertRowBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            const rowid = window.database.insertRow(body.table, body.values);
+            const record = window.database.getRow(body.table, rowid);
+
+            return { rowid, record };
+        });
+
+        ipcMain.handle("db-get-row", (_event, body: R_GetRowBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            const record = window.database.getRow(body.table, body.rowid);
+            return { record };
         });
 
         ipcMain.handle("db-refresh", (_event) => {

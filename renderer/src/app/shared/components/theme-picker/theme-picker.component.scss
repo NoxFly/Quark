@@ -16,7 +16,7 @@
 .theme-sheet {
     min-width: 280px;
     max-width: 360px;
-    background: var(--color-dark-tint);
+    background: var(--surface-alt);
     border: 1px solid rgba(127, 127, 127, 0.25);
     border-radius: 8px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -41,10 +41,11 @@
     font-weight: 600;
     color: rgba(127, 127, 127, 0.6);
     border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+    user-select: none;
 }
 
 .theme-list {
-    padding: 4px 0;
+    padding: 4px;
 }
 
 .theme-option {
@@ -60,11 +61,11 @@
     transition: background-color 0.08s;
 
     &:hover {
-        background: rgba(var(--color-primary-rgb), 0.1);
+        background: rgba(127, 127, 127, 0.12);
     }
 
     &.selected {
-        background: rgba(var(--color-primary-rgb), 0.15);
+        background: rgba(127, 127, 127, 0.12);
         color: var(--color-primary);
     }
 

@@ -104,3 +104,22 @@ export type R_ExportResponse = {
     filename: string;
 };
 
+export type R_InsertRowBody = {
+    table: string;
+    values: Record<string, unknown>;
+};
+
+export type R_InsertRowResponse = {
+    rowid: number;
+    record: DbRecord;
+};
+
+export type R_GetRowBody = {
+    table: string;
+    rowid: number;
+};
+
+export type R_GetRowResponse = {
+    record: DbRecord | null;
+};
+

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from "@angular/core";
 import { DatabaseService } from "src/app/core/services/database.service";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 
 @Component({
@@ -15,6 +16,7 @@ import { StateService } from "src/app/core/services/state.service";
 export class StatusbarComponent {
     protected readonly state = inject(StateService);
     protected readonly dbService = inject(DatabaseService);
+    private readonly i18n = inject(I18nService);
 
     protected readonly recordInfo = computed(() => {
         const loaded = this.dbService.tableData().length;
@@ -25,7 +27,7 @@ export class StatusbarComponent {
             return "";
         }
 
-        return `${loaded} / ${total} lignes`;
+        return this.i18n.t("statusbar.rows", { loaded, total });
     });
 
     protected readonly tableName = computed(() => this.dbService.selectedTable());
@@ -35,10 +37,10 @@ export class StatusbarComponent {
         if (count === 0) {
             return "";
         }
-        return `${count} sélectionnée${count > 1 ? "s" : ""}`;
+        return this.i18n.t("statusbar.selected", { count });
     });
 
     protected readonly transactionInfo = computed(() => {
-        return this.dbService.inTransaction() ? "Transaction active" : "";
+        return this.dbService.inTransaction() ? this.i18n.t("statusbar.transaction") : "";
     });
 }

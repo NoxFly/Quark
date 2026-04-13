@@ -7,7 +7,7 @@
     height: 100%;
     min-width: 150px;
     max-width: 500px;
-    background: var(--color-dark-shade);
+    background: var(--surface-alt);
     overflow: hidden;
     transition: width 0.05s ease;
 
@@ -18,7 +18,6 @@
 
 .sidebar-header {
     @include flex($hor: space-between, $ver: center);
-    padding: 10px 12px;
     border-bottom: 1px solid rgba(127, 127, 127, 0.15);
     flex-shrink: 0;
 
@@ -33,29 +32,51 @@
     }
 
     .header-actions {
-        @include flex($gap: 2px);
+        @include flex;
         flex-shrink: 0;
+        flex: 1;
     }
 
     .header-btn {
-        @include flex;
-        background: none;
+        --btn-min-width: 0;
+        --btn-padding: 5px 10px;
         border: none;
-        color: rgba(127, 127, 127, 0.6);
-        font-family: "Segoe Fluent Icons", sans-serif;
         font-size: 0.7em;
         cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
-        transition: all 0.15s;
+        margin: 0;
+        flex: 1;
+        width: 100%;
+        --btn-width: 100%;
+        --btn-radius: 0;
+
+        ::ng-deep {
+            button {
+                --bg-color: transparent;
+                // --fg-color: rgba(127, 127, 127, 0.6);
+
+                ui-icon {
+                    --icon-size: .7rem;
+                    font-size: .7rem;
+                }
+            }
+        }
 
         &:hover {
             background: rgba(127, 127, 127, 0.15);
             color: var(--text-color);
         }
 
-        &.close-btn:hover {
-            color: var(--color-danger);
+        &.close-btn {
+            ::ng-deep {
+                button {
+                    --fg-color: var(--color-danger);
+
+                    &:hover {
+                        --bg-color: color-mix(in srgb, var(--color-danger), transparent 92%);
+                        --fg-color: var(--color-danger);
+                    }
+                }
+            }
         }
     }
 }
@@ -76,7 +97,7 @@
         padding: 6px 12px;
         cursor: pointer;
         font-size: 0.8em;
-        color: rgba(var(--text-color-rgb), 0.7);
+        color: color-mix(in srgb, var(--text-color), transparent 20%);
         transition: all 0.1s;
         user-select: none;
 
@@ -86,7 +107,7 @@
         }
 
         &.active {
-            background: rgba(var(--color-primary-rgb), 0.15);
+            background: color-mix(in srgb, var(--color-primary), transparent 85%);
             color: var(--color-primary);
 
             .table-icon {
@@ -124,8 +145,20 @@
     cursor: col-resize;
     z-index: 10;
 
-    &:hover,
-    &:active {
-        background: rgba(var(--color-primary-rgb), 0.3);
+    &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: 2px;
+        height: 100%;
+        transform: translateX(-50%);
+        background: transparent;
+        transition: background 0.15s;
+    }
+
+    &:hover::after,
+    &:active::after {
+        background: var(--interactive, var(--color-primary));
     }
 }
