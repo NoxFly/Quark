@@ -1,0 +1,25 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<input
+    type="checkbox"
+    [id]="id"
+    [disabled]="isDisabled() !== false"
+    [checked]="checked()"
+    (input)="handleInput($event)"
+    (focus)="handleFocus()"
+    (blur)="handleBlur()"
+    #input/>
+
+@if(labelLeft()) {
+    <label class="label-left" [for]="id" part="label-left">{{ labelLeft() }}</label>
+}
+
+<div class="toggle" (click)="toggle()"></div>
+
+@if(labelRight()) {
+    <label class="label-right" [for]="id" part="label-right">{{ labelRight() }}</label>
+}

@@ -1,0 +1,32 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<div class="toast-container">
+    <div class="toast-content" [class]="{ closable: closable() }">
+        <p class="message">{{ message() }}</p>
+
+        @if(hasActions()) {
+            <div class="actions">
+                @for(action of actions(); track action.text) {
+                    <button (click)="onActionClicked(action)">
+                        {{ action.text }}
+                    </button>
+                }
+            </div>
+        }
+
+        @if(closable()) {
+            <button class="clear close-button" (click)="close()">
+                &times;
+            </button>
+        }
+
+    </div>
+
+    @if(hasDuration()) {
+        <div class="toast-duration-bar"></div>
+    }
+</div>

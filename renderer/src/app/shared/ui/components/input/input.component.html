@@ -1,0 +1,48 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+@if(label()) {
+    <label [for]="id" [class]="'placement-'+labelPlacement()">{{ label() }}</label>
+}
+
+<div class="input-container">
+    @if(icon(); as srcIcon) {
+        <ui-icon
+            class="input-icon"
+            [src]="srcIcon"
+            [attr.aria-hidden]="true"/>
+    }
+
+    <input
+        [id]="id"
+        [type]="type()"
+        [placeholder]="placeholder()"
+        [pattern]="pattern()"
+        [autocomplete]="autocomplete()"
+        [value]="value()"
+        [checked]="checked()"
+        (input)="handleInput($event)"
+        #input/>
+
+    @if(type() === 'radio' || type() === 'checkbox') {
+        <span></span>
+    }
+
+    @if(type() === 'password' && isDisabled() !== false && togglePassword()) {
+        <ui-icon
+            class="password-icon"
+            src="assets/svg/eye-fill.svg"
+            (click)="togglePasswordVisibility()"/>
+    }
+</div>
+
+@if(type() === 'text' && suggestions().length > 0 && hasFocus()) {
+    <div class="datalist" [id]="id + '-suggestion'">
+        @for(suggestion of suggestions(); track suggestion) {
+            <option [value]="suggestion" (mousedown)="$event.preventDefault(); selectSuggestion(suggestion)">{{ suggestion }}</option>
+        }
+    </div>
+}

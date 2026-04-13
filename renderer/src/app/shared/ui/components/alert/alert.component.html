@@ -1,0 +1,44 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<div class="alert-backdrop"></div>
+
+<div class="alert-content">
+    @if(title()) {
+        <h4>{{ title() }}</h4>
+    }
+
+    @if(message()) {
+        <p class="message" [innerHTML]="getPrettyMessage() | bypass: 'html'"></p>
+    }
+
+    @if(hasDetails()) {
+        <div class="details">
+            <button class="btn-details clear btn-primary" [class]="{ opened: detailsOpened() }" (click)="toggleDetails()">
+                {{ detailsOpened() ? 'Cacher' : 'Afficher' }} les détails
+            </button>
+
+            @if(detailsOpened()) {
+                <div [innerHTML]="formattedDetails() | bypass: 'html'"></div>
+            }
+        </div>
+    }
+
+    @if(hasActions()) {
+        <div class="actions">
+            @for(action of actions(); track action.text) {
+                <ui-button
+                    type="button"
+                    [class]="'btn-' + getButtonRoleClass(action)"
+                    [color]="action.color ?? getButtonRoleClass(action)"
+                    [icon]="action.icon ?? null"
+                    (click)="onActionClicked(action)">
+                    {{ action.text }}
+                </ui-button>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,12 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<ng-content></ng-content>
+<ui-spinner color="primary"/>
+
+@if(message() !== undefined && message() !== '') {
+    <p class="message">{{ message() }}</p>
+}

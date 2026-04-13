@@ -1,0 +1,20 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+@if(isImage() || isSVG()) {
+    @if(isSVG()) {
+        <span class="icon icon-svg" [innerHTML]="content() | bypass: 'html'"></span>
+    }
+
+    @if(isImage()) {
+        <span class="icon icon-image" [style.--icon-url]="'url(' + src() + ')'"></span>
+    }
+}
+@else {
+    <span class="unicode-icon" [innerHTML]="getUnicode(src()) | bypass:'html'"></span>
+}
+
+

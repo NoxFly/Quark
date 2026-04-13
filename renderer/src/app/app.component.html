@@ -1,0 +1,18 @@
+@let ready = isReady();
+
+<app-titlebar></app-titlebar>
+
+<section>
+    <app-sidebar></app-sidebar>
+
+    @if(ready) {
+        <main class="main">
+            <router-outlet/>
+        </main>
+    }
+</section>
+
+@if(!ready) {
+    <app-loading-screen [showContent]="!isReloading"></app-loading-screen>
+}
+

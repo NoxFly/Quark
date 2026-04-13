@@ -1,0 +1,67 @@
+@use 'src/theme/mixins.scss' as *;
+
+.titlebar {
+    @include flex($dir: row-reverse, $hor: flex-start, $ver: stretch);
+
+    width: 100vw;
+    height: var(--titlebar-height);
+    isolation: isolate;
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    transition: background-color .15s ease-in-out;
+    user-select: none;
+    border-bottom: 1px  solid rgba(127, 127, 127, 0.2);
+
+    &.draggable {
+        -webkit-app-region: drag;
+    }
+
+    .app-name {
+        @include absolute($left: 0, $tx: 0);
+        @include flex;
+
+        margin-left: 10px;
+        font-size: .75em;
+        font-weight: 700;
+        color: rgb(127, 127, 127);
+        height: 100%;
+    }
+
+    .actions {
+        @include flex($hor: flex-end, $gap: 5px);
+    }
+
+    .action {
+        @include flex;
+
+        background: none;
+        border: none;
+        width: var(--titlebar-height);
+        height: var(--titlebar-height);
+        border-radius: 0;
+        position: relative;
+        cursor: pointer;
+        z-index: 2;
+        -webkit-app-region: no-drag;
+        pointer-events: auto;
+        color: #999;
+        text-align: center;
+        transition: background-color .1s ease-in-out, color .1s ease-in-out;
+
+        svg {
+            vertical-align: middle;
+        }
+
+        &:hover {
+            background-color: rgba(127, 127, 127, 0.2);
+            border-bottom: 1px solid rgba(127, 127, 127, 0.4);
+        }
+
+        &.close:hover {
+            background-color: rgba(255, 0, 0, 0.8);
+            color: #fff;
+        }
+    }
+}

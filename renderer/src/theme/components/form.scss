@@ -1,0 +1,143 @@
+@use 'src/theme/mixins.scss' as *;
+
+input:not(:where([type="checkbox"], [type="radio"])) {
+    min-width: 150px;
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    // border-bottom-color: rgba(127, 127, 127, 0.2);
+    background: var(--color-light-shade);
+    color: var(--text-color);
+    border-radius: 3px 3px 0 0;
+    transition: border-color 0.3s ease;
+    font-size: 1rem;
+    font-family: var(--default-font-family);
+    height: 32px;
+    cursor: default;
+
+    &:not(:disabled):not(:read-only) {
+        cursor: initial;
+
+        &:hover {
+            border-color: rgba(127, 127, 127, 0.2);
+            border-bottom-color: var(--color-primary-tint);
+        }
+
+        &:focus {
+            border-bottom-color: var(--color-primary-shade);
+        }
+    }
+
+    &[type="date"] {
+        background: var(--color-light-tint);
+        border-radius: 3px;
+        border: 1px solid var(--color-light-shade);
+        width: 150px;
+        min-width: 120px;
+        text-align: center;
+        padding: 8px 0 12px 0;
+        height: 38px;
+        user-select: none;
+
+        &:not(:disabled):not(:read-only) {
+            &:hover {
+                border-color: rgba(127, 127, 127, 0.8);
+            }
+
+            &:focus {
+                border-color: var(--color-primary);
+            }
+        }
+    }
+}
+
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
+}
+
+
+label[for] {
+    cursor: pointer;
+    user-select: none;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+    appearance: none;
+    aspect-ratio: 1/1;
+    height: 18px;
+    position: relative;
+    border: 1px solid var(--color-medium);
+    background: none;
+    transition-duration: .2s;
+    cursor: pointer;
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(.5);
+        width: 50%;
+        aspect-ratio: 1/1;
+        background: linear-gradient(0deg, var(--color-primary), var(--color-primary-tint));
+        opacity: 0;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        border-radius: inherit;
+    }
+
+    &:active {
+        transform: scale(.8);
+    }
+
+    &:checked {
+        border-color: var(--color-primary);
+
+        &::after {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+    }
+}
+
+input[type="radio"] {
+    border-radius: 100%;
+}
+
+.radio-item,
+.checkbox-item {
+    @include flex($disp: inline-flex);
+
+    margin: 10px;
+    gap: 10px;
+}
+
+
+textarea {
+    min-width: 150px;
+    min-height: 80px;
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-bottom-color: rgba(127, 127, 127, 0.2);
+    background: var(--color-light);
+    color: var(--text-color);
+    border-radius: 3px 3px 0 0;
+    transition: border-color 0.3s ease;
+    font-size: 1em;
+    font-family: inherit;
+    resize: none;
+    cursor: text;
+    margin: 10px 0;
+
+    &:not(:disabled):not(:read-only) {
+        &:hover {
+            border-color: rgba(127, 127, 127, 0.2);
+            border-bottom-color: var(--color-primary-tint);
+        }
+
+        &:focus {
+            border-bottom-color: var(--color-primary-shade);
+        }
+    }
+}

@@ -1,0 +1,237 @@
+/**
+ * @copyright Dorian Thivolle
+ * @license MIT
+ * @see https://github.com/NoxFly
+ */
+
+
+
+@use 'src/theme/mixins.scss' as *;
+
+
+:host {
+    margin: 10px;
+    display: inline-block;
+    position: relative;
+
+    &.round ::ng-deep button {
+        border-radius: 20em;
+    }
+
+    a {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        opacity: 0;
+
+        &::after {
+            display: none;
+        }
+    }
+
+    ::ng-deep {
+        button {
+            @include flex;
+
+            background: var(--bg-color);
+            color: var(--fg-color);
+            width: var(--btn-width, fit-content);
+
+            a {
+                color: var(--fg-color);
+                text-decoration: none;
+                display: inline-block;
+            }
+
+            ui-icon {
+                --icon-size: calc(var(--btn-height, 40px) * 0.4);
+
+                margin: 0;
+            }
+
+            &.icon-left {
+                .content {
+                    margin-left: 6px;
+                }
+            }
+
+            &.icon-right {
+                flex-direction: row-reverse;
+
+                ui-icon {
+                    font-size: calc(var(--btn-height, 40px) * 0.4);
+                    margin-left: 6px;
+                }
+            }
+
+            &[disabled] {
+                opacity: 0.5;
+                cursor: default;
+                pointer-events: none;
+                filter: grayscale(100%);
+            }
+        }
+
+        &[data-color="default"] {
+            --bg-color: var(--background-color-shade);
+            --fg-color: var(--text-color);
+        }
+
+        &[data-color="success"] {
+            --bg-color: color-mix(in srgb, var(--status-success), #fff 85%);
+            --fg-color: var(--status-success-fg);
+        }
+
+        &[data-color="warning"] {
+            --bg-color: var(--status-warning-emphasis);
+            --fg-color: var(--status-warning-fg);
+        }
+
+        &[data-color="danger"] {
+            --bg-color: color-mix(in srgb, var(--status-danger), #fff 10%);
+            --fg-color: var(--status-danger-fg);
+        }
+
+        &[data-color="medium"] {
+            --bg-color: var(--neutral);
+            --fg-color: var(--neutral-fg);
+        }
+
+        &[data-color="dark"] {
+            --bg-color: var(--surface-dark);
+            --fg-color: var(--text-inverse);
+        }
+
+        &[data-color="light"] {
+            --bg-color: var(--surface-alt);
+            --fg-color: var(--text);
+        }
+
+        &[data-color="primary"] {
+            --bg-color: var(--interactive);
+            --fg-color: var(--interactive-fg);
+        }
+
+        &[data-color="secondary"] {
+            --bg-color: var(--accent-secondary);
+            --fg-color: var(--accent-secondary-fg);
+        }
+
+        &[data-color="tertiary"] {
+            --bg-color: var(--accent-tertiary);
+            --fg-color: var(--accent-tertiary-fg);
+        }
+
+        &[data-color="primary-gradient"] {
+            @extend .gradient-btn;
+
+            --bg-color: linear-gradient(45deg, var(--interactive-hover), var(--interactive));
+            --fg-color: var(--interactive-fg);
+
+            transition: filter .2s;
+
+            button {
+                border: 1px solid transparent;
+            }
+
+            &:hover {
+                filter: brightness(1.2);
+            }
+        }
+
+        &[data-color="danger-gradient"] {
+            @extend .gradient-btn;
+
+            --bg-color: linear-gradient(45deg, var(--status-danger-emphasis), var(--status-danger));
+            --fg-color: var(--status-danger-fg);
+
+            button {
+                border: 1px solid transparent;
+            }
+
+            &:hover {
+                filter: brightness(1.1);
+            }
+        }
+
+        &[data-color="success-gradient"] {
+            @extend .gradient-btn;
+
+            --bg-color: linear-gradient(45deg, var(--status-success), var(--status-success-subtle));
+            --fg-color: var(--status-success-fg);
+
+            button {
+                border: 1px solid transparent;
+            }
+
+            &:hover {
+                filter: brightness(1.1);
+            }
+        }
+
+        &[data-color="warning-gradient"] {
+            @extend .gradient-btn;
+
+            --bg-color: linear-gradient(45deg, var(--status-warning-emphasis), var(--status-warning-subtle));
+            --fg-color: var(--status-warning-fg);
+
+            button {
+                border: 1px solid transparent;
+            }
+
+            &:hover {
+                filter: brightness(1.1);
+            }
+        }
+
+        &[data-color="windows"],
+        &[data-color="windows-error"],
+        &[data-color="windows-light"] {
+            --bg-color: transparent;
+            --fg-color: var(--text-color);
+            // --btn-radius: 0;
+            --btn-min-width: 0;
+            --btn-width: fit-content;
+            --btn-padding: 12px 15px;
+
+            // font-size: .8rem;
+            border: 1px solid transparent;
+
+            &:hover {
+                --bg-color: color-mix(in srgb, var(--neutral), transparent 90%);
+                border-color: color-mix(in srgb, var(--neutral), transparent 70%);
+                outline: none;
+            }
+        }
+
+        &[data-color="windows-error"] {
+            --fg-color: var(--status-danger);
+
+            &:hover {
+                --bg-color: color-mix(in srgb, var(--status-danger), transparent 90%);
+                border-color: color-mix(in srgb, var(--status-danger), transparent 70%);
+                outline: none;
+            }
+        }
+
+        &[data-color="windows-light"] {
+            --fg-color: var(--surface);
+
+            &:hover {
+                --bg-color: color-mix(in srgb, var(--surface), transparent 90%);
+                border-color: color-mix(in srgb, var(--surface), transparent 70%);
+                outline: none;
+            }
+        }
+    }
+}
+
+
+.gradient-btn {
+    padding: var(--btn-padding, 7px 27px);
+    background-size: calc(100% + 4px) calc(100% + 4px);
+    background-position: -2px -2px;
+}

@@ -1,0 +1,20 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+@if(label()) {
+    <label [for]="id">{{ label() }}</label>
+}
+
+<input
+    type="checkbox"
+    [id]="id"
+    [disabled]="disabled()"
+    (change)="handleInput($event)"
+    (focus)="handleFocus()"
+    (blur)="handleBlur()"
+    #input/>
+
+<div class="switch" (click)="toggle()"></div>

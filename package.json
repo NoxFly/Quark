@@ -1,0 +1,43 @@
+{
+    "private": true,
+    "main": "./dist/main.js",
+    "license": "MIT",
+    "name": "sqlite-editor",
+    "productName": "SQLiteEditor",
+    "description": "A simple SQLite database editor.",
+    "productDescription": "A simple SQLite database editor.",
+    "version": "0.0.1",
+    "author": {
+        "name": "NoxFly"
+    },
+    "scripts": {
+        "postinstall": "npx electron-rebuild",
+        "build:main": "tsup",
+        "build:renderer": "cd renderer && npm run build:prod",
+        "build": "npm run build:main:prod && npm run build:renderer",
+        "build:main:dev": "cross-env NODE_ENV=development     npm run build:main",
+        "build:main:prod": "cross-env NODE_ENV=production     npm run build:main",
+        "start": "electron .",
+        "dev": "npm run build:main:dev && electron --enable-source-maps .",
+        "make": "electron-builder --config electron-builder.config.js",
+        "package": "electron-builder --dir --config electron-builder.config.js",
+        "typecheck": "tsc --noEmit",
+        "check": "biome check --write ."
+    },
+    "devDependencies": {
+        "@biomejs/biome": "2.2.7",
+        "@electron/fuses": "^2.1.0",
+        "@electron/rebuild": "^4.0.3",
+        "@types/node": "^24.1.0",
+        "cross-env": "^10.1.0",
+        "electron": "^41.0.0",
+        "electron-builder": "^26.8.1",
+        "tsup": "^8.5.1",
+        "typescript": "^5.9.3",
+        "vitest": "^4.1.0"
+    },
+    "dependencies": {
+        "@noxfly/noxus": "^3.0.0-dev.12",
+        "better-sqlite3-multiple-ciphers": "^12.8.0"
+    }
+}

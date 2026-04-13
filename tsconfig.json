@@ -1,0 +1,27 @@
+{
+    "compilerOptions": {
+        "baseUrl": "./main",
+        "rootDir": "./main/src",
+        "target": "ES2020",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "experimentalDecorators": false,
+        "emitDecoratorMetadata": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "noImplicitOverride": true,
+        "noPropertyAccessFromIndexSignature": false,
+        "noUncheckedIndexedAccess": false,
+        "paths": {
+            "@shared/*": ["../shared/*"],
+        },
+    },
+    "include": [
+        "main/src/**/*.ts",
+        "main/src/**/*.d.ts",
+        "../shared/**/*.d.ts",
+        "node_modules/electron/electron.d.ts"
+    ]
+}

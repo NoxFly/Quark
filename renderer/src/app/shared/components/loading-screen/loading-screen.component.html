@@ -1,0 +1,10 @@
+@if(showContent()) {
+    @if(!message()) {
+        <figure class="app-logo zoom-effect"></figure>
+    }
+    @else {
+        <p class="message">{{ message() }}</p>
+    }
+
+    <ui-spinner color="primary"/>
+}

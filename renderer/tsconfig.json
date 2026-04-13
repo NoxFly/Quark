@@ -1,0 +1,44 @@
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+{
+    "compileOnSave": false,
+    "compilerOptions": {
+        "rootDir": "src",
+        "baseUrl": ".",
+        "moduleResolution": "bundler",
+        "target": "ES2022",
+        "module": "ES2022",
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "sourceMap": true,
+        "declaration": false,
+        "experimentalDecorators": false,
+        "importHelpers": true,
+        "esModuleInterop": true,
+        "useDefineForClassFields": false,
+        "noPropertyAccessFromIndexSignature": false,
+        "noUncheckedIndexedAccess": true,
+        "skipLibCheck": true,
+        "noImplicitAny": false,
+        "paths": {
+            "@shared/*": ["../shared/*"],
+            "@models/*": ["../shared/models/*"],
+            "@ui/*": ["src/app/shared/ui/components/*"]
+        }
+    },
+    "angularCompilerOptions": {
+        "enableI18nLegacyMessageIdFormat": false,
+        "strictInjectionParameters": true,
+        "strictInputAccessModifiers": true,
+        "strictTemplates": true,
+        "strictStandalone": true,
+    },
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.d.ts",
+        "../shared/**/*.d.ts"
+    ],
+}

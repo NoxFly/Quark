@@ -1,0 +1,39 @@
+/**
+ * @copyright Dorian Thivolle
+ * @license MIT
+ * @see https://github.com/NoxFly
+ */
+
+
+
+@use 'src/theme/mixins.scss' as *;
+
+:host {
+    width: var(--icon-size, 24px);
+    height: var(--icon-size, 24px);
+    aspect-ratio: 1 / 1;
+    display: inline-block;
+
+    .icon {
+        width: 100%;
+        height: 100%;
+        display: inline-block;
+    }
+
+    .icon-image {
+        @include mask($image: var(--icon-url), $background: currentcolor);
+    }
+
+    .unicode-icon {
+        font-family: "Segoe Fluent Icons";
+        font-weight: 400;
+        font-style: normal;
+        font-size: inherit;
+    }
+
+    &:not([nomargin]) {
+        .unicode-icon {
+            margin-right: 6px;
+        }
+    }
+}

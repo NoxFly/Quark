@@ -1,0 +1,54 @@
+/**
+ * @copyright Dorian Thivolle
+ * @license MIT
+ * @see https://github.com/NoxFly
+ */
+
+
+
+:host {
+    display: block;
+    padding: 10px 15px;
+    cursor: pointer;
+    position: relative;
+    transition-duration: .05s;
+    font-size: .8rem;
+
+    &::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        width: 2px;
+        background: var(--interactive);
+        transform: translateY(-50%);
+        transition: height .2s ease-out;
+        height: 0;
+    }
+
+    &:hover {
+        background: color-mix(in srgb, var(--surface-alt), var(--interactive) 10%);
+    }
+
+    &.selected {
+        padding-left: 25px;
+
+        &::before {
+            height: 15px;
+
+            @starting-style {
+                height: 0;
+            }
+        }
+    }
+
+    &.hidden {
+        display: none;
+    }
+
+    &.disabled {
+        opacity: 0.3;
+        pointer-events: none;
+        cursor: default;
+    }
+}

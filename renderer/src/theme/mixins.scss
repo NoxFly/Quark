@@ -1,0 +1,56 @@
+@mixin appear-slide-up($tx: 0, $ty: 0, $delay: 0s) {
+    transition: opacity .5s $delay ease, transform .5s $delay ease;
+
+    @starting-style {
+        opacity: 0;
+        transform: translate($tx, calc($ty + 20px));
+    }
+}
+
+@mixin flex($disp: flex, $dir: row, $wrap: nowrap, $hor: center, $ver: center, $gap: 0) {
+	display: $disp;
+	flex-flow: $dir $wrap;
+    gap: $gap;
+
+    @if $dir == row or $dir == row-reverse {
+        justify-content: $hor;
+        align-items: $ver;
+    }
+    @else {
+        justify-content: $ver;
+        align-items: $hor;
+    }
+}
+
+@mixin absolute($top: 50%, $left: 50%, $tx: -50%, $ty: -50%, $right: null, $otherTransforms: null) {
+	position: absolute;
+	top: $top;
+	left: $left;
+
+    @if $otherTransforms != null {
+	    transform: translate($tx, $ty) $otherTransforms;
+    }
+    @else {
+        transform: translate($tx, $ty);
+    }
+
+	@if $right != null {
+		right: $right;
+	}
+}
+
+@mixin mask($image: unset, $background: unset) {
+	mask-mode: alpha;
+	mask-repeat: no-repeat;
+	mask-origin: content-box;
+	mask-position: center;
+	mask-size: contain;
+
+	@if $image != unset {
+		mask-image: $image;
+	}
+
+	@if $background != unset {
+		background: $background;
+	}
+}

@@ -1,0 +1,119 @@
+{
+    "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+    "version": 1,
+    "newProjectRoot": "projects",
+    "projects": {
+        "capcaisse-renderer": {
+            "projectType": "application",
+            "root": "src",
+            "sourceRoot": "src",
+            "prefix": "app",
+            "architect": {
+                "build": {
+                    "builder": "@angular/build:application",
+                    "options": {
+                        "outputPath": {
+                            "base": "../dist/browser",
+                            "browser": ""
+                        },
+                        "index": "src/index.html",
+                        "browser": "src/main.ts",
+                        "polyfills": [],
+                        "tsConfig": "./tsconfig.json",
+                        "inlineStyleLanguage": "scss",
+                        "assets": [
+                            {
+                                "glob": "**/*",
+                                "input": "./public"
+                            }
+                        ],
+                        "styles": [
+                            "src/theme/variables.scss",
+                            "src/styles.scss"
+                        ],
+                        "scripts": [],
+                        "allowedCommonJsDependencies": [
+                            "reflect-metadata"
+                        ]
+                    },
+                    "configurations": {
+                        "production": {
+                            "budgets": [
+                                {
+                                    "type": "initial",
+                                    "maximumWarning": "500MB",
+                                    "maximumError": "1MB"
+                                },
+                                {
+                                    "type": "anyComponentStyle",
+                                    "maximumWarning": "2MB",
+                                    "maximumError": "4MB"
+                                }
+                            ],
+                            "fileReplacements": [
+                                {
+                                    "replace": "src/environments/environment.ts",
+                                    "with": "src/environments/environment.prod.ts"
+                                }
+                            ],
+                            "outputHashing": "all",
+                            "baseHref": "./"
+                        },
+                        "development": {
+                            "optimization": false,
+                            "extractLicenses": false,
+                            "sourceMap": true,
+                            "baseHref": "./"
+                        }
+                    },
+                    "defaultConfiguration": "production"
+                },
+                "serve": {
+                    "builder": "@angular/build:dev-server",
+                    "configurations": {
+                        "production": {
+                            "buildTarget": "capcaisse-renderer:build:production"
+                        },
+                        "development": {
+                            "buildTarget": "capcaisse-renderer:build:development"
+                        }
+                    },
+                    "defaultConfiguration": "development"
+                },
+                "extract-i18n": {
+                    "builder": "@angular/build:extract-i18n"
+                }
+            }
+        }
+    },
+    "cli": {
+      "analytics": false
+    },
+    "schematics": {
+        "@schematics/angular:component": {
+            "style": "scss",
+            "skipTests": true
+        },
+        "@schematics/angular:class": {
+            "skipTests": true
+        },
+        "@schematics/angular:directive": {
+            "skipTests": true
+        },
+        "@schematics/angular:guard": {
+            "skipTests": true
+        },
+        "@schematics/angular:interceptor": {
+            "skipTests": true
+        },
+        "@schematics/angular:pipe": {
+            "skipTests": true
+        },
+        "@schematics/angular:resolver": {
+            "skipTests": true
+        },
+        "@schematics/angular:service": {
+            "skipTests": true
+        }
+    }
+}

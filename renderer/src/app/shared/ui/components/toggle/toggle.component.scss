@@ -1,0 +1,119 @@
+/**
+ * @copyright Dorian Thivolle
+ * @license MIT
+ * @see https://github.com/NoxFly
+ */
+
+
+
+@use 'src/theme/mixins.scss' as *;
+
+:host {
+    --height: 24px;
+
+    display: block;
+    margin: 10px 0;
+
+    input {
+        display: none;
+        pointer-events: none;
+    }
+
+    label {
+        display: inline-block;
+        user-select: none;
+    }
+
+    &:not(.arrow) {
+        .toggle {
+            position: relative;
+            width: calc(var(--height) * 2);
+            height: var(--height);
+            border-radius: 2.5rem;
+            background-color: var(--toggle-bg, var(--background-color-shade));
+            transition: background-color 0.3s;
+            cursor: pointer;
+
+            &::after {
+                content: '';
+                position: absolute;
+                top: 2px;
+                left: 2px;
+                width: calc(var(--height) - 4px);
+                height: calc(var(--height) - 4px);
+                border-radius: 50%;
+                background-color: var(--toggle-knob-bg, var(--interactive-fg));
+                transition-duration: 0.3s;
+            }
+        }
+
+        &.label-inline {
+            label, .toggle {
+                display: inline-block;
+                vertical-align: middle;
+                overflow: hidden;
+            }
+
+            .label-left {
+                margin-right: 10px;
+            }
+
+            .label-right {
+                margin-left: 10px;
+            }
+        }
+
+        &.label-block {
+            .label-left {
+                margin-bottom: 5px;
+            }
+
+            .label-right {
+                margin-top: 5px;
+            }
+        }
+
+        &.checked {
+            .toggle {
+                background-color: var(--toggle-checked-bg, var(--interactive));
+
+                &::after {
+                    transform: translateX(calc(125% - 2px));
+                }
+            }
+        }
+    }
+
+    &.arrow {
+        display: inline-block;
+        padding: 5px;
+        border-radius: 6px;
+        border: 1px solid rgba(127, 127, 127, 0.05);
+        background: rgba(127, 127, 127, 0.05);
+
+        .toggle {
+            display: none;
+        }
+
+        label {
+            display: inline-block;
+            padding: 7px 10px;
+            border-radius: 6px;
+            background-color: transparent;
+            color: var(--text-secondary);
+            margin: 0;
+            opacity: 0.7;
+
+            &.label-right {
+                margin-left: 5px;
+            }
+        }
+
+        &:not(.checked) .label-left,
+        &.checked .label-right {
+            background-color: var(--surface-alt);
+            opacity: 1;
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.05);
+        }
+    }
+}

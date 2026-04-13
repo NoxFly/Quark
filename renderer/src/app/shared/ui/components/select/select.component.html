@@ -1,0 +1,26 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<div class="selected" (click)="onSelectedClick()" #selected>
+    @if(isSearch()) {
+        <input
+            #searchInput
+            class="search-input"
+            type="text"
+            [value]="opened() ? searchQuery() : getSelected().text"
+            [placeholder]="getSelected().text || placeholder()"
+            [readOnly]="!opened()"
+            (click)="opened() && $event.stopPropagation()"
+            (input)="onSearchInput($event)"
+            autocomplete="off"
+        />
+    } @else {
+        <span>{{ getSelected().text }}</span>
+    }
+</div>
+<div class="options" #options>
+    <ng-content select="ui-select-option"></ng-content>
+</div>

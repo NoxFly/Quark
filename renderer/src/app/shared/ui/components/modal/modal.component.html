@@ -1,0 +1,15 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<section class="modal" (click)="backdropClick($event)">
+    @if(showBackdrop()) {
+        <div class="modal-backdrop"></div>
+    }
+
+    <div class="modal-content" #content tabindex="-1">
+        <ng-template #injectedComponent></ng-template>
+    </div>
+</section>

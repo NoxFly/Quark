@@ -1,0 +1,449 @@
+:root {
+    --color-primary: oklch(52.451% 0.08931 193.804);
+    --color-primary-tint: oklch(68.887% 0.12675 178.063);
+    --color-primary-shade: oklch(35.524% 0.06043 201.429);
+    --color-primary-contrast: var(--color-light);
+
+    --color-secondary: oklch(68.071% 0.04097 166.804);
+    --color-secondary-tint: oklch(79.527% 0.03556 168.642);
+    --color-secondary-shade: oklch(45.59% 0.03248 169.912);
+    --color-secondary-contrast: var(--color-light);
+
+    --color-tertiary: oklch(39.687% 0.02139 214.743);
+    --color-tertiary-tint: oklch(60.139% 0.0193 210.381);
+    --color-tertiary-shade: oklch(34.085% 0.01809 231.93);
+    --color-tertiary-contrast: var(--color-light);
+
+    --color-success: oklch(65.368% 0.12176 133.198);
+    --color-success-tint: oklch(73.927% 0.09791 132.513);
+    --color-success-shade: oklch(47.325% 0.08654 133.087);
+    --color-success-contrast: var(--color-light);
+
+    --color-danger: oklch(57.647% 0.14996 28.091);
+    --color-danger-tint: oklch(58.218% 0.11006 25.927);
+    --color-danger-shade: oklch(39.008% 0.08395 26.63);
+    --color-danger-contrast: var(--color-light);
+
+    --color-warning: oklch(61.74% 0.09538 73.338);
+    --color-warning-tint: oklch(76.095% 0.08954 76.454);
+    --color-warning-shade: oklch(49.846% 0.06959 75.215);
+    --color-warning-contrast: var(--color-light);
+
+    --color-warning-yellow: oklch(81.425% 0.16188 106.367);
+    --color-warning-yellow-contrast: var(--color-dark);
+
+    --color-light: oklch(96.115% 0.00011 271.152);
+    --color-light-tint: oklch(98.511% 0.00011 271.152);
+    --color-light-shade: oklch(88.531% 0.0001 271.152);
+    --color-light-contrast: oklch(32.109% 0.00004 271.152);
+
+    // couleur dark plus douce (plus claire) et avec 1% de primary
+    --color-soft-dark: color-mix(in oklch, color-mix(in oklch, var(--color-dark-shade), var(--color-light-tint) 23%), var(--color-primary) 3%);
+    --color-soft-dark-tint: color-mix(in oklch, var(--color-soft-dark), var(--color-light-tint) 5%);
+    --color-soft-dark-shade: color-mix(in oklch, var(--color-soft-dark), var(--color-light-shade) 5%);
+    --color-soft-dark-contrast: color-mix(in oklch, var(--color-soft-dark), var(--color-light-contrast) 5%);
+
+    --color-dark: oklch(19.125% 0.00002 271.152);
+    --color-dark-tint: oklch(26.033% 0.00003 271.152);
+    --color-dark-shade: oklch(0% 0 0);
+    --color-dark-contrast: oklch(92.494% 0.00011 271.152);
+
+    --color-medium: oklch(47.478% 0.00005 271.152);
+    --color-medium-tint: oklch(80.466% 0.00009 271.152);
+    --color-medium-shade: oklch(37.15% 0.00004 271.152);
+    --color-medium-contrast: oklch(92.494% 0.00011 271.152);
+
+    --color-blue: oklch(55.0% 0.1 240.0);
+
+    --global-brightness-percentage: 100%; // 100% = 1 = pas de changement, <100% = assombrir, >100% = éclaircir
+
+    --titlebar-height: 40px;
+    --statusbar-height: calc(15px + .5rem);
+    --sidebar-width: calc(60px + 2rem);
+
+    --default-font-family: "Open Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-size: 16px;
+
+    --shadow-highlight: var(--color-light-tint);
+    --shadow-shade: var(--color-dark-shade);
+
+    --shadow-s:
+        inset 0 1px 2px color-mix(in srgb, var(--shadow-highlight) 19%, transparent),
+        0 1px 2px color-mix(in srgb, var(--shadow-shade) 19%, transparent),
+        0 2px 4px color-mix(in srgb, var(--shadow-shade) 8%, transparent);
+
+    --shadow-m:
+        inset 0 1px 2px color-mix(in srgb, var(--shadow-highlight) 31%, transparent),
+        0 2px 4px color-mix(in srgb, var(--shadow-shade) 19%, transparent),
+        0 4px 8px color-mix(in srgb, var(--shadow-shade) 8%, transparent);
+
+    --shadow-l:
+        inset 0 1px 2px color-mix(in srgb, var(--shadow-highlight) 44%, transparent),
+        0 4px 6px color-mix(in srgb, var(--shadow-shade) 19%, transparent),
+        0 6px 10px color-mix(in srgb, var(--shadow-shade) 8%, transparent);
+}
+
+@mixin light-theme {
+    // --- Surfaces (aucune surface noire) ---
+    --surface: var(--color-light);
+    --surface-alt: var(--color-light-tint);
+    --surface-raised: var(--color-light-shade);
+    --surface-dark: var(--color-light-shade);
+    --surface-dark-alt: var(--color-medium-tint);
+
+    // --- Bordures (pas de noir, toutes claires) ---
+    --border: var(--color-light-shade);
+    --border-strong: var(--color-medium-tint);
+    --border-heavy: var(--color-medium-tint);
+
+    // --- Texte (reste sombre pour la lisibilité) ---
+    --text: var(--color-light-contrast);
+    --text-heading: var(--color-dark);
+    --text-emphasis: var(--color-dark-tint);
+    --text-secondary: var(--color-medium);
+    --text-muted: var(--color-medium-tint);
+    --text-subtle: var(--color-medium-shade);
+    --text-inverse: var(--color-light-contrast);
+
+    // --- Interactif (accent primaire) ---
+    --interactive: var(--color-primary);
+    --interactive-hover: var(--color-primary-shade);
+    --interactive-subtle: var(--color-primary-tint);
+    --interactive-fg: var(--color-primary-contrast);
+
+    // --- Statut ---
+    --status-success: var(--color-success);
+    --status-success-subtle: var(--color-success-tint);
+    --status-success-emphasis: var(--color-success-shade);
+    --status-success-fg: var(--color-success-contrast);
+
+    --status-danger: var(--color-danger);
+    --status-danger-subtle: var(--color-danger-tint);
+    --status-danger-emphasis: var(--color-danger-shade);
+    --status-danger-fg: var(--color-danger-contrast);
+
+    --status-warning: var(--color-warning);
+    --status-warning-subtle: var(--color-warning-tint);
+    --status-warning-emphasis: var(--color-warning-shade);
+    --status-warning-fg: var(--color-warning-contrast);
+
+    // --- Accent secondaire ---
+    --accent-secondary: var(--color-secondary);
+    --accent-secondary-subtle: var(--color-secondary-tint);
+    --accent-secondary-emphasis: var(--color-secondary-shade);
+    --accent-secondary-fg: var(--color-secondary-contrast);
+
+    // --- Accent tertiaire ---
+    --accent-tertiary: var(--color-tertiary);
+    --accent-tertiary-subtle: var(--color-tertiary-tint);
+    --accent-tertiary-emphasis: var(--color-tertiary-shade);
+    --accent-tertiary-fg: var(--color-tertiary-contrast);
+
+    // --- Neutre ---
+    --neutral: var(--color-medium);
+    --neutral-subtle: var(--color-medium-tint);
+    --neutral-emphasis: var(--color-medium-shade);
+    --neutral-fg: var(--color-medium-contrast);
+
+    // --- Scrollbar ---
+    --scrollbar-track: var(--color-medium-tint);
+    --scrollbar-thumb: var(--color-medium);
+
+    // --- Ombres ---
+    --shadow-highlight: var(--color-light-tint);
+    --shadow-shade: var(--color-medium-shade);
+
+    // --- Legacy aliases ---
+    --background-color: var(--surface);
+    --background-color-tint: var(--surface-alt);
+    --background-color-shade: var(--surface-raised);
+
+    --window-background: var(--surface-dark);
+    --window-color: var(--text-inverse);
+
+    --text-color: var(--text);
+    --text-color-tint: hsl(0, 0%, 19.37%);
+
+    --global-brightness-percentage: 100%;
+}
+
+@mixin legacy-theme {
+    // --- Surfaces ---
+    --surface: var(--color-light);
+    --surface-alt: var(--color-light-tint);
+    --surface-raised: var(--color-light-shade);
+    --surface-dark: var(--color-dark-shade);
+    --surface-dark-alt: var(--color-dark-tint);
+
+    // --- Bordures ---
+    --border: var(--color-light-shade);
+    --border-strong: var(--color-medium-tint);
+    --border-heavy: var(--color-medium);
+
+    // --- Texte ---
+    --text: var(--color-light-contrast);
+    --text-heading: var(--color-dark);
+    --text-emphasis: var(--color-dark-tint);
+    --text-secondary: var(--color-medium);
+    --text-muted: var(--color-medium-tint);
+    --text-subtle: var(--color-medium-shade);
+    --text-inverse: var(--color-dark-contrast);
+
+    // --- Interactif (accent primaire) ---
+    --interactive: var(--color-primary);
+    --interactive-hover: var(--color-primary-shade);
+    --interactive-subtle: var(--color-primary-tint);
+    --interactive-fg: var(--color-primary-contrast);
+
+    // --- Statut ---
+    --status-success: var(--color-success);
+    --status-success-subtle: var(--color-success-tint);
+    --status-success-emphasis: var(--color-success-shade);
+    --status-success-fg: var(--color-success-contrast);
+
+    --status-danger: var(--color-danger);
+    --status-danger-subtle: var(--color-danger-tint);
+    --status-danger-emphasis: var(--color-danger-shade);
+    --status-danger-fg: var(--color-danger-contrast);
+
+    --status-warning: var(--color-warning);
+    --status-warning-subtle: var(--color-warning-tint);
+    --status-warning-emphasis: var(--color-warning-shade);
+    --status-warning-fg: var(--color-warning-contrast);
+
+    // --- Accent secondaire ---
+    --accent-secondary: var(--color-secondary);
+    --accent-secondary-subtle: var(--color-secondary-tint);
+    --accent-secondary-emphasis: var(--color-secondary-shade);
+    --accent-secondary-fg: var(--color-secondary-contrast);
+
+    // --- Accent tertiaire ---
+    --accent-tertiary: var(--color-tertiary);
+    --accent-tertiary-subtle: var(--color-tertiary-tint);
+    --accent-tertiary-emphasis: var(--color-tertiary-shade);
+    --accent-tertiary-fg: var(--color-tertiary-contrast);
+
+    // --- Neutre ---
+    --neutral: var(--color-medium);
+    --neutral-subtle: var(--color-medium-tint);
+    --neutral-emphasis: var(--color-medium-shade);
+    --neutral-fg: var(--color-medium-contrast);
+
+    // --- Scrollbar ---
+    --scrollbar-track: var(--color-medium-tint);
+    --scrollbar-thumb: var(--color-medium);
+
+    // --- Ombres ---
+    --shadow-highlight: var(--color-light-tint);
+    --shadow-shade: var(--color-dark-shade);
+
+    // --- Legacy aliases (rétro-compatibilité) ---
+    --background-color: var(--surface);
+    --background-color-tint: var(--surface-alt);
+    --background-color-shade: var(--surface-raised);
+
+    --window-background: var(--surface-dark);
+    --window-color: var(--text-inverse);
+
+    --text-color: var(--text);
+    --text-color-tint: hsl(0, 0%, 19.37%);
+
+    --global-brightness-percentage: 100%;
+}
+
+@mixin dark-theme {
+    // --- Surfaces (gris foncé, jamais noir pur) ---
+    --surface: var(--color-soft-dark-tint);             // 26% — fond principal gris foncé
+    --surface-alt: var(--color-soft-dark-shade);        // 19% — panneaux latéraux
+    --surface-raised: var(--color-medium-shade);        // 37% — éléments surélevés (cartes, menus)
+    --surface-dark: var(--color-soft-dark);             // 19% — le plus profond (pas noir pur)
+    --surface-dark-alt: var(--color-soft-dark-tint);    // 26% — cadre / titlebar
+
+    // --- Bordures (subtiles, visibles sur gris foncé) ---
+    --border: var(--color-medium-shade);                // 37% — bordure par défaut
+    --border-strong: var(--color-medium);               // 47% — plus marquée
+    --border-heavy: var(--color-medium-tint);           // 80% — la plus visible
+
+    // --- Texte (clair sur gris foncé) ---
+    --text: var(--color-dark-contrast);                 // 92% — texte principal off-white
+    --text-heading: var(--color-light);                 // 96% — titres lumineux
+    --text-emphasis: var(--color-light-shade);          // 88% — emphase claire
+    --text-secondary: var(--color-medium-tint);         // 80% — secondaire gris clair
+    --text-muted: var(--color-medium-tint);             // 47% — atténué
+    --text-subtle: var(--color-medium-shade);           // 37% — très discret
+    --text-inverse: var(--color-light-contrast);        // texte sombre (sur surfaces claires rares)
+
+    // --- Interactif (teintes plus vives sur fond sombre) ---
+    --interactive: var(--color-primary-tint);
+    --interactive-hover: var(--color-primary);
+    --interactive-subtle: var(--color-primary-shade);
+    --interactive-fg: var(--color-light);
+
+    // --- Statut (teintes pour meilleure visibilité sur sombre) ---
+    --status-success: var(--color-success-tint);
+    --status-success-subtle: var(--color-success);
+    --status-success-emphasis: var(--color-success-shade);
+    --status-success-fg: var(--color-dark);
+
+    --status-danger: var(--color-danger);
+    --status-danger-subtle: var(--color-danger);
+    --status-danger-emphasis: var(--color-danger-shade);
+    --status-danger-fg: var(--color-light);
+
+    --status-warning: var(--color-warning-shade);
+    --status-warning-subtle: var(--color-warning);
+    --status-warning-emphasis: var(--color-warning-shade);
+    --status-warning-fg: var(--color-dark);
+
+    // --- Accent secondaire ---
+    --accent-secondary: var(--color-secondary-tint);
+    --accent-secondary-subtle: var(--color-secondary);
+    --accent-secondary-emphasis: var(--color-secondary-shade);
+    --accent-secondary-fg: var(--color-dark);
+
+    // --- Accent tertiaire ---
+    --accent-tertiary: var(--color-tertiary-tint);
+    --accent-tertiary-subtle: var(--color-tertiary);
+    --accent-tertiary-emphasis: var(--color-tertiary-shade);
+    --accent-tertiary-fg: var(--color-dark);
+
+    // --- Neutre (adapté au fond sombre) ---
+    --neutral: var(--color-medium);
+    --neutral-subtle: var(--color-medium-tint);
+    --neutral-emphasis: var(--color-medium-tint);
+    --neutral-fg: var(--color-light);
+
+    // --- Scrollbar ---
+    --scrollbar-track: var(--color-medium-shade);
+    --scrollbar-thumb: var(--color-medium);
+
+    // --- Ombres ---
+    --shadow-highlight: var(--color-medium-shade);
+    --shadow-shade: var(--color-dark);
+
+    // --- Legacy aliases ---
+    --background-color: var(--surface-dark);
+    --background-color-tint: var(--surface-alt);
+    --background-color-shade: var(--surface-raised);
+
+    --window-background: var(--surface-dark);
+    --window-color: var(--color-light);
+
+    --text-color: var(--text);
+    --text-color-tint: hsl(0, 0%, 80%);
+
+    --global-brightness-percentage: 50%;
+}
+
+@mixin midnight-theme {
+    // --- Surfaces (inversées : clair → sombre) ---
+    --surface: var(--color-dark-tint);              // gris très sombre
+    --surface-alt: var(--color-dark);               // un cran plus sombre
+    --surface-raised: var(--color-dark-tint);       // surélevé : ressort sur le fond sombre
+    --surface-dark: var(--color-dark-shade);        // le plus profond (noir)
+    --surface-dark-alt: var(--color-dark);          // presque noir
+
+    // --- Bordures (assombries, subtiles sur fond sombre) ---
+    --border: var(--color-dark-tint);               // bordure subtile
+    --border-strong: var(--color-medium);           // plus visible
+    --border-heavy: var(--color-medium-tint);       // la plus marquée
+
+    // --- Texte (clair sur sombre, légèrement atténué) ---
+    --text: var(--color-dark-contrast);             // texte principal off-white
+    --text-heading: var(--color-light);             // titres lumineux
+    --text-emphasis: var(--color-light-shade);      // emphase claire
+    --text-secondary: var(--color-medium-tint);     // secondaire gris clair
+    --text-muted: var(--color-medium);              // atténué
+    --text-subtle: var(--color-medium-shade);       // très discret
+    --text-inverse: var(--color-light-contrast);    // texte sombre (sur surfaces claires rares)
+
+    // --- Interactif (teintes plus vives sur fond sombre) ---
+    --interactive: color-mix(in srgb, var(--color-primary-tint), var(--color-dark-shade) 25%);
+    --interactive-hover: color-mix(in srgb, var(--color-primary), var(--color-dark-shade) 25%);
+    --interactive-subtle: color-mix(in srgb, var(--color-primary-shade), var(--color-dark-shade) 25%);
+    --interactive-fg: var(--color-light-shade);
+
+    // --- Statut (teintes pour meilleure visibilité sur sombre) ---
+    --status-success: var(--color-success-tint);
+    --status-success-subtle: var(--color-success);
+    --status-success-emphasis: var(--color-success-shade);
+    --status-success-fg: var(--color-light);
+
+    --status-danger: var(--color-danger-shade);
+    --status-danger-subtle: var(--color-danger-shade);
+    --status-danger-emphasis: var(--color-danger-shade);
+    --status-danger-fg: var(--color-light);
+
+    --status-warning: var(--color-warning-shade);
+    --status-warning-subtle: var(--color-warning);
+    --status-warning-emphasis: var(--color-warning-shade);
+    --status-warning-fg: var(--color-light);
+
+    // --- Accent secondaire ---
+    --accent-secondary: var(--color-secondary-tint);
+    --accent-secondary-subtle: var(--color-secondary);
+    --accent-secondary-emphasis: var(--color-secondary-shade);
+    --accent-secondary-fg: var(--color-light);
+
+    // --- Accent tertiaire ---
+    --accent-tertiary: var(--color-tertiary-tint);
+    --accent-tertiary-subtle: var(--color-tertiary);
+    --accent-tertiary-emphasis: var(--color-tertiary-shade);
+    --accent-tertiary-fg: var(--color-light);
+
+    // --- Neutre (adapté au fond sombre) ---
+    --neutral: var(--color-medium);
+
+    --neutral-subtle: var(--color-medium-shade);
+    --neutral-emphasis: var(--color-medium-tint);
+    --neutral-fg: var(--color-dark);
+
+    // --- Scrollbar ---
+    --scrollbar-track: var(--color-medium-shade);
+    --scrollbar-thumb: var(--color-medium);
+
+    // --- Ombres ---
+    --shadow-highlight: var(--color-medium-shade);
+    --shadow-shade: var(--color-dark-shade);
+
+    // --- Legacy aliases ---
+    --background-color: var(--surface-dark);
+    --background-color-tint: var(--surface-alt);
+    --background-color-shade: var(--surface-raised);
+
+    --window-background: var(--surface-dark);
+    --window-color: var(--neutral-emphasis);
+
+    --text-color: var(--text);
+    --text-color-tint: hsl(0, 0%, 80%);
+
+    --global-brightness-percentage: 30%;
+}
+
+html[data-theme="light"] {
+    @include light-theme;
+}
+
+html[data-theme="dark"] {
+    @include dark-theme;
+}
+
+html[data-theme="midnight"] {
+    @include midnight-theme;
+}
+
+html[data-theme="legacy"] {
+    @include legacy-theme;
+}
+
+@media (prefers-color-scheme: dark) {
+    html[data-theme="system"] {
+        @include dark-theme;
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    html[data-theme="system"] {
+        @include legacy-theme;
+    }
+}

@@ -1,0 +1,89 @@
+button {
+    background: var(--btn-bg, var(--color-light-shade));
+    border: 2px solid transparent;
+    padding: var(--btn-padding, 5px 25px);
+    display: inline-block;
+    border-radius: var(--btn-radius, 5px);
+    color: var(--btn-fg, var(--color-medium));
+    font-size: inherit;
+    font-weight: 500;
+    min-width: var(--btn-min-width, 200px);
+    cursor: pointer;
+    transition-duration: .1s;
+    user-select: none;
+    position: relative;
+    height: var(--btn-height, unset);
+    width: var(--btn-width, unset);
+    font-family: var(--font-family);
+
+    &:not(:disabled) {
+        &:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+            --btn-bg: var(--color-primary);
+            --btn-fg: var(--color-primary-contrast);
+        }
+
+        &:active {
+            --btn-bg: var(--color-primary-shade);
+            --btn-fg: var(--color-primary-contrast);
+            transform: scale(.96);
+        }
+
+        &.btn-cancel {
+            --btn-bg: var(--color-light-shade);
+            --btn-fg: var(--color-medium);
+
+            &:hover {
+                filter: brightness(.9);
+                --btn-bg: var(--color-light-shade);
+                --btn-fg: var(--color-medium);
+            }
+        }
+
+        &.btn-primary {
+            --btn-bg: var(--color-primary);
+            --btn-fg: var(--color-primary-contrast);
+
+            &:hover {
+                --btn-bg: var(--color-primary-shade);
+            }
+        }
+
+        &.btn-danger {
+            --btn-bg: var(--color-danger-shade);
+            --btn-fg: var(--color-danger-contrast);
+
+            &:hover {
+                --btn-bg: var(--color-danger);
+            }
+        }
+
+        &.btn-success {
+            --btn-bg: var(--color-success);
+            --btn-fg: var(--color-success-contrast);
+
+            &:hover {
+                --btn-bg: var(--color-success-shade);
+            }
+        }
+
+        &.btn-warning {
+            --btn-bg: var(--color-warning);
+            --btn-fg: var(--color-warning-contrast);
+
+            &:hover {
+                --btn-bg: var(--color-warning-shade);
+            }
+        }
+
+        &.clear {
+            background: transparent;
+            --btn-fg: var(--btn-bg);
+        }
+    }
+
+    &:disabled {
+        cursor: default;
+        opacity: .5;
+    }
+}

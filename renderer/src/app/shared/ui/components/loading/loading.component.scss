@@ -1,0 +1,35 @@
+/**
+ * @copyright Dorian Thivolle
+ * @license MIT
+ * @see https://github.com/NoxFly
+ */
+
+
+
+@use 'src/theme/mixins.scss' as *;
+@use 'src/theme/animations.scss' as *;
+
+:host {
+    @include flex($dir: column);
+
+    --spinner-size: 30px;
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 999;
+    color: var(--loading-bg, #aaa);
+    background: var(--loading-bg, rgba(0, 0, 0, 0.7));
+    backdrop-filter: blur(var(--loading-blur, 10px));
+    user-select: none;
+
+    .message {
+        opacity: .8;
+    }
+
+    &.disappearing {
+        animation: fadeOut .3s forwards;
+    }
+}

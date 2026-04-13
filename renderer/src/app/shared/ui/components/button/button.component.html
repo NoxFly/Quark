@@ -1,0 +1,27 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+@let srcIcon = icon();
+@let iconPos = iconPosition();
+
+<button #button
+    [type]="type()"
+    [attr.data-color]="color()"
+    [class.icon-left]="!!srcIcon && iconPos === 'left'"
+    [class.icon-right]="!!srcIcon && iconPos === 'right'"
+>
+    @if(srcIcon) {
+        <ui-icon [src]="srcIcon"/>
+    }
+
+    @if(link(); as url) {
+        <a [href]="url" target="_blank"></a>
+    }
+
+    <span class="content">
+        <ng-content></ng-content>
+    </span>
+</button>
