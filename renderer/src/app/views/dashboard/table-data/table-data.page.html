@@ -14,16 +14,24 @@
     </div>
 }
 
-<!-- Toolbar (filtre + new entry) -->
+<!-- Toolbar (filtre + actions) -->
 <div class="toolbar">
     <div class="filter-bar">
         <input
             type="text"
-            [placeholder]="i18n.t('table.filterPlaceholder')"
+            [placeholder]="sqliteFilterMode() ? i18n.t('table.filterPlaceholder') : i18n.t('table.searchPlaceholder')"
             [ngModel]="filterInput()"
             (ngModelChange)="onFilterInput($event)"
             class="filter-input"
         />
+        <button
+            class="btn-filter-mode"
+            [class.active]="sqliteFilterMode()"
+            (click)="toggleSqliteFilterMode()"
+            [title]="sqliteFilterMode() ? i18n.t('table.switchToSearch') : i18n.t('table.switchToSqlite')"
+        >
+            SQL
+        </button>
     </div>
     <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [title]="i18n.t('table.newRecord')">
         <span class="btn-icon">{{ i18n.t("short.new") }}</span>
@@ -40,6 +48,7 @@
                         type="checkbox"
                         [checked]="isAllSelected()"
                         (change)="toggleSelectAll()"
+                        [title]="i18n.t('table.selectAll')"
                     />
                 </th>
                 @for (field of fields(); track field.name) {
@@ -52,6 +61,16 @@
                             <span class="col-type">{{ field.type }}</span>
                             @if (getFieldBadge(field)) {
                                 <span class="col-badge">{{ getFieldBadge(field) }}</span>
+                            }
+                            @if (couldBeTimestamp(field)) {
+                                <button
+                                    class="col-timestamp-toggle"
+                                    [class.active]="isTimestampColumn(field.name)"
+                                    (click)="toggleTimestampColumn(field.name); $event.stopPropagation()"
+                                    [title]="i18n.t('table.toggleTimestamp')"
+                                >
+                                    &#xE787;
+                                </button>
                             }
                             @if (getSortIcon(field.name)) {
                                 <span class="sort-icon">{{ getSortIcon(field.name) }}</span>
@@ -69,6 +88,9 @@
             @for (record of records(); track record["rowid"]) {
                 <tr
                     [class.selected]="isRowSelected($any(record['rowid']))"
+                    [class.cursor]="isCursorRow($any(record['rowid']))"
+                    [attr.data-rowid]="record['rowid']"
+                    (click)="onRowClick($event, record)"
                     (contextmenu)="onRowContextMenu($event, record)"
                 >
                     <td class="checkbox-col">
@@ -99,7 +121,7 @@
                                     #editInput
                                 />
                             } @else {
-                                <span class="cell-value">{{ formatValue(record[field.name]) }}</span>
+                                <span class="cell-value">{{ formatValue(record[field.name], field) }}</span>
                             }
                         </td>
                     }

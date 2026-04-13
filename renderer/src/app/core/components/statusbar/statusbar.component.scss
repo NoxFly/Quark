@@ -42,3 +42,37 @@
     color: var(--color-warning);
     font-weight: 600;
 }
+
+.edit-mode-btn {
+    --btn-min-width: 0;
+
+    @include flex($gap: 5px);
+    padding: 1px 8px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: rgba(127, 127, 127, 0.6);
+    cursor: pointer;
+    font-size: 1em;
+    transition:
+        background 0.15s,
+        color 0.15s;
+
+    .segoe-icon {
+        font-family: "Segoe Fluent Icons", sans-serif;
+        font-size: 0.9em;
+    }
+
+    .edit-mode-label {
+        font-size: 0.95em;
+    }
+
+    &:hover {
+        background: rgba(127, 127, 127, 0.12);
+        color: var(--text-color);
+    }
+
+    &.active {
+        color: var(--color-primary);
+    }
+}

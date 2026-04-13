@@ -16,6 +16,7 @@ export const fr: Record<string, string> = {
     "menu.closeFile": "Fermer le fichier",
     "menu.quit": "Quitter",
     "menu.edit": "Édition",
+    "menu.toggleEditMode": "Basculer le mode édition",
     "menu.startTransaction": "Démarrer une transaction",
     "menu.commitTransaction": "Valider la transaction",
     "menu.rollbackTransaction": "Annuler la transaction",
@@ -51,15 +52,24 @@ export const fr: Record<string, string> = {
     "table.commit": "Valider",
     "table.cancel": "Annuler",
     "table.filterPlaceholder": "Filtrer... ex: id = 1 and name like '%abc%'",
+    "table.searchPlaceholder": "Rechercher...",
+    "table.switchToSqlite": "Passer en mode filtre SQLite",
+    "table.switchToSearch": "Passer en mode recherche texte",
     "table.newRecord": "Nouvel enregistrement",
     "table.loading": "Chargement...",
     "table.ctrlClickFk": "Ctrl+Clic pour naviguer vers {table}.{column}",
+    "table.switchToEdit": "Passer en mode édition (Ctrl+E)",
+    "table.switchToReadOnly": "Passer en mode lecture seule (Ctrl+E)",
+    "table.selectAll": "Sélectionner toutes les lignes",
+    "table.toggleTimestamp": "Afficher/masquer la date",
 
     // --- Context menu ---
     "contextMenu.edit": "Modifier l'enregistrement",
     "contextMenu.duplicate": "Dupliquer l'enregistrement",
     "contextMenu.new": "Nouvel enregistrement",
     "contextMenu.delete": "Supprimer l'enregistrement",
+    "contextMenu.deleteSelection": "Supprimer la sélection",
+    "contextMenu.copyJson": "Copier au format JSON",
 
     // --- Record editor ---
     "editor.createTitle": "Nouvel enregistrement",
@@ -73,6 +83,8 @@ export const fr: Record<string, string> = {
     "statusbar.rows": "{loaded} / {total} lignes",
     "statusbar.selected": "{count} sélectionnée(s)",
     "statusbar.transaction": "Transaction active",
+    "statusbar.readOnly": "Lecture seule",
+    "statusbar.readWrite": "Édition",
 
     // --- No table ---
     "noTable.title": "Sélectionnez une table",

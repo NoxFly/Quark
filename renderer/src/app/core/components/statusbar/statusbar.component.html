@@ -15,6 +15,15 @@
             @if (transactionInfo()) {
                 <span class="transaction-badge">{{ transactionInfo() }}</span>
             }
+            <button
+                class="edit-mode-btn"
+                [class.active]="!readOnly()"
+                (click)="toggleReadOnly()"
+                [title]="readOnly() ? i18n.t('table.switchToEdit') : i18n.t('table.switchToReadOnly')"
+            >
+                <span class="segoe-icon">{{ readOnly() ? '&#xE736;' : '&#xE70F;' }}</span>
+                <span class="edit-mode-label">{{ editModeLabel() }}</span>
+            </button>
         </div>
     </div>
 }

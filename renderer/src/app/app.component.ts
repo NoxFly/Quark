@@ -123,6 +123,10 @@ export class AppComponent {
             path: "app/state",
         });
 
+        // Restaurer l'état de la fenêtre (transaction, etc.) depuis le main process
+        const windowState = await this.noxus.ipc.getWindowState();
+        this.dbService.inTransaction.set(windowState.inTransaction);
+
         this.isReady.set(true);
 
         if (this.pendingNavigationRequest) {
@@ -210,6 +214,22 @@ export class AppComponent {
         if (event.key === "F11") {
             event.preventDefault();
             this.noxus.ipc.toggleFullscreen();
+        }
+
+        // Ctrl+E : toggle mode édition
+        if (event.ctrlKey && event.key === "e") {
+            event.preventDefault();
+            if (this.state.connected()) {
+                this.dbService.toggleReadOnly();
+            }
+        }
+
+        // Ctrl+T : démarrer une transaction (si pas déjà active) / aucune action sinon
+        if (event.ctrlKey && !event.shiftKey && event.key === "t" && !this.ctrlKPressed) {
+            event.preventDefault();
+            if (this.state.connected() && !this.dbService.inTransaction()) {
+                this.dbService.transactionAction("begin");
+            }
         }
     }
 

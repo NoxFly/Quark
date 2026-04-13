@@ -90,7 +90,7 @@
     background: none;
     border: none;
     color: var(--text-color);
-    font-size: 0.8em;
+    font-size: 0.8rem;
     cursor: pointer;
     text-align: left;
     white-space: nowrap;
@@ -121,6 +121,38 @@
     height: 1px;
     background: rgba(127, 127, 127, 0.15);
     margin: 4px 8px;
+}
+
+// --- Sous-menus ---
+
+.submenu-trigger {
+    position: relative;
+
+    .submenu-arrow {
+        font-family: "Segoe Fluent Icons", sans-serif;
+        font-size: 0.65rem;
+        margin-left: 12px;
+        color: rgba(127, 127, 127, 0.5);
+    }
+
+    .submenu-dropdown {
+        display: none;
+        position: absolute;
+        top: -4px;
+        left: 100%;
+        min-width: 140px;
+        width: max-content;
+        background: var(--surface-alt);
+        border: 1px solid rgba(127, 127, 127, 0.25);
+        border-radius: 6px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        padding: 4px 0;
+        z-index: 2001;
+    }
+
+    &:hover:not(.disabled) > .submenu-dropdown {
+        display: block;
+    }
 }
 
 // --- Centre ---

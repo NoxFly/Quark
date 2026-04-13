@@ -31,6 +31,8 @@ import { ButtonComponent } from "@ui/button/button.component";
     imports: [FormsModule, ContextMenuComponent, ButtonComponent],
     host: {
         "[class.transaction-mode]": "dbService.inTransaction()",
+        "(keydown)": "onKeydown($event)",
+        "tabindex": "0",
     },
 })
 export class TableDataPage {
@@ -48,6 +50,12 @@ export class TableDataPage {
 
     protected readonly columnWidths = signal<Map<string, number>>(new Map());
 
+    /** Ligne survolée par le curseur clavier en mode readonly. */
+    protected readonly cursorRowId = signal<number | null>(null);
+
+    /** Colonnes dont le timestamp est affiché en date formatée. */
+    protected readonly timestampColumns = signal<Set<string>>(new Set());
+
     private readonly scrollContainer = viewChild<ElementRef<HTMLDivElement>>("scrollContainer");
     private readonly contextMenu = viewChild(ContextMenuComponent);
 
@@ -63,12 +71,16 @@ export class TableDataPage {
     protected readonly orderDir = computed(() => this.dbService.orderDir());
     protected readonly inTransaction = computed(() => this.dbService.inTransaction());
     protected readonly tableName = computed(() => this.dbService.selectedTable());
+    protected readonly allRowsSelected = computed(() => this.dbService.allRowsSelected());
+    protected readonly sqliteFilterMode = computed(() => this.dbService.sqliteFilterMode());
 
     constructor() {
         // Réinitialiser le filtre lors du changement de table
         effect(() => {
             this.tableName(); // Lire le signal pour déclencher l'effet
             this.filterInput.set("");
+            this.cursorRowId.set(null);
+            this.timestampColumns.set(new Set());
             if (this.filterTimeout) {
                 clearTimeout(this.filterTimeout);
                 this.filterTimeout = null;
@@ -123,10 +135,21 @@ export class TableDataPage {
         }, 500);
     }
 
+    /**
+     * Toggle le mode de filtre SQLite / full-text et réapplique le filtre.
+     */
+    protected toggleSqliteFilterMode(): void {
+        this.dbService.toggleSqliteFilterMode();
+        const currentFilter = this.filterInput();
+        if (currentFilter.trim().length > 0) {
+            this.dbService.applyFilter(currentFilter);
+        }
+    }
+
     // --- Édition inline ---
 
     /**
-     * Gère le clic sur une cellule : Ctrl+Click pour FK navigation, sinon édition.
+     * Gère le clic sur une cellule : Ctrl+Click pour FK navigation, sinon édition (en mode readwrite).
      */
     protected onCellClick(event: MouseEvent, rowid: number, field: FieldDef, currentValue: unknown): void {
         // FK Ctrl+Click : naviguer vers la table référencée
@@ -135,7 +158,95 @@ export class TableDataPage {
             return;
         }
 
+        // En mode readonly, le clic est géré par onRowClick
+        if (this.dbService.readOnly()) {
+            return;
+        }
+
         this.startEdit(rowid, field.name, currentValue);
+    }
+
+    /**
+     * Gère le clic sur une ligne en mode readonly : positionne le curseur.
+     */
+    protected onRowClick(event: MouseEvent, record: DbRecord): void {
+        const rowid = record["rowid"] as number;
+        this.cursorRowId.set(rowid);
+    }
+
+    /**
+     * Gère la navigation clavier.
+     */
+    protected onKeydown(event: KeyboardEvent): void {
+        // Ne pas intercepter quand on est en train d'éditer ou dans un input
+        const target = event.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+            return;
+        }
+
+        const records = this.records();
+        if (records.length === 0) {
+            return;
+        }
+
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            this.moveCursor(1);
+        }
+        else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            this.moveCursor(-1);
+        }
+        else if (event.key === "Enter") {
+            event.preventDefault();
+            const cursor = this.cursorRowId();
+            if (cursor !== null) {
+                this.dbService.toggleRowSelection(cursor);
+            }
+        }
+    }
+
+    /**
+     * Déplace le curseur de N positions.
+     */
+    private moveCursor(delta: number): void {
+        const records = this.records();
+        const cursor = this.cursorRowId();
+
+        let currentIndex = -1;
+        if (cursor !== null) {
+            currentIndex = records.findIndex(r => (r["rowid"] as number) === cursor);
+        }
+
+        let nextIndex = currentIndex + delta;
+        if (nextIndex < 0) {
+            nextIndex = 0;
+        }
+        if (nextIndex >= records.length) {
+            nextIndex = records.length - 1;
+        }
+
+        const nextRecord = records[nextIndex];
+        if (nextRecord) {
+            const rowid = nextRecord["rowid"] as number;
+            this.cursorRowId.set(rowid);
+            this.scrollRowIntoView(rowid);
+        }
+    }
+
+    /**
+     * Fait défiler la vue pour rendre une ligne visible.
+     */
+    private scrollRowIntoView(rowid: number): void {
+        const container = this.scrollContainer()?.nativeElement;
+        if (!container) {
+            return;
+        }
+
+        const row = container.querySelector(`tr[data-rowid="${rowid}"]`);
+        if (row) {
+            row.scrollIntoView({ block: "nearest" });
+        }
     }
 
     protected startEdit(rowid: number, column: string, currentValue: unknown): void {
@@ -240,7 +351,7 @@ export class TableDataPage {
     }
 
     protected isRowSelected(rowid: number): boolean {
-        return this.selectedRowIds().has(rowid);
+        return this.dbService.isRowSelected(rowid);
     }
 
     protected toggleSelectAll(): void {
@@ -248,9 +359,12 @@ export class TableDataPage {
     }
 
     protected isAllSelected(): boolean {
-        const records = this.records();
-        const selected = this.selectedRowIds();
-        return records.length > 0 && selected.size === records.length;
+        return this.allRowsSelected() || (this.records().length > 0 && this.selectedRowIds().size === this.records().length);
+    }
+
+    /** Vérifie si une ligne est sous le curseur clavier. */
+    protected isCursorRow(rowid: number): boolean {
+        return this.cursorRowId() === rowid;
     }
 
     // --- Suppression ---
@@ -329,6 +443,8 @@ export class TableDataPage {
      */
     protected onRowContextMenu(event: MouseEvent, record: DbRecord): void {
         const rowid = record["rowid"] as number;
+        const selCount = this.dbService.selectedCount();
+        const hasMultipleSelection = selCount > 1 || this.allRowsSelected();
 
         const items: ContextMenuItem[] = [
             {
@@ -353,9 +469,24 @@ export class TableDataPage {
                 separator: true,
             },
             {
-                label: this.i18n.t("contextMenu.delete"),
+                label: this.i18n.t("contextMenu.copyJson"),
+                icon: "\uE8C8",
+                action: () => this.copySelectionAsJson(record),
+            },
+            {
+                label: "",
+                icon: "",
+                action: () => {},
+                separator: true,
+            },
+            {
+                label: hasMultipleSelection
+                    ? this.i18n.t("contextMenu.deleteSelection")
+                    : this.i18n.t("contextMenu.delete"),
                 icon: "\uE74D",
-                action: () => this.dbService.deleteRow(rowid),
+                action: () => hasMultipleSelection
+                    ? this.dbService.deleteSelectedRows()
+                    : this.dbService.deleteRow(rowid),
                 danger: true,
             },
         ];
@@ -409,11 +540,132 @@ export class TableDataPage {
 
     /**
      * Formate une valeur pour l'affichage.
+     * Si la colonne est marquée comme timestamp et la valeur est un nombre plausible, affiche la date formatée.
      */
-    protected formatValue(value: unknown): string {
+    protected formatValue(value: unknown, field?: FieldDef): string {
         if (value === null || value === undefined) {
             return "NULL";
         }
+
+        if (field && this.timestampColumns().has(field.name)) {
+            const ts = Number(value);
+            if (!Number.isNaN(ts) && this.isPlausibleTimestamp(ts)) {
+                return this.formatTimestamp(ts);
+            }
+        }
+
         return String(value);
     }
+
+    /**
+     * Vérifie si une valeur numérique est un timestamp plausible.
+     * Supporte les timestamps en secondes et en millisecondes.
+     */
+    private isPlausibleTimestamp(value: number): boolean {
+        // Timestamp en secondes : entre 1970 et 2100
+        if (value >= 0 && value <= 4_102_444_800) {
+            return true;
+        }
+        // Timestamp en millisecondes
+        if (value >= 0 && value <= 4_102_444_800_000) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Formate un timestamp en date lisible (dd/MM/yyyy HH:mm:ss).
+     */
+    private formatTimestamp(ts: number): string {
+        // Convertir en millisecondes si nécessaire
+        const ms = ts > 4_102_444_800 ? ts : ts * 1000;
+        const date = new Date(ms);
+        const locale = this.i18n.locale();
+        return new Intl.DateTimeFormat(locale, {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+        }).format(date);
+    }
+
+    /**
+     * Toggle l'affichage timestamp/date pour une colonne.
+     */
+    protected toggleTimestampColumn(fieldName: string): void {
+        this.timestampColumns.update(set => {
+            const next = new Set(set);
+            if (next.has(fieldName)) {
+                next.delete(fieldName);
+            }
+            else {
+                next.add(fieldName);
+            }
+            return next;
+        });
+    }
+
+    /**
+     * Vérifie si une colonne est en mode timestamp affiché.
+     */
+    protected isTimestampColumn(fieldName: string): boolean {
+        return this.timestampColumns().has(fieldName);
+    }
+
+    /**
+     * Vérifie si un champ pourrait contenir des timestamps.
+     * Heuristique basée sur le type et le nom de la colonne.
+     */
+    protected couldBeTimestamp(field: FieldDef): boolean {
+        const type = field.type.toLowerCase();
+        const name = field.name.toLowerCase();
+        const timestampTypes = ["timestamp", "datetime"];
+        const timestampNames = ["timestamp", "created", "updated", "date", "time", "at", "_at", "_date"];
+
+        if (timestampTypes.some(t => type.includes(t))) {
+            if (timestampNames.some(n => name.includes(n))) {
+                return true;
+            }
+            // Aussi afficher le bouton si le premier record chargé a une valeur plausible
+            const firstRecord = this.records()[0];
+            if (firstRecord) {
+                const val = Number(firstRecord[field.name]);
+                if (!Number.isNaN(val) && this.isPlausibleTimestamp(val)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Copie la sélection (ou la ligne passée) au format JSON dans le presse-papier.
+     */
+    protected async copySelectionAsJson(fallbackRecord?: DbRecord): Promise<void> {
+        const selected = this.dbService.getSelectedRecords();
+        let data: DbRecord[];
+
+        if (selected.length > 0) {
+            data = selected;
+        }
+        else if (fallbackRecord) {
+            data = [fallbackRecord];
+        }
+        else {
+            return;
+        }
+
+        // Retirer le rowid interne des records exportés
+        const cleaned = data.map(r => {
+            const { rowid, ...rest } = r;
+            return rest;
+        });
+
+        const json = JSON.stringify(cleaned.length === 1 ? cleaned[0] : cleaned, null, 2);
+        await navigator.clipboard.writeText(json);
+    }
+
 }

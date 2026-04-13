@@ -40,6 +40,7 @@ export interface IpcRendererBridge {
     getRow(body: import("./types").R_GetRowBody): Promise<import("./types").R_GetRowResponse>;
     transactionAction(action: import("./types").R_TransactionAction): Promise<void>;
     exportData(body: import("./types").R_ExportBody): Promise<import("./types").R_ExportResponse>;
+    getWindowState(): Promise<import("./types").R_WindowStateResponse>;
 
     onNavigationRequested(cb: (route: NavigationRequest) => void): void;
     onFileOpened(cb: (filePath: string) => void): void;

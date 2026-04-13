@@ -42,6 +42,7 @@ const api: IpcRendererBridge = {
     getRow: (body) => ipcRenderer.invoke("db-get-row", body),
     transactionAction: (action) => ipcRenderer.invoke("db-transaction", action),
     exportData: (body) => ipcRenderer.invoke("db-export", body),
+    getWindowState: () => ipcRenderer.invoke("get-window-state"),
 
     // Events from main
     onNavigationRequested: (cb) => {

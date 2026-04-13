@@ -200,6 +200,21 @@ export class Application implements IApp {
             window?.reloadRenderer();
         });
 
+        ipcMain.handle("get-window-state", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                return { inTransaction: false, selectedTable: null, database: null, filePath: null };
+            }
+
+            const db = window.database;
+            return {
+                inTransaction: db.isInTransaction,
+                selectedTable: null, // La table sélectionnée est un état renderer uniquement
+                database: db.isOpen ? db.getSchema() : null,
+                filePath: db.path,
+            };
+        });
+
         ipcMain.handle("open-file-dialog", async (_event) => {
             const win = BrowserWindow.fromWebContents(_event.sender);
             return await this.openFileDialog(win);
@@ -267,6 +282,7 @@ export class Application implements IApp {
                 body.orderBy,
                 body.orderDir,
                 body.filter,
+                body.filterMode,
             );
         });
 

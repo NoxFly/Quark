@@ -16,6 +16,7 @@ export const en: Record<string, string> = {
     "menu.closeFile": "Close file",
     "menu.quit": "Quit",
     "menu.edit": "Edit",
+    "menu.toggleEditMode": "Toggle edit mode",
     "menu.startTransaction": "Start transaction",
     "menu.commitTransaction": "Commit transaction",
     "menu.rollbackTransaction": "Rollback transaction",
@@ -52,15 +53,24 @@ export const en: Record<string, string> = {
     "table.commit": "Commit",
     "table.cancel": "Cancel",
     "table.filterPlaceholder": "Filter... e.g. id = 1 and name like '%abc%'",
+    "table.searchPlaceholder": "Search...",
+    "table.switchToSqlite": "Switch to SQLite filter mode",
+    "table.switchToSearch": "Switch to full-text search mode",
     "table.newRecord": "New record",
     "table.loading": "Loading...",
     "table.ctrlClickFk": "Ctrl+Click to navigate to {table}.{column}",
+    "table.switchToEdit": "Switch to edit mode (Ctrl+E)",
+    "table.switchToReadOnly": "Switch to read-only mode (Ctrl+E)",
+    "table.selectAll": "Select all rows",
+    "table.toggleTimestamp": "Toggle date display",
 
     // --- Context menu ---
     "contextMenu.edit": "Edit record",
     "contextMenu.duplicate": "Duplicate record",
     "contextMenu.new": "New record",
     "contextMenu.delete": "Delete record",
+    "contextMenu.deleteSelection": "Delete selection",
+    "contextMenu.copyJson": "Copy as JSON",
 
     // --- Record editor ---
     "editor.createTitle": "New record",
@@ -74,6 +84,8 @@ export const en: Record<string, string> = {
     "statusbar.rows": "{loaded} / {total} rows",
     "statusbar.selected": "{count} selected",
     "statusbar.transaction": "Active transaction",
+    "statusbar.readOnly": "Read-only",
+    "statusbar.readWrite": "Edit",
 
     // --- No table ---
     "noTable.title": "Select a table",

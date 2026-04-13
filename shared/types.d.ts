@@ -71,6 +71,7 @@ export type R_TableDataBody = {
     orderBy?: string;
     orderDir?: "ASC" | "DESC";
     filter?: string;
+    filterMode?: "sqlite" | "fulltext";
 };
 
 export type R_TableDataResponse = {
@@ -121,5 +122,12 @@ export type R_GetRowBody = {
 
 export type R_GetRowResponse = {
     record: DbRecord | null;
+};
+
+export type R_WindowStateResponse = {
+    inTransaction: boolean;
+    selectedTable: string | null;
+    database: DatabaseSchema | null;
+    filePath: string | null;
 };
 

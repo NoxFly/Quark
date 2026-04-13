@@ -4,7 +4,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    width: 100%;
+    width: calc(100% - 2px);
     overflow: hidden;
 
     &.transaction-mode {
@@ -24,6 +24,7 @@
     font-size: 0.85em;
     color: var(--color-warning);
     flex-shrink: 0;
+    user-select: none;
 
     .transaction-icon {
         font-family: "Segoe Fluent Icons", sans-serif;
@@ -66,15 +67,17 @@
 
 .toolbar {
     @include flex($hor: stretch, $gap: 8px);
-    padding: 8px 12px;
+    padding: 0 12px;
     border-bottom: 1px solid rgba(127, 127, 127, 0.15);
     flex-shrink: 0;
 
     .filter-bar {
+        @include flex($gap: 0px);
         flex: 1;
 
         .filter-input {
             width: 100%;
+            flex: 1;
             padding: 6px 10px;
             border: 1px solid rgba(127, 127, 127, 0.25);
             border-radius: 6px;
@@ -92,12 +95,45 @@
                 color: rgba(127, 127, 127, 0.4);
             }
         }
+
+        .btn-filter-mode {
+            --btn-min-width: 0;
+            flex-shrink: 0;
+            padding: 9px 10px;
+            border: 1px solid rgba(127, 127, 127, 0.25);
+            border-radius: 6px;
+            background: var(--surface-alt);
+            color: rgba(127, 127, 127, 0.5);
+            font-size: 0.75em;
+            font-weight: 600;
+            font-family: "Cascadia Code", "Fira Code", monospace;
+            cursor: pointer;
+            transition:
+                background 0.15s,
+                color 0.15s,
+                border-color 0.15s;
+            margin-left: 5px;
+
+            &:hover {
+                color: var(--text-color);
+                background: rgba(127, 127, 127, 0.08);
+            }
+
+            &.active {
+                background: color-mix(in srgb, var(--color-primary), transparent 85%);
+                color: var(--color-primary);
+                border-color: var(--color-primary);
+            }
+        }
     }
 
     .btn-new-entry {
         @include flex;
+        --btn-min-width: 0;
         flex-shrink: 0;
+        font-size: .85rem;
     }
+
 }
 
 // --- Table ---
@@ -168,6 +204,34 @@ thead {
             }
         }
 
+        .col-timestamp-toggle {
+            --btn-min-width: 0;
+
+            padding: 3px;
+            border: none;
+            border-radius: 3px;
+            background: transparent;
+            color: rgba(127, 127, 127, 0.4);
+            font-family: "Segoe Fluent Icons", sans-serif;
+            font-size: 0.65em;
+            cursor: pointer;
+            transition:
+                color 0.15s,
+                background 0.15s;
+            transform: scale(2);
+            margin-left: 5px;
+
+            &:hover {
+                color: var(--text-color);
+                background: rgba(127, 127, 127, 0.1);
+            }
+
+            &.active {
+                color: var(--color-warning);
+                background: color-mix(in srgb, var(--color-warning), transparent 88%);
+            }
+        }
+
         .col-resize-handle {
             position: absolute;
             top: 0;
@@ -220,6 +284,11 @@ tbody {
             &:hover {
                 background: color-mix(in srgb, var(--color-primary), transparent 88%);
             }
+        }
+
+        &.cursor {
+            outline: 2px solid var(--color-primary);
+            outline-offset: -2px;
         }
     }
 

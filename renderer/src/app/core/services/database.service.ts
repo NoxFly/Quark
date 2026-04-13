@@ -32,6 +32,13 @@ export class DatabaseService {
     public readonly filter = signal<string>("");
 
     public readonly selectedRowIds = signal<Set<number>>(new Set());
+    public readonly allRowsSelected = signal<boolean>(false);
+
+    /** Mode lecture seule (pas d'édition inline). */
+    public readonly readOnly = signal<boolean>(true);
+
+    /** Mode de filtre SQLite (WHERE clause) vs recherche full-text. */
+    public readonly sqliteFilterMode = signal<boolean>(false);
 
     private currentOffset = 0;
     private readonly pageSize = 50;
@@ -109,6 +116,7 @@ export class DatabaseService {
             this.tableSchema.set(null);
             this.inTransaction.set(false);
             this.selectedRowIds.set(new Set());
+            this.allRowsSelected.set(false);
             this.router.navigate(["/open-database"]);
         }
         catch (err) {
@@ -151,6 +159,7 @@ export class DatabaseService {
         this.orderDir.set("ASC");
         this.filter.set("");
         this.selectedRowIds.set(new Set());
+        this.allRowsSelected.set(false);
 
         const db = this.state.database();
         if (db) {
@@ -186,6 +195,7 @@ export class DatabaseService {
                 orderBy: this.orderBy() ?? undefined,
                 orderDir: this.orderDir(),
                 filter: this.filter() || undefined,
+                filterMode: this.sqliteFilterMode() ? "sqlite" : "fulltext",
             });
 
             if (reset) {
@@ -215,6 +225,12 @@ export class DatabaseService {
 
         this.currentOffset += this.pageSize;
         await this.loadTableData(false);
+
+        // Si toutes les lignes sont sélectionnées virtuellement, ajouter les nouvelles à la sélection
+        if (this.allRowsSelected()) {
+            const allIds = new Set(this.tableData().map(r => r["rowid"] as number));
+            this.selectedRowIds.set(allIds);
+        }
     }
 
     /**
@@ -397,7 +413,7 @@ export class DatabaseService {
 
         const body: any = { table, format };
 
-        if (selectedOnly) {
+        if (selectedOnly && !this.allRowsSelected()) {
             body.rowids = Array.from(this.selectedRowIds());
         }
 
@@ -418,9 +434,32 @@ export class DatabaseService {
     }
 
     /**
+     * Toggle le mode lecture seule / lecture-écriture.
+     */
+    public toggleReadOnly(): void {
+        this.readOnly.update(v => !v);
+    }
+
+    /**
+     * Toggle le mode de filtre SQLite / full-text.
+     */
+    public toggleSqliteFilterMode(): void {
+        this.sqliteFilterMode.update(v => !v);
+    }
+
+    /**
      * Toggle la sélection d'une ligne.
      */
     public toggleRowSelection(rowid: number): void {
+        // Si toutes les lignes étaient sélectionnées virtuellement, matérialiser la sélection
+        if (this.allRowsSelected()) {
+            const allIds = new Set(this.tableData().map(r => r["rowid"] as number));
+            allIds.delete(rowid);
+            this.selectedRowIds.set(allIds);
+            this.allRowsSelected.set(false);
+            return;
+        }
+
         this.selectedRowIds.update(set => {
             const next = new Set(set);
             if (next.has(rowid)) {
@@ -434,18 +473,69 @@ export class DatabaseService {
     }
 
     /**
-     * Sélectionne/désélectionne toutes les lignes visibles.
+     * Sélectionne/désélectionne toutes les lignes (virtuellement).
      */
     public toggleSelectAll(): void {
-        const currentSelection = this.selectedRowIds();
-        const allRowIds = this.tableData().map(r => r["rowid"] as number);
-
-        if (currentSelection.size === allRowIds.length) {
+        if (this.allRowsSelected()) {
+            this.allRowsSelected.set(false);
             this.selectedRowIds.set(new Set());
         }
         else {
-            this.selectedRowIds.set(new Set(allRowIds));
+            this.allRowsSelected.set(true);
+            // Matérialiser pour les lignes actuellement chargées
+            const allIds = new Set(this.tableData().map(r => r["rowid"] as number));
+            this.selectedRowIds.set(allIds);
         }
+    }
+
+    /**
+     * Vérifie si une ligne est sélectionnée.
+     */
+    public isRowSelected(rowid: number): boolean {
+        return this.allRowsSelected() || this.selectedRowIds().has(rowid);
+    }
+
+    /**
+     * Retourne le nombre de lignes sélectionnées (virtuel ou réel).
+     */
+    public selectedCount(): number {
+        return this.allRowsSelected() ? this.totalCount() : this.selectedRowIds().size;
+    }
+
+    /**
+     * Restaure l'état du renderer depuis le main process (après un reload).
+     */
+    public async restoreState(): Promise<void> {
+        try {
+            const state = await this.noxus.ipc.getWindowState();
+            this.inTransaction.set(state.inTransaction);
+
+            if (state.database) {
+                this.onDatabaseOpened(state.database);
+            }
+        }
+        catch (err) {
+            console.error("Failed to restore window state:", err);
+        }
+    }
+
+    /**
+     * Récupère les données sélectionnées sous forme de tableau de records.
+     * Si allRowsSelected, retourne toutes les données chargées.
+     */
+    public getSelectedRecords(): DbRecord[] {
+        const records = this.tableData();
+
+        if (this.allRowsSelected()) {
+            return records;
+        }
+
+        const selected = this.selectedRowIds();
+        if (selected.size === 0) {
+            return [];
+        }
+
+        return records.filter(r => selected.has(r["rowid"] as number));
     }
 
     /**

@@ -97,6 +97,10 @@ export class Database {
         return this.db !== null;
     }
 
+    public get isInTransaction(): boolean {
+        return this.inTransaction;
+    }
+
     public get path(): string | null {
         return this.filePath;
     }
@@ -181,6 +185,7 @@ export class Database {
 
     /**
      * Récupère les données paginées d'une table, avec tri et filtre optionnels.
+     * @param filterMode - "sqlite" pour un filtre WHERE brut, "fulltext" pour une recherche texte sur toutes les colonnes.
      */
     public getTableData(
         tableName: string,
@@ -189,20 +194,42 @@ export class Database {
         orderBy?: string,
         orderDir?: "ASC" | "DESC",
         filter?: string,
+        filterMode: "sqlite" | "fulltext" = "fulltext",
     ): { records: DbRecord[]; totalCount: number } {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
 
-        // Construire la clause WHERE à partir du filtre personnalisé
+        // Construire la clause WHERE à partir du filtre
         let whereClause = "";
+        const whereParams: unknown[] = [];
+
         if (filter && filter.trim().length > 0) {
-            whereClause = ` WHERE ${this.parseFilter(filter, tableName)}`;
+            if (filterMode === "sqlite") {
+                try {
+                    const clause = this.parseFilter(filter, tableName);
+                    // Vérifier que la requête est syntaxiquement valide avant de l'utiliser
+                    this.db!.prepare(`SELECT 1 FROM ${safeTable} WHERE ${clause} LIMIT 1`);
+                    whereClause = ` WHERE ${clause}`;
+                }
+                catch {
+                    // Filtre invalide (saisie incomplète) : retourner un résultat vide
+                    return { records: [], totalCount: 0 };
+                }
+            }
+            else {
+                // Full-text : chercher dans toutes les colonnes textuelles
+                const columns = this.db!.prepare(`PRAGMA table_info(${safeTable})`).all() as { name: string }[];
+                const conditions = columns.map(c => `CAST(${this.escapeIdentifier(c.name)} AS TEXT) LIKE ?`);
+                whereClause = ` WHERE (${conditions.join(" OR ")})`;
+                const likeParam = `%${filter.trim()}%`;
+                whereParams.push(...columns.map(() => likeParam));
+            }
         }
 
         // Count total
         const countSql = `SELECT count(*) as cnt FROM ${safeTable}${whereClause}`;
-        const countResult = this.db!.prepare(countSql).get() as { cnt: number };
+        const countResult = this.db!.prepare(countSql).get(...whereParams) as { cnt: number };
 
         // Construire le ORDER BY
         let orderClause = "";
@@ -213,7 +240,7 @@ export class Database {
         }
 
         const dataSql = `SELECT rowid, * FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
-        const records = this.db!.prepare(dataSql).all(limit, offset) as DbRecord[];
+        const records = this.db!.prepare(dataSql).all(...whereParams, limit, offset) as DbRecord[];
 
         return {
             records,

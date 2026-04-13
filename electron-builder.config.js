@@ -75,6 +75,16 @@ module.exports = {
         "**/*.node",
         ...nativeModuleGlobs,
     ],
+    fileAssociations: [
+        {
+            ext: ["db", "sqlite", "sqlite3", "s3db"],
+            name: "SQLite Database",
+            description: "SQLite Database file",
+            mimeType: "application/x-sqlite3",
+            icon: windowsIconPath,
+            role: "Editor",
+        },
+    ],
     afterPack: async context => {
         const ext = {
             darwin: '.app',

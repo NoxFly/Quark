@@ -11,6 +11,7 @@ interface MenuItem {
     action?: () => void;
     separator?: boolean;
     disabled?: boolean;
+    children?: MenuItem[];
 }
 
 interface Menu {
@@ -43,6 +44,7 @@ export class TitlebarComponent {
 
     protected readonly menus = computed<Menu[]>(() => {
         const connected = this.state.connected();
+        const hasSelection = this.dbService.selectedCount() > 0;
         // Track locale changes to re-compute menu labels
         const t = (key: string): string => this.i18n.t(key);
 
@@ -62,11 +64,22 @@ export class TitlebarComponent {
             {
                 label: t("menu.edit"),
                 items: [
-                    { label: t("menu.startTransaction"), action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
+                    { label: t("menu.toggleEditMode"), shortcut: "Ctrl+E", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
+                    { label: "", separator: true },
+                    { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
                     { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: !this.dbService.inTransaction() },
                     { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: !this.dbService.inTransaction() },
                     { label: "", separator: true },
-                    { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: this.dbService.selectedRowIds().size === 0 },
+                    { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: !hasSelection },
+                    { label: "", separator: true },
+                    {
+                        label: t("menu.export"),
+                        disabled: !hasSelection,
+                        children: [
+                            { label: t("menu.exportJson"), action: () => this.dbService.exportData("json", true), disabled: !hasSelection },
+                            { label: t("menu.exportCsv"), action: () => this.dbService.exportData("csv", true), disabled: !hasSelection },
+                        ],
+                    },
                 ],
             },
             {
@@ -76,18 +89,14 @@ export class TitlebarComponent {
                     { label: "", separator: true },
                     { label: t("menu.changeTheme"), shortcut: "Ctrl+K Ctrl+T", action: () => this.openThemePicker() },
                     { label: "", separator: true },
-                    ...this.i18n.availableLocales.map(locale => ({
-                        label: this.i18n.localeLabels[locale],
-                        action: () => this.i18n.setLocale(locale),
-                        disabled: this.i18n.locale() === locale,
-                    })),
-                ],
-            },
-            {
-                label: t("menu.export"),
-                items: [
-                    { label: t("menu.exportJson"), action: () => this.dbService.exportData("json", this.dbService.selectedRowIds().size > 0), disabled: !connected },
-                    { label: t("menu.exportCsv"), action: () => this.dbService.exportData("csv", this.dbService.selectedRowIds().size > 0), disabled: !connected },
+                    {
+                        label: t("menu.language"),
+                        children: this.i18n.availableLocales.map(locale => ({
+                            label: this.i18n.localeLabels[locale],
+                            action: () => this.i18n.setLocale(locale),
+                            disabled: this.i18n.locale() === locale,
+                        })),
+                    },
                 ],
             },
             {

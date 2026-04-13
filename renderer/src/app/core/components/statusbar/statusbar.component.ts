@@ -16,7 +16,7 @@ import { StateService } from "src/app/core/services/state.service";
 export class StatusbarComponent {
     protected readonly state = inject(StateService);
     protected readonly dbService = inject(DatabaseService);
-    private readonly i18n = inject(I18nService);
+    protected readonly i18n = inject(I18nService);
 
     protected readonly recordInfo = computed(() => {
         const loaded = this.dbService.tableData().length;
@@ -33,7 +33,7 @@ export class StatusbarComponent {
     protected readonly tableName = computed(() => this.dbService.selectedTable());
 
     protected readonly selectionInfo = computed(() => {
-        const count = this.dbService.selectedRowIds().size;
+        const count = this.dbService.selectedCount();
         if (count === 0) {
             return "";
         }
@@ -43,4 +43,19 @@ export class StatusbarComponent {
     protected readonly transactionInfo = computed(() => {
         return this.dbService.inTransaction() ? this.i18n.t("statusbar.transaction") : "";
     });
+
+    protected readonly readOnly = computed(() => this.dbService.readOnly());
+
+    protected readonly editModeLabel = computed(() => {
+        return this.dbService.readOnly()
+            ? this.i18n.t("statusbar.readOnly")
+            : this.i18n.t("statusbar.readWrite");
+    });
+
+    /**
+     * Toggle le mode lecture seule / lecture-écriture.
+     */
+    protected toggleReadOnly(): void {
+        this.dbService.toggleReadOnly();
+    }
 }

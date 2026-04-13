@@ -34,7 +34,7 @@ const rootDir = __dirname;
 let rendererDir = "";
 
 const appName = app.getName();
-const appDisplayName = appName.replace(/[^\s]([A-Z])([a-z])/g, " $1$2");
+const appDisplayName = appName;//.replace(/[^\s]([A-Z])([a-z])/g, " $1$2");
 let appVersion = app.getVersion();
 
 // ---

@@ -209,7 +209,25 @@ export class Window {
      *
      */
     public toggleFullscreen(): void {
-        this.win?.setFullScreen(!this.win.isFullScreen());
+        if (!this.win) {
+            return;
+        }
+
+        const isFullScreen = this.win.isFullScreen();
+
+        if (!isFullScreen) {
+            // Retirer les contraintes de taille max pour permettre le vrai plein écran
+            this.win.setMaximumSize(0, 0);
+        }
+
+        this.win.setFullScreen(!isFullScreen);
+
+        if (isFullScreen) {
+            // Restaurer les contraintes de taille max après avoir quitté le plein écran
+            const primaryDisplay = screen.getPrimaryDisplay();
+            const { width, height } = primaryDisplay.workAreaSize;
+            this.win.setMaximumSize(width, height);
+        }
     }
 
     /**
