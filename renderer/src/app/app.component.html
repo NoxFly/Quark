@@ -12,7 +12,11 @@
     }
 </section>
 
+<app-statusbar></app-statusbar>
+
 @if(!ready) {
     <app-loading-screen [showContent]="!isReloading"></app-loading-screen>
 }
+
+<app-theme-picker></app-theme-picker>
 

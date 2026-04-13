@@ -1,6 +1,15 @@
-import { IApp, inject, Injectable, WindowManager } from "@noxfly/noxus/main";
-import { BrowserWindow, ipcMain } from "electron/main";
+import { IApp, inject, Injectable, Logger, WindowManager } from "@noxfly/noxus/main";
+import { app, BrowserWindow, dialog, ipcMain } from "electron/main";
 import { Window } from "src/core/services/window";
+import { normalize, basename } from "node:path";
+import { environment } from "src/core/environment";
+import type {
+    R_DeleteRowsBody,
+    R_ExportBody,
+    R_TableDataBody,
+    R_TransactionAction,
+    R_UpdateCellBody,
+} from "@shared/types";
 
 @Injectable({ lifetime: "singleton" })
 export class Application implements IApp {
@@ -18,58 +27,283 @@ export class Application implements IApp {
     /**
      *
      */
-    public getWindowById(senderId: number): Window | null {
-        return this.windows.get(senderId) || null;
+    public getWindowById(windowId: number): Window | null {
+        return this.windows.get(windowId) || null;
+    }
+
+    /**
+     * Trouve la fenêtre par le senderId (webContents.id) de Noxus.
+     */
+    public getWindowBySenderId(senderId: number): Window | null {
+        for (const window of this.windows.values()) {
+            if (window.senderId === senderId) {
+                return window;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Vérifie si un fichier est déjà ouvert dans une des fenêtres.
+     */
+    public findWindowByFilePath(filePath: string): Window | null {
+        const normalizedPath = normalize(filePath).toLowerCase();
+
+        for (const window of this.windows.values()) {
+            const dbPath = window.database.path;
+            if (dbPath && normalize(dbPath).toLowerCase() === normalizedPath) {
+                return window;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Ouvre un dialogue de sélection de fichier.
+     */
+    public async openFileDialog(parentWin?: BrowserWindow | null): Promise<string | null> {
+        const result = await dialog.showOpenDialog(parentWin ?? BrowserWindow.getFocusedWindow()!, {
+            properties: ["openFile"],
+            filters: [
+                { name: "SQLite Database", extensions: ["db", "sqlite", "sqlite3", "s3db"] },
+                { name: "All Files", extensions: ["*"] },
+            ],
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return null;
+        }
+
+        return result.filePaths[0];
     }
 
     /**
      *
      */
     public async onReady(): Promise<void> {
-        this.setupShortcuts();
         this.setupBridge();
+        this.setupDbBridge();
 
         const baseWindow = await Window.create(this.wm);
         this.windows.set(baseWindow.id, baseWindow);
     }
 
     public async onActivated(): Promise<void> {}
-    public async dispose(): Promise<void> {}
 
-    private setupShortcuts(): void {}
+    public async dispose(): Promise<void> {
+        for (const window of this.windows.values()) {
+            window.database.close();
+        }
+    }
 
     /**
-     *
+     * Setup des IPC pour la gestion de fenêtre.
      */
     private setupBridge(): void {
-        ipcMain.handle("close-app", () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            const window = this.windows.get(focusedWindow?.id!);
-            window?.close();
+        ipcMain.handle("close-app", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+
+            if (window) {
+                window.database.close();
+                this.windows.delete(window.id);
+                window.close();
+            }
+
+            // Si c'était la dernière fenêtre, l'app se ferme naturellement sur macOS
+            // Sur Windows/Linux, on quitte explicitement
+            if (this.windows.size === 0) {
+                app.quit();
+            }
         });
 
-        ipcMain.handle("reduce-app", () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            const window = this.windows.get(focusedWindow?.id!);
+        ipcMain.handle("new-window", async () => {
+            const newWin = await Window.create(this.wm);
+            this.windows.set(newWin.id, newWin);
+        });
+
+        ipcMain.handle("quit-app", () => {
+            for (const window of this.windows.values()) {
+                window.database.close();
+                window.close();
+            }
+            this.windows.clear();
+            app.quit();
+        });
+
+        ipcMain.handle("load-app", (_event) => {
+            const isFirstWindow = this.windows.size <= 1;
+            return {
+                windowType: isFirstWindow ? "primary" : "secondary",
+                appName: environment.product.displayName,
+                appVersion: environment.product.version,
+            };
+        });
+
+        ipcMain.handle("reduce-app", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
             window?.reduce();
         });
 
-        ipcMain.handle("toggle-fullscreen", () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            const window = this.windows.get(focusedWindow?.id!);
+        ipcMain.handle("toggle-fullscreen", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            window?.toggleFullscreen();
+        });
+
+        ipcMain.handle("toggle-maximize", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
             window?.toggleMaximize();
         });
 
-        ipcMain.handle("get-titlebar-state", () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            const window = this.windows.get(focusedWindow?.id!);
-            window?.close();
+        ipcMain.handle("get-titlebar-state", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            return window?.getTitlebarState() ?? {
+                minimizable: false,
+                maximizable: false,
+                closable: false,
+            };
         });
 
-        ipcMain.handle("request-reload", () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            const window = this.windows.get(focusedWindow?.id!);
+        ipcMain.handle("request-reload", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
             window?.reloadRenderer();
+        });
+
+        ipcMain.handle("open-file-dialog", async (_event) => {
+            const win = BrowserWindow.fromWebContents(_event.sender);
+            return await this.openFileDialog(win);
+        });
+    }
+
+    /**
+     * Setup des IPC pour les opérations sur la base de données.
+     */
+    private setupDbBridge(): void {
+        ipcMain.handle("db-open-file", (_event, filePath: string) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            // Vérifier si ce fichier est déjà ouvert dans une autre fenêtre
+            const existing = this.findWindowByFilePath(filePath);
+            if (existing && existing.id !== window.id) {
+                existing.focus();
+                return { needsPassword: false, database: null, alreadyOpen: true };
+            }
+
+            const needsPassword = window.openDatabase(filePath);
+
+            return {
+                needsPassword,
+                database: needsPassword ? null : window.getDatabaseSchema(),
+            };
+        });
+
+        ipcMain.handle("db-submit-password", (_event, password: string) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.unlockDatabase(password);
+
+            return {
+                database: window.getDatabaseSchema(),
+            };
+        });
+
+        ipcMain.handle("db-close-file", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.closeDatabase();
+            return { closed: true };
+        });
+
+        ipcMain.handle("db-table-data", (_event, body: R_TableDataBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            return window.database.getTableData(
+                body.table,
+                body.offset,
+                body.limit,
+                body.orderBy,
+                body.orderDir,
+                body.filter,
+            );
+        });
+
+        ipcMain.handle("db-update-cell", (_event, body: R_UpdateCellBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.updateCell(body.table, body.rowid, body.column, body.value);
+        });
+
+        ipcMain.handle("db-delete-rows", (_event, body: R_DeleteRowsBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.deleteRows(body.table, body.rowids);
+        });
+
+        ipcMain.handle("db-transaction", (_event, action: R_TransactionAction) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            switch (action) {
+                case "begin":
+                    window.database.beginTransaction();
+                    break;
+                case "commit":
+                    window.database.commit();
+                    break;
+                case "rollback":
+                    window.database.rollback();
+                    break;
+            }
+        });
+
+        ipcMain.handle("db-export", (_event, body: R_ExportBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            return window.database.exportData(body.table, body.format, body.rowids, body.filter);
+        });
+
+        ipcMain.handle("db-refresh", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            const dbPath = window.database.path;
+            if (!dbPath) {
+                return { database: null };
+            }
+
+            // Ferme et réouvre la même base de données
+            window.closeDatabase();
+            const needsPassword = window.openDatabase(dbPath);
+
+            return {
+                needsPassword,
+                database: needsPassword ? null : window.getDatabaseSchema(),
+            };
         });
     }
 }

@@ -1,7 +1,7 @@
-@use 'src/theme/mixins.scss' as *;
+@use "src/theme/mixins.scss" as *;
 
 .titlebar {
-    @include flex($dir: row-reverse, $hor: flex-start, $ver: stretch);
+    @include flex($hor: space-between, $ver: stretch);
 
     width: 100vw;
     height: var(--titlebar-height);
@@ -10,58 +10,170 @@
     top: 0;
     left: 0;
     z-index: 1000;
-    transition: background-color .15s ease-in-out;
+    transition: background-color 0.15s ease-in-out;
     user-select: none;
-    border-bottom: 1px  solid rgba(127, 127, 127, 0.2);
+    border-bottom: 1px solid rgba(127, 127, 127, 0.2);
 
     &.draggable {
         -webkit-app-region: drag;
     }
 
-    .app-name {
-        @include absolute($left: 0, $tx: 0);
-        @include flex;
-
-        margin-left: 10px;
-        font-size: .75em;
-        font-weight: 700;
-        color: rgb(127, 127, 127);
-        height: 100%;
-    }
-
-    .actions {
-        @include flex($hor: flex-end, $gap: 5px);
-    }
-
-    .action {
-        @include flex;
-
-        background: none;
-        border: none;
-        width: var(--titlebar-height);
-        height: var(--titlebar-height);
-        border-radius: 0;
-        position: relative;
-        cursor: pointer;
-        z-index: 2;
+    .no-drag {
         -webkit-app-region: no-drag;
-        pointer-events: auto;
-        color: #999;
-        text-align: center;
-        transition: background-color .1s ease-in-out, color .1s ease-in-out;
+    }
+}
 
-        svg {
-            vertical-align: middle;
-        }
+// --- Menus ---
 
-        &:hover {
-            background-color: rgba(127, 127, 127, 0.2);
-            border-bottom: 1px solid rgba(127, 127, 127, 0.4);
-        }
+.menus {
+    @include flex($hor: flex-start, $gap: 0px);
+    height: 100%;
+    flex-shrink: 0;
+}
 
-        &.close:hover {
-            background-color: rgba(255, 0, 0, 0.8);
-            color: #fff;
-        }
+.menu-container {
+    position: relative;
+    height: 100%;
+}
+
+.menu-trigger {
+    @include flex;
+    height: 100%;
+    padding: 0 10px;
+    background: none;
+    border: none;
+    color: rgba(127, 127, 127, 0.8);
+    font-size: 0.75em;
+    cursor: pointer;
+    transition: background-color 0.1s, color 0.1s;
+    white-space: nowrap;
+
+    &:hover,
+    &.active {
+        background: rgba(127, 127, 127, 0.15);
+        color: var(--text-color);
+    }
+}
+
+.menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 220px;
+    background: var(--color-dark-tint);
+    border: 1px solid rgba(127, 127, 127, 0.25);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    padding: 4px 0;
+    z-index: 2000;
+    animation: menuFadeIn 0.1s ease-out;
+}
+
+@keyframes menuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.menu-item {
+    @include flex($hor: space-between);
+    width: 100%;
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 0.8em;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.08s;
+
+    &:hover:not(.disabled) {
+        background: rgba(var(--color-primary-rgb), 0.15);
+    }
+
+    &.disabled {
+        color: rgba(127, 127, 127, 0.35);
+        cursor: default;
+    }
+
+    .menu-item-label {
+        flex: 1;
+    }
+
+    .menu-item-shortcut {
+        margin-left: 24px;
+        font-size: 0.85em;
+        color: rgba(127, 127, 127, 0.5);
+        flex-shrink: 0;
+    }
+}
+
+.menu-separator {
+    height: 1px;
+    background: rgba(127, 127, 127, 0.15);
+    margin: 4px 8px;
+}
+
+// --- Centre ---
+
+.center-title {
+    @include flex;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 100%;
+    pointer-events: none;
+    font-size: 0.75em;
+    font-weight: 600;
+
+    .app-name {
+        color: rgba(127, 127, 127, 0.6);
+    }
+
+    .file-name {
+        color: rgba(127, 127, 127, 0.8);
+    }
+}
+
+// --- Actions fenêtre ---
+
+.actions {
+    @include flex($hor: flex-end, $gap: 0px);
+    height: 100%;
+    flex-shrink: 0;
+}
+
+.action {
+    @include flex;
+    background: none;
+    border: none;
+    width: var(--titlebar-height);
+    height: var(--titlebar-height);
+    border-radius: 0;
+    position: relative;
+    cursor: pointer;
+    z-index: 2;
+    pointer-events: auto;
+    color: #999;
+    text-align: center;
+    transition: background-color 0.1s ease-in-out, color 0.1s ease-in-out;
+
+    svg {
+        vertical-align: middle;
+    }
+
+    &:hover {
+        background-color: rgba(127, 127, 127, 0.2);
+        border-bottom: 1px solid rgba(127, 127, 127, 0.4);
+    }
+
+    &.close:hover {
+        background-color: rgba(255, 0, 0, 0.8);
+        color: #fff;
     }
 }

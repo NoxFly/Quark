@@ -9,4 +9,5 @@ export const routes: Routes = [
         path: "table-data",
         loadComponent: () => import("./table-data/table-data.page").then((c) => c.TableDataPage),
     },
+    { path: "", redirectTo: "no-table", pathMatch: "full" },
 ];

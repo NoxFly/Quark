@@ -11,7 +11,8 @@ export type TitlebarState = {
 export type LoadAppResult = {
     windowType: "primary" | "secondary";
     appName: string;
-} & LocaleConfig;
+    appVersion: string;
+};
 
 export type NavigationRequest = string;
 
@@ -20,9 +21,26 @@ export interface IpcRendererBridge {
     close(): Promise<void>;
     reduce(): Promise<void>;
     toggleFullscreen(): Promise<void>;
+    toggleMaximize(): Promise<void>;
     getTitlebarState(): Promise<TitlebarState>;
     loadApp(): Promise<LoadAppResult>;
+    newWindow(): Promise<void>;
+    quitApp(): Promise<void>;
+
+    openFileDialog(): Promise<string | null>;
+    openFile(filePath: string): Promise<import("./types").R_OpenFileResponse>;
+    submitPassword(password: string): Promise<import("./types").R_PasswordResponse>;
+    closeFile(): Promise<import("./types").R_CloseFileResponse>;
+    refreshDatabase(): Promise<import("./types").R_OpenFileResponse>;
+    getTableData(body: import("./types").R_TableDataBody): Promise<import("./types").R_TableDataResponse>;
+    updateCell(body: import("./types").R_UpdateCellBody): Promise<void>;
+    deleteRows(body: import("./types").R_DeleteRowsBody): Promise<void>;
+    transactionAction(action: import("./types").R_TransactionAction): Promise<void>;
+    exportData(body: import("./types").R_ExportBody): Promise<import("./types").R_ExportResponse>;
+
     onNavigationRequested(cb: (route: NavigationRequest) => void): void;
+    onFileOpened(cb: (filePath: string) => void): void;
+    onTitleChanged(cb: (title: string) => void): void;
     whenDisplayErrorDialog(cb: (error: ErrorDialogPayload) => void): void;
 }
 

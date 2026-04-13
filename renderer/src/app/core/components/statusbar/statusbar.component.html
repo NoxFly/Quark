@@ -1,0 +1,20 @@
+@if (state.connected()) {
+    <div class="statusbar">
+        <div class="left">
+            @if (tableName()) {
+                <span class="table-name">{{ tableName() }}</span>
+            }
+            @if (recordInfo()) {
+                <span class="record-count">{{ recordInfo() }}</span>
+            }
+            @if (selectionInfo()) {
+                <span class="selection-info">{{ selectionInfo() }}</span>
+            }
+        </div>
+        <div class="right">
+            @if (transactionInfo()) {
+                <span class="transaction-badge">{{ transactionInfo() }}</span>
+            }
+        </div>
+    </div>
+}

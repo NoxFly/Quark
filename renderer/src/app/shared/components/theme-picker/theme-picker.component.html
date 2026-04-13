@@ -1,0 +1,21 @@
+@if (isOpen()) {
+    <div class="theme-overlay" (click)="close()">
+        <div class="theme-sheet" (click)="$event.stopPropagation()">
+            <div class="theme-header">Choisir un thème</div>
+            <div class="theme-list">
+                @for (theme of themes; track theme.value; let i = $index) {
+                    <button
+                        class="theme-option"
+                        [class.selected]="selectedIndex() === i"
+                        (click)="selectTheme($event, i)"
+                    >
+                        <span class="theme-label">{{ theme.label }}</span>
+                        @if (selectedIndex() === i) {
+                            <span class="theme-check">&#xE73E;</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}

@@ -1,11 +1,7 @@
 export type AppState = {
-    tabs: Map<number, AppTabState>;
-    currentTabId: number;
-};
-
-export type AppTabState = {
-    isConnected: boolean;
-    database?: DatabaseSchema;
+    connected: boolean;
+    database: DatabaseSchema | null;
+    filePath: string | null;
 };
 
 export type DatabaseSchema = {
@@ -17,37 +13,94 @@ export type DatabaseSchema = {
 export type TableSchema = {
     name: string;
     fields: FieldDef[];
-    weight: number; // poids de la table en octets
-    recordCount: number; // nombre d'enregistrements
+    weight: number;
+    recordCount: number;
 };
 
-// Reprend les informations importantes d'un schéma de table sqlite
+/**
+ * Reprend les informations importantes d'un schéma de table sqlite.
+ */
 export type FieldDef = {
     name: string;
     type: string;
     notnull: boolean;
     dflt_value: string | null;
     pk: boolean;
+    fk: ForeignKeyDef | null;
 };
 
-export type Record = {
-    [columnName: string]: any;
+/**
+ * Décrit une clé étrangère sur un champ.
+ */
+export type ForeignKeyDef = {
+    table: string;
+    column: string;
 };
 
-// ---
-
-// Le body de la requête depuis le renderer vers le main pour une connexion à une BDD
-export type R_ConnBody = {
-
+export type DbRecord = {
+    [columnName: string]: unknown;
 };
 
-export type R_ConnResponse = {
+// --- Request / Response DTOs ---
+
+export type R_OpenFileBody = {
+    filePath: string;
+};
+
+export type R_OpenFileResponse = {
     needsPassword: boolean;
+    database: DatabaseSchema | null;
 };
 
-export type R_ConnPasswordBody = {
+export type R_PasswordBody = {
     password: string;
 };
 
-export type R_ConnPasswordResponse = {};
+export type R_PasswordResponse = {
+    database: DatabaseSchema;
+};
+
+export type R_CloseFileResponse = {
+    closed: boolean;
+};
+
+export type R_TableDataBody = {
+    table: string;
+    offset: number;
+    limit: number;
+    orderBy?: string;
+    orderDir?: "ASC" | "DESC";
+    filter?: string;
+};
+
+export type R_TableDataResponse = {
+    records: DbRecord[];
+    totalCount: number;
+};
+
+export type R_UpdateCellBody = {
+    table: string;
+    rowid: number;
+    column: string;
+    value: unknown;
+};
+
+export type R_DeleteRowsBody = {
+    table: string;
+    rowids: number[];
+};
+
+export type R_TransactionAction = "begin" | "commit" | "rollback";
+
+export type R_ExportBody = {
+    table: string;
+    format: "json" | "csv";
+    rowids?: number[];
+    filter?: string;
+};
+
+export type R_ExportResponse = {
+    data: string;
+    filename: string;
+};
 

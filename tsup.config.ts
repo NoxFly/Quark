@@ -32,7 +32,7 @@ export default defineConfig([
         target: 'es2020',
         outDir: 'dist',
         external: ['electron'],   // seul electron est external, pas noxus
-        noExternal: ['@noxfly/noxus'],
+        // noExternal: ['@noxfly/noxus'],
         bundle: true,             // bundler noxus/preload dedans
         sourcemap: isDev,
         keepNames: true,

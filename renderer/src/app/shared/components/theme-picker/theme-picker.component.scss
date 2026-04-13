@@ -1,0 +1,76 @@
+@use "src/theme/mixins.scss" as *;
+
+.theme-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.3);
+
+    @include flex($ver: flex-start);
+    padding-top: 80px;
+}
+
+.theme-sheet {
+    min-width: 280px;
+    max-width: 360px;
+    background: var(--color-dark-tint);
+    border: 1px solid rgba(127, 127, 127, 0.25);
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    animation: sheetFadeIn 0.15s ease-out;
+}
+
+@keyframes sheetFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.theme-header {
+    padding: 10px 14px;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: rgba(127, 127, 127, 0.6);
+    border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+}
+
+.theme-list {
+    padding: 4px 0;
+}
+
+.theme-option {
+    @include flex($hor: space-between);
+    width: 100%;
+    padding: 8px 14px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 0.85em;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.08s;
+
+    &:hover {
+        background: rgba(var(--color-primary-rgb), 0.1);
+    }
+
+    &.selected {
+        background: rgba(var(--color-primary-rgb), 0.15);
+        color: var(--color-primary);
+    }
+
+    .theme-check {
+        font-family: "Segoe Fluent Icons", sans-serif;
+        font-size: 0.85em;
+        color: var(--color-primary);
+    }
+}

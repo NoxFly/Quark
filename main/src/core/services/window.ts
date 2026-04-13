@@ -1,16 +1,17 @@
 import { Logger, WindowManager } from "@noxfly/noxus/main";
-import { AppTab } from "src/core/services/app-tab";
 import { shell } from "electron/common";
 import { BrowserWindow, BrowserWindowConstructorOptions, screen } from "electron/main";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { environment } from "src/core/environment";
+import { Database } from "src/core/services/database";
+import type { DatabaseSchema } from "@shared/types";
 
 const defaultWindowOptions: BrowserWindowConstructorOptions = {
     webPreferences: {
         devTools: true,
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true,
+        sandbox: false, // false pour supporter File.path dans le drag & drop — sécurisé grâce à contextIsolation
         preload: join(environment.rootDir, "preload.js"),
         webSecurity: true,
     },
@@ -21,19 +22,19 @@ const defaultWindowOptions: BrowserWindowConstructorOptions = {
     frame: false,
     icon: join(environment.publicDir, "favicon.ico"),
     minHeight: 750,
-    minWidth: 950,
+    minWidth: 1250,
     resizable: true,
     backgroundColor: "#000",
     accentColor: "#000000",
 };
 
 /**
- * 1 instance par fenêtre (renderer)
+ * 1 instance par fenêtre (renderer).
+ * Chaque fenêtre gère une seule connexion DB.
  */
 export class Window {
     private win: BrowserWindow | null = null;
-    private readonly tabs = new Map<number, AppTab>();
-    private focusedTabId = 0;
+    public readonly database = new Database();
 
     /**
      *
@@ -48,7 +49,7 @@ export class Window {
      *
      */
     private constructor(
-        private readonly windowManager: WindowManager
+        private readonly windowManager: WindowManager,
     ) {}
 
     /**
@@ -59,17 +60,10 @@ export class Window {
     }
 
     /**
-     *
+     * Retourne le webContents.id (senderId pour Noxus).
      */
-    public get focusedTab(): AppTab | null {
-        return this.tabs.get(this.focusedTabId) || null;
-    }
-
-    /**
-     *
-     */
-    public get allTabs(): AppTab[] {
-        return Array.from(this.tabs.values());
+    public get senderId(): number {
+        return this.win?.webContents?.id ?? -1;
     }
 
     /**
@@ -80,12 +74,71 @@ export class Window {
     }
 
     /**
-     *
+     * Ouvre une base de données. Retourne true si un mot de passe est nécessaire.
      */
-    public setFocusedTab(tabId: number): void {
-        if (this.tabs.has(tabId)) {
-            this.focusedTabId = tabId;
+    public openDatabase(filePath: string): boolean {
+        const needsPassword = this.database.open(filePath);
+
+        if (!needsPassword) {
+            this.updateTitle();
         }
+
+        return needsPassword;
+    }
+
+    /**
+     * Déverrouille une base chiffrée.
+     */
+    public unlockDatabase(password: string): void {
+        this.database.unlock(password);
+        this.updateTitle();
+    }
+
+    /**
+     * Ferme la base de données.
+     */
+    public closeDatabase(): void {
+        this.database.close();
+        this.updateTitle();
+    }
+
+    /**
+     * Récupère le schéma de la base de données ouverte.
+     */
+    public getDatabaseSchema(): DatabaseSchema | null {
+        if (!this.database.isOpen) {
+            return null;
+        }
+        return this.database.getSchema();
+    }
+
+    /**
+     * Met à jour le titre de la fenêtre.
+     */
+    private updateTitle(): void {
+        if (!this.win) {
+            return;
+        }
+
+        const dbPath = this.database.path;
+        const title = dbPath ? basename(dbPath) : "SQLite Editor";
+        this.win.setTitle(title);
+        this.win.webContents.send("title-changed", title);
+    }
+
+    /**
+     * Met la fenêtre au premier plan.
+     */
+    public focus(): void {
+        if (!this.win) {
+            return;
+        }
+
+        if (this.win.isMinimized()) {
+            this.win.restore();
+        }
+
+        this.win.focus();
     }
 
     /**

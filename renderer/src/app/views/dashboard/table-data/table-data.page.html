@@ -1,0 +1,106 @@
+<!-- Transaction banner -->
+@if (inTransaction()) {
+    <div class="transaction-banner">
+        <span class="transaction-icon">&#xE7BA;</span>
+        <span>Mode Transaction actif</span>
+        <div class="transaction-actions">
+            <button class="btn-commit" (click)="commitTransaction()">
+                &#xE73E; Valider
+            </button>
+            <button class="btn-rollback" (click)="rollbackTransaction()">
+                &#xE711; Annuler
+            </button>
+        </div>
+    </div>
+}
+
+<!-- Toolbar (filtre uniquement) -->
+<div class="toolbar">
+    <div class="filter-bar">
+        <input
+            type="text"
+            placeholder="Filtrer... ex: id = 1 and name like '%abc%'"
+            [ngModel]="filterInput()"
+            (ngModelChange)="onFilterInput($event)"
+            class="filter-input"
+        />
+    </div>
+</div>
+
+<!-- Table -->
+<div class="table-container" #scrollContainer (scroll)="onScroll($event)">
+    <table>
+        <thead>
+            <tr>
+                <th class="checkbox-col">
+                    <input
+                        type="checkbox"
+                        [checked]="isAllSelected()"
+                        (change)="toggleSelectAll()"
+                    />
+                </th>
+                @for (field of fields(); track field.name) {
+                    <th
+                        [style.width.px]="getColumnWidth(field.name)"
+                        [style.min-width.px]="getColumnWidth(field.name)"
+                    >
+                        <div class="th-content" (click)="sortBy(field.name)">
+                            <span class="col-name">{{ field.name }}</span>
+                            <span class="col-type">{{ field.type }}</span>
+                            @if (getFieldBadge(field)) {
+                                <span class="col-badge">{{ getFieldBadge(field) }}</span>
+                            }
+                            @if (getSortIcon(field.name)) {
+                                <span class="sort-icon">{{ getSortIcon(field.name) }}</span>
+                            }
+                        </div>
+                        <div
+                            class="col-resize-handle"
+                            (mousedown)="startColumnResize($event, field.name)"
+                        ></div>
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @for (record of records(); track record["rowid"]) {
+                <tr [class.selected]="isRowSelected($any(record['rowid']))">
+                    <td class="checkbox-col">
+                        <input
+                            type="checkbox"
+                            [checked]="isRowSelected($any(record['rowid']))"
+                            (change)="toggleRowSelection($any(record['rowid']))"
+                        />
+                    </td>
+                    @for (field of fields(); track field.name) {
+                        <td
+                            [style.width.px]="getColumnWidth(field.name)"
+                            [style.min-width.px]="getColumnWidth(field.name)"
+                            (click)="startEdit($any(record['rowid']), field.name, record[field.name])"
+                            [class.null-value]="record[field.name] === null || record[field.name] === undefined"
+                            [class.editing]="isEditing($any(record['rowid']), field.name)"
+                        >
+                            @if (isEditing($any(record['rowid']), field.name)) {
+                                <input
+                                    type="text"
+                                    class="cell-edit"
+                                    [ngModel]="editValue()"
+                                    (ngModelChange)="editValue.set($event)"
+                                    (blur)="commitEdit()"
+                                    (keydown)="onEditKeydown($event)"
+                                    #editInput
+                                />
+                            } @else {
+                                <span class="cell-value">{{ formatValue(record[field.name]) }}</span>
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (loading()) {
+        <div class="loading-indicator">Chargement...</div>
+    }
+</div>

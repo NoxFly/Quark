@@ -1,5 +1,36 @@
-<nav>
-    <ul>
-        <li></li>
-    </ul>
-</nav>
+@if (state.connected()) {
+    <div class="sidebar-header">
+        <span class="db-name" [title]="state.database()?.path ?? ''">
+            {{ state.database()?.name ?? "" }}
+        </span>
+        <div class="header-actions">
+            <button class="header-btn refresh-btn" (click)="refreshDatabase()" title="Rafraîchir la base">
+                &#xE72C;
+            </button>
+            <button class="header-btn close-btn" (click)="closeFile()" title="Fermer la base">
+                &#xE711;
+            </button>
+        </div>
+    </div>
+
+    <nav class="tables-list">
+        <ul>
+            @for (table of tables(); track table.name) {
+                <li
+                    [class.active]="selectedTable() === table.name"
+                    (click)="selectTable(table.name)"
+                    [title]="table.name + ' (' + table.recordCount + ' lignes)'"
+                >
+                    <span class="table-icon">&#xE80F;</span>
+                    <span class="table-name">{{ table.name }}</span>
+                    <span class="table-count">{{ table.recordCount }}</span>
+                </li>
+            }
+        </ul>
+    </nav>
+
+    <div
+        class="resize-handle"
+        (mousedown)="startResize($event)"
+    ></div>
+}

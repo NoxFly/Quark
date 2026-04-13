@@ -7,26 +7,25 @@ export class AppService {
     private readonly application = inject(Application);
 
     /**
-     *
+     * Retourne l'état courant de la fenêtre associée au sender.
      */
-    public async getState(request: Request): Promise<AppState> {
-        // const window = this.application.getWindowById(request.);
+    public getState(request: Request): AppState {
+        const window = this.application.getWindowBySenderId(request.senderId);
 
-        // if(!window) {
-        //     throw new NotFoundException("No focused window found");
-        // }
+        if (!window) {
+            return {
+                connected: false,
+                database: null,
+                filePath: null,
+            };
+        }
 
-        // const tabs = window?.allTabs || [];
-
-        // return {
-        //     tabs
-        // };
-
-        // throw new NotFoundException("Not implemeted");
+        const isOpen = window.database.isOpen;
 
         return {
-            currentTabId: 0,
-            tabs: new Map(),
+            connected: isOpen,
+            database: isOpen ? window.getDatabaseSchema() : null,
+            filePath: window.database.path,
         };
     }
 }

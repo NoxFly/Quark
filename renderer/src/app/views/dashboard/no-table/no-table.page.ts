@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject } from "@angular/core";
+import { StateService } from "src/app/core/services/state.service";
 
 @Component({
     selector: "app-no-table",
@@ -8,4 +9,10 @@ import { ChangeDetectionStrategy, Component } from "@angular/core";
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [],
 })
-export class NoTablePage {}
+export class NoTablePage {
+    protected readonly state = inject(StateService);
+
+    protected readonly tableCount = computed(() => {
+        return this.state.database()?.tables.length ?? 0;
+    });
+}
