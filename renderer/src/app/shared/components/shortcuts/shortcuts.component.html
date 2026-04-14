@@ -1,0 +1,30 @@
+<div class="shortcuts-modal">
+    <div class="modal-header">
+        <h2>{{ i18n.t('shortcuts.title') }}</h2>
+    </div>
+
+    <div class="modal-body">
+        @for (group of groups(); track group.title) {
+            <div class="shortcut-group">
+                <div class="group-title">{{ i18n.t(group.title) }}</div>
+                @for (shortcut of group.shortcuts; track shortcut.keys) {
+                    <div class="shortcut-row">
+                        <span class="shortcut-keys">
+                            @for (key of shortcut.keys.split('  '); track key; let k = $index) {
+                                @if (k > 0) {
+                                    <span class="key-separator">+</span>
+                                }
+                                <kbd>{{ key }}</kbd>
+                            }
+                        </span>
+                        <span class="shortcut-desc">{{ i18n.t(shortcut.description) }}</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="modal-actions">
+        <ui-button color="secondary" (click)="close()">{{ i18n.t('shortcuts.close') }}</ui-button>
+    </div>
+</div>

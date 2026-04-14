@@ -92,12 +92,11 @@
     }
 
     li {
-        @include flex($hor: flex-start, $gap: 8px);
-        padding: 6px 12px;
+        @include flex(flex, column, nowrap, stretch, stretch, 0);
         cursor: pointer;
         font-size: 0.8em;
         color: color-mix(in srgb, var(--text-color), transparent 20%);
-        transition: all 0.1s;
+        transition: background 0.1s, color 0.1s;
         user-select: none;
 
         &:hover {
@@ -108,16 +107,33 @@
         &.active {
             background: color-mix(in srgb, var(--color-primary), transparent 85%);
             color: var(--color-primary);
-
-            .table-icon {
-                color: var(--color-primary);
-            }
         }
 
-        .table-icon {
-            font-family: "Segoe Fluent Icons", sans-serif;
-            font-size: 0.85em;
+        .table-row {
+            @include flex($hor: flex-start, $gap: 4px);
+            padding: 6px 8px 6px 4px;
+        }
+
+        .expand-toggle {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: inherit;
+            @include flex(flex, row, nowrap, center, center, 0);
+            width: 20px;
+            height: 20px;
             flex-shrink: 0;
+
+            .expand-icon {
+                font-family: "Segoe Fluent Icons", sans-serif;
+                font-size: 0.7em;
+                transition: transform 0.15s;
+
+                &.open {
+                    transform: rotate(90deg);
+                }
+            }
         }
 
         .table-name {
@@ -132,6 +148,48 @@
             color: rgba(127, 127, 127, 0.5);
             flex-shrink: 0;
         }
+    }
+}
+
+// --- Détails des champs (déplié) ---
+
+.table-fields {
+    padding: 0 8px 6px 28px;
+    cursor: default;
+}
+
+.field-entry {
+    @include flex($hor: space-between, $gap: 8px);
+    padding: 2px 4px;
+    font-size: 0.85em;
+    border-radius: 2px;
+
+    &.pk {
+        .field-name {
+            color: var(--color-warning);
+            font-weight: 600;
+        }
+    }
+
+    &.fk {
+        .field-name {
+            color: var(--color-primary);
+        }
+    }
+
+    .field-name {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--text-color);
+    }
+
+    .field-type {
+        font-size: 0.85em;
+        color: var(--text-muted);
+        font-family: "Consolas", monospace;
+        flex-shrink: 0;
     }
 }
 
@@ -159,5 +217,16 @@
     &:hover::after,
     &:active::after {
         background: var(--interactive, var(--color-primary));
+    }
+}
+
+.sidebar-footer {
+    .footer-btn {
+        --btn-width: 100%;
+        margin: 10px auto 5px auto;
+        display: block;
+        position: relative;
+        width: max(200px, 90%);
+        font-size: .8rem;
     }
 }

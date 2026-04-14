@@ -52,6 +52,8 @@ export interface IpcRendererBridge {
     changePassword(body: import("./types").R_ChangePasswordBody): Promise<void>;
     batchUpdate(body: import("./types").R_BatchUpdateBody): Promise<void>;
     dropTable(tableName: string): Promise<void>;
+    getTablesSql(): Promise<{ name: string; sql: string }[]>;
+    getRecentDatabases(): Promise<RecentDatabaseEntry[]>;
 
     onNavigationRequested(cb: (route: NavigationRequest) => void): void;
     onFileOpened(cb: (filePath: string) => void): void;
@@ -63,6 +65,13 @@ export interface ErrorDialogPayload {
     title?: string;
     message: string;
     details?: string;
+}
+
+export interface RecentDatabaseEntry {
+    filePath: string;
+    fileName: string;
+    directory: string;
+    lastOpened: number;
 }
 
 declare global {

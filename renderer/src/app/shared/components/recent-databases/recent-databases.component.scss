@@ -1,0 +1,101 @@
+@use "src/theme/mixins.scss" as *;
+
+.recent-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.3);
+
+    @include flex($ver: flex-start);
+    padding-top: 80px;
+}
+
+.recent-sheet {
+    min-width: 400px;
+    max-width: 520px;
+    max-height: 60vh;
+    background: var(--surface-alt);
+    border: 1px solid rgba(127, 127, 127, 0.25);
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    animation: sheetFadeIn 0.15s ease-out;
+
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+}
+
+@keyframes sheetFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.recent-header {
+    padding: 10px 14px;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: rgba(127, 127, 127, 0.6);
+    border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.recent-list {
+    padding: 4px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.recent-empty {
+    padding: 16px 14px;
+    text-align: center;
+    font-size: 0.8em;
+    color: rgba(127, 127, 127, 0.6);
+    font-style: italic;
+}
+
+.recent-option {
+    @include flex(flex, column, nowrap, flex-start, stretch, 2px);
+    width: 100%;
+    padding: 8px 14px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 0.85em;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.08s;
+
+    &:hover {
+        background: rgba(127, 127, 127, 0.12);
+    }
+
+    &.selected {
+        background: rgba(127, 127, 127, 0.12);
+        color: var(--color-primary);
+    }
+
+    .recent-filename {
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .recent-directory {
+        font-size: 0.8em;
+        color: rgba(127, 127, 127, 0.6);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}

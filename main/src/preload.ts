@@ -54,6 +54,8 @@ const api: IpcRendererBridge = {
     changePassword: (body) => ipcRenderer.invoke("db-change-password", body),
     batchUpdate: (body) => ipcRenderer.invoke("db-batch-update", body),
     dropTable: (tableName) => ipcRenderer.invoke("db-drop-table", tableName),
+    getTablesSql: () => ipcRenderer.invoke("db-get-tables-sql") as Promise<{ name: string; sql: string }[]>,
+    getRecentDatabases: () => ipcRenderer.invoke("get-recent-databases"),
 
     // Events from main
     onNavigationRequested: (cb) => {

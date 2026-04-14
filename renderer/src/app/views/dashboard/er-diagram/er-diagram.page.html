@@ -4,14 +4,15 @@
     </div>
 }
 @else {
-    <div class="er-canvas-wrapper" #erWrapper
-        (mousedown)="startPan($event)"
-        (wheel)="onWheelZoom($event)">
-        <svg
-            class="er-svg"
-            [attr.width]="canvasSize().width"
-            [attr.height]="canvasSize().height"
-            xmlns="http://www.w3.org/2000/svg">
+    <div class="er-container">
+        <div class="er-canvas-wrapper" #erWrapper
+            (mousedown)="startPan($event)"
+            (wheel)="onWheelZoom($event)">
+            <svg
+                class="er-svg"
+                [attr.width]="canvasSize().width"
+                [attr.height]="canvasSize().height"
+                xmlns="http://www.w3.org/2000/svg">
 
             <defs>
                 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
@@ -104,12 +105,13 @@
                 }
             </g>
         </svg>
-    </div>
+        </div>
 
-    <!-- Contrôles de zoom -->
-    <div class="zoom-controls">
-        <button class="zoom-btn" (click)="zoomOut()" title="Zoom out">−</button>
-        <button class="zoom-reset" (click)="resetZoom()">{{ zoomLabel() }}</button>
-        <button class="zoom-btn" (click)="zoomIn()" title="Zoom in">+</button>
+        <!-- Contrôles de zoom -->
+        <div class="zoom-controls">
+            <button class="zoom-btn" (click)="zoomOut()" title="Zoom out">−</button>
+            <button class="zoom-reset" (click)="resetZoom()">{{ zoomLabel() }}</button>
+            <button class="zoom-btn" (click)="zoomIn()" title="Zoom in">+</button>
+        </div>
     </div>
 }

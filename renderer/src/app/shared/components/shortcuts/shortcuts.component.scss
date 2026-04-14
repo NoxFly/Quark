@@ -1,0 +1,80 @@
+@use "src/theme/mixins.scss" as *;
+
+.shortcuts-modal {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    width: 520px;
+    max-height: 80vh;
+}
+
+.modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color);
+
+    h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+}
+
+.modal-body {
+    @include flex(flex, column, nowrap, stretch, stretch, 16px);
+    padding: 16px 24px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.shortcut-group {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+}
+
+.group-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+.shortcut-row {
+    @include flex(flex, row, nowrap, space-between, center, 12px);
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.08);
+}
+
+.shortcut-keys {
+    @include flex(flex, row, nowrap, flex-start, center, 4px);
+    flex-shrink: 0;
+
+    kbd {
+        display: inline-block;
+        padding: 2px 7px;
+        font-size: 11px;
+        font-family: "Consolas", monospace;
+        background: var(--surface-alt);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-color);
+        white-space: nowrap;
+    }
+
+    .key-separator {
+        font-size: 10px;
+        color: var(--text-muted);
+    }
+}
+
+.shortcut-desc {
+    font-size: 12px;
+    color: var(--text-color);
+    text-align: right;
+}
+
+.modal-actions {
+    @include flex(flex, row, nowrap, flex-end, center, 8px);
+    padding: 12px 24px;
+    border-top: 1px solid var(--border-color);
+}

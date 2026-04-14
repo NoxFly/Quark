@@ -43,6 +43,7 @@ export const fr: Record<string, string> = {
     "menu.dropTable": "Supprimer la table",
     "menu.help": "Aide",
     "menu.about": "À propos",
+    "menu.shortcuts": "Raccourcis",
 
     // --- Open database ---
     "openDb.encrypted": "Base de données chiffrée",
@@ -243,4 +244,34 @@ export const fr: Record<string, string> = {
     "confirmDelete.cancel": "Annuler",
 
     "short.new": "Nouveau",
+
+    // --- Recent databases ---
+    "recentDb.title": "Bases de données récentes",
+    "recentDb.empty": "Aucune base récente.",
+
+    // --- Shortcuts ---
+    "shortcuts.title": "Raccourcis clavier",
+    "shortcuts.close": "Fermer",
+    "shortcuts.group.file": "Fichier",
+    "shortcuts.group.edit": "Édition",
+    "shortcuts.group.view": "Affichage",
+    "shortcuts.group.tabs": "Onglets",
+    "shortcuts.group.sqlEditor": "Éditeur SQL",
+    "shortcuts.open": "Ouvrir une base",
+    "shortcuts.newWindow": "Nouvelle fenêtre",
+    "shortcuts.closeFile": "Fermer le fichier",
+    "shortcuts.refreshDb": "Rafraîchir la base",
+    "shortcuts.recentDb": "Bases récentes",
+    "shortcuts.reload": "Recharger la fenêtre",
+    "shortcuts.quit": "Quitter",
+    "shortcuts.toggleEditMode": "Basculer le mode édition",
+    "shortcuts.startTransaction": "Démarrer une transaction",
+    "shortcuts.undo": "Annuler",
+    "shortcuts.redo": "Rétablir",
+    "shortcuts.sqlEditor": "Ouvrir l'éditeur SQL",
+    "shortcuts.fullscreen": "Basculer le plein écran",
+    "shortcuts.changeTheme": "Changer le thème",
+    "shortcuts.closeTab": "Fermer l'onglet actif",
+    "shortcuts.executeSql": "Exécuter la requête",
+    "shortcuts.sqlHistory": "Naviguer dans l'historique",
 };

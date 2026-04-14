@@ -67,10 +67,13 @@ export class ErDiagramPage {
     private readonly HEADER_HEIGHT = 36;
     private readonly H_GAP = 60;
     private readonly V_GAP = 48;
-    private readonly COLS_PER_ROW = 4;
     private readonly MIN_ZOOM = 0.2;
     private readonly MAX_ZOOM = 2.5;
     private readonly ZOOM_STEP = 0.15;
+    /** Marge supplémentaire autour du contenu pour permettre le pan. */
+    private readonly PAN_PADDING = 200;
+    /** Ratio largeur/hauteur cible pour le layout en grille (paysage 16:9). */
+    private readonly TARGET_ASPECT_RATIO = 16 / 9;
 
     /** Positions modifiables des nœuds (permet le drag & drop). */
     protected readonly nodes = signal<TableNode[]>([]);
@@ -97,8 +100,8 @@ export class ErDiagramPage {
             return { width: 600, height: 400 };
         }
         const z = this.zoom();
-        const maxX = Math.max(...nodes.map(n => n.x + n.width)) + this.H_GAP;
-        const maxY = Math.max(...nodes.map(n => n.y + n.height)) + this.V_GAP;
+        const maxX = Math.max(...nodes.map(n => n.x + n.width)) + this.PAN_PADDING;
+        const maxY = Math.max(...nodes.map(n => n.y + n.height)) + this.PAN_PADDING;
         return { width: maxX * z, height: maxY * z };
     });
 
@@ -263,19 +266,54 @@ export class ErDiagramPage {
     };
 
     /**
+     * Calcule le nombre optimal de colonnes pour un ratio approchant 1:1.
+     * Essaie chaque valeur de colonnes (1..tableCount) et retient celle
+     * dont le rapport largeur/hauteur est le plus proche de 1.
+     */
+    private computeOptimalCols(db: DatabaseSchema): number {
+        const n = db.tables.length;
+        if (n <= 1) {
+            return 1;
+        }
+
+        const avgFieldCount = db.tables.reduce((sum, t) => sum + t.fields.length, 0) / n;
+        const avgHeight = this.HEADER_HEIGHT + avgFieldCount * this.ROW_HEIGHT;
+        const cellW = this.COL_WIDTH + this.H_GAP;
+        const cellH = avgHeight + this.V_GAP;
+
+        let bestCols = 1;
+        let bestRatio = Infinity;
+
+        for (let cols = 1; cols <= n; cols++) {
+            const rows = Math.ceil(n / cols);
+            const totalW = cols * cellW;
+            const totalH = rows * cellH;
+            const ratio = Math.abs(totalW / totalH - this.TARGET_ASPECT_RATIO);
+
+            if (ratio < bestRatio) {
+                bestRatio = ratio;
+                bestCols = cols;
+            }
+        }
+
+        return bestCols;
+    }
+
+    /**
      * Calcule les positions initiales des nœuds en grille.
      */
     private layoutNodes(db: DatabaseSchema): TableNode[] {
         const nodes: TableNode[] = [];
         const tableCount = db.tables.length;
+        const colsPerRow = this.computeOptimalCols(db);
 
-        const rowCount = Math.ceil(tableCount / this.COLS_PER_ROW);
+        const rowCount = Math.ceil(tableCount / colsPerRow);
         const rowMaxHeights: number[] = [];
 
         for (let r = 0; r < rowCount; r++) {
             let maxH = 0;
-            for (let c = 0; c < this.COLS_PER_ROW; c++) {
-                const tableIdx = r * this.COLS_PER_ROW + c;
+            for (let c = 0; c < colsPerRow; c++) {
+                const tableIdx = r * colsPerRow + c;
                 if (tableIdx >= tableCount) {
                     break;
                 }
@@ -300,8 +338,8 @@ export class ErDiagramPage {
                 continue;
             }
 
-            const col = i % this.COLS_PER_ROW;
-            const row = Math.floor(i / this.COLS_PER_ROW);
+            const col = i % colsPerRow;
+            const row = Math.floor(i / colsPerRow);
 
             nodes.push({
                 table,

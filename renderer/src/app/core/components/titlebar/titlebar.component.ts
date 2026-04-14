@@ -12,6 +12,7 @@ import { IndexViewerComponent } from "src/app/shared/components/index-viewer/ind
 import { SchemaEditorComponent } from "src/app/shared/components/schema-editor/schema-editor.component";
 import { TransactionDiffComponent } from "src/app/shared/components/transaction-diff/transaction-diff.component";
 import { DatabaseSchemaComponent } from "src/app/shared/components/database-schema/database-schema.component";
+import { ShortcutsComponent } from "src/app/shared/components/shortcuts/shortcuts.component";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 
@@ -137,6 +138,8 @@ export class TitlebarComponent {
             {
                 label: t("menu.help"),
                 items: [
+                    { label: t("menu.shortcuts"), action: () => this.openShortcuts() },
+                    { label: "", separator: true },
                     { label: t("menu.about"), action: () => this.openAbout() },
                 ],
             },
@@ -222,6 +225,23 @@ export class TitlebarComponent {
      */
     private openAbout(): void {
         document.dispatchEvent(new CustomEvent("open-about-dialog"));
+    }
+
+    /**
+     * Ouvre la modale des raccourcis clavier.
+     */
+    private async openShortcuts(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: ShortcutsComponent,
+            componentProps: {},
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<ShortcutsComponent>();
+        if (comp) {
+            comp.dismiss = () => modal.dismiss();
+        }
     }
 
     /**

@@ -3,8 +3,8 @@
 :host {
     display: flex;
     flex: 1;
+    height: calc(100% - 35px);
     overflow: hidden;
-    position: relative;
 }
 
 .empty-state {
@@ -13,6 +13,13 @@
     color: var(--text-muted);
     font-size: 14px;
     font-style: italic;
+}
+
+.er-container {
+    position: relative;
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 }
 
 .er-canvas-wrapper {

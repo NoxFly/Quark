@@ -1,6 +1,7 @@
 import { IApp, inject, Injectable, Logger, WindowManager } from "@noxfly/noxus/main";
 import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron/main";
 import { Window } from "src/core/services/window";
+import { RecentDatabases } from "src/core/services/recent-databases";
 import { normalize, basename } from "node:path";
 import { environment } from "src/core/environment";
 import type {
@@ -24,6 +25,7 @@ import type {
 export class Application implements IApp {
     protected readonly windows = new Map<number, Window>();
     private readonly wm = inject(WindowManager);
+    private readonly recentDatabases = new RecentDatabases();
 
     /**
      *
@@ -247,6 +249,10 @@ export class Application implements IApp {
 
             const needsPassword = window.openDatabase(filePath);
 
+            if (!needsPassword) {
+                this.recentDatabases.add(filePath);
+            }
+
             return {
                 needsPassword,
                 database: needsPassword ? null : window.getDatabaseSchema(),
@@ -260,6 +266,8 @@ export class Application implements IApp {
             }
 
             window.unlockDatabase(password);
+
+            this.recentDatabases.add(window.database.path!);
 
             return {
                 database: window.getDatabaseSchema(),
@@ -479,6 +487,19 @@ export class Application implements IApp {
             }
 
             window.database.dropTable(tableName);
+        });
+
+        ipcMain.handle("db-get-tables-sql", (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            return window.database.getTablesSql();
+        });
+
+        ipcMain.handle("get-recent-databases", () => {
+            return this.recentDatabases.getAll();
         });
     }
 }

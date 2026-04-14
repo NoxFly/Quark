@@ -28,6 +28,9 @@ export class SidebarComponent {
 
     protected readonly contextMenu = viewChild.required(ContextMenuComponent);
 
+    /** Ensemble des tables actuellement dépliées dans la sidebar. */
+    protected readonly expandedTables = signal<Set<string>>(new Set());
+
     protected readonly tables = computed(() => {
         const db = this.state.database();
         return db?.tables ?? [];
@@ -40,6 +43,30 @@ export class SidebarComponent {
      */
     protected selectTable(tableName: string): void {
         this.dbService.selectTable(tableName);
+    }
+
+    /**
+     * Déplie ou replie les détails d'une table.
+     */
+    protected toggleExpand(event: MouseEvent, tableName: string): void {
+        event.stopPropagation();
+        this.expandedTables.update(set => {
+            const next = new Set(set);
+            if (next.has(tableName)) {
+                next.delete(tableName);
+            }
+            else {
+                next.add(tableName);
+            }
+            return next;
+        });
+    }
+
+    /**
+     * Retourne true si la table est dépliée.
+     */
+    protected isExpanded(tableName: string): boolean {
+        return this.expandedTables().has(tableName);
     }
 
     /**
@@ -85,7 +112,7 @@ export class SidebarComponent {
 
         const onMouseMove = (e: MouseEvent): void => {
             const delta = e.clientX - startX;
-            const newWidth = Math.max(150, Math.min(500, startWidth + delta));
+            const newWidth = Math.max(220, Math.min(500, startWidth + delta));
             this.width.set(newWidth);
         };
 

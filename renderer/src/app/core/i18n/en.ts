@@ -43,6 +43,7 @@ export const en: Record<string, string> = {
     "menu.dropTable": "Delete table",
     "menu.help": "Help",
     "menu.about": "About",
+    "menu.shortcuts": "Shortcuts",
 
     // --- Open database ---
     "openDb.encrypted": "Encrypted database",
@@ -244,4 +245,34 @@ export const en: Record<string, string> = {
     "confirmDelete.cancel": "Cancel",
 
     "short.new": "New",
+
+    // --- Recent databases ---
+    "recentDb.title": "Recent databases",
+    "recentDb.empty": "No recent databases.",
+
+    // --- Shortcuts ---
+    "shortcuts.title": "Keyboard shortcuts",
+    "shortcuts.close": "Close",
+    "shortcuts.group.file": "File",
+    "shortcuts.group.edit": "Edit",
+    "shortcuts.group.view": "View",
+    "shortcuts.group.tabs": "Tabs",
+    "shortcuts.group.sqlEditor": "SQL Editor",
+    "shortcuts.open": "Open database",
+    "shortcuts.newWindow": "New window",
+    "shortcuts.closeFile": "Close file",
+    "shortcuts.refreshDb": "Refresh database",
+    "shortcuts.recentDb": "Recent databases",
+    "shortcuts.reload": "Reload window",
+    "shortcuts.quit": "Quit",
+    "shortcuts.toggleEditMode": "Toggle edit mode",
+    "shortcuts.startTransaction": "Start transaction",
+    "shortcuts.undo": "Undo",
+    "shortcuts.redo": "Redo",
+    "shortcuts.sqlEditor": "Open SQL editor",
+    "shortcuts.fullscreen": "Toggle fullscreen",
+    "shortcuts.changeTheme": "Change theme",
+    "shortcuts.closeTab": "Close active tab",
+    "shortcuts.executeSql": "Execute query",
+    "shortcuts.sqlHistory": "Navigate query history",
 };

@@ -213,3 +213,10 @@
         color: #fff;
     }
 }
+
+
+@media screen and (max-width: 900px) {
+    .center-title {
+        display: none;
+    }
+}

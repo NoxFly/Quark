@@ -11,6 +11,7 @@ import { TabsBarComponent } from "./core/components/tabs-bar/tabs-bar.component"
 import { TitlebarComponent } from "./core/components/titlebar/titlebar.component";
 import { LoadingScreenComponent } from "./shared/components/loading-screen/loading-screen.component";
 import { ThemePickerComponent } from "./shared/components/theme-picker/theme-picker.component";
+import { RecentDatabasesComponent } from "./shared/components/recent-databases/recent-databases.component";
 import { ChangePasswordComponent } from "./shared/components/change-password/change-password.component";
 import { CreateTableComponent } from "./shared/components/create-table/create-table.component";
 import { IndexViewerComponent } from "./shared/components/index-viewer/index-viewer.component";
@@ -34,6 +35,7 @@ import type { UIDismissData } from "src/app/shared/ui/ui.types";
         StatusbarComponent,
         TabsBarComponent,
         ThemePickerComponent,
+        RecentDatabasesComponent,
     ],
     host: {
         "(window:beforeunload)": "handleBeforeUnload()",
@@ -214,8 +216,14 @@ export class AppComponent {
 
         this.ctrlKPressed = false;
 
-        // Ctrl+R : recharger
-        if (event.ctrlKey && !event.shiftKey && event.key === "r") {
+        // Ctrl+R : bases de données récentes
+        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "r") {
+            event.preventDefault();
+            document.dispatchEvent(new CustomEvent("open-recent-databases"));
+        }
+
+        // Ctrl+Alt+R : recharger le renderer
+        if (event.ctrlKey && event.altKey && event.key === "r") {
             event.preventDefault();
             this.noxus.ipc.requestReload();
         }
@@ -229,13 +237,13 @@ export class AppComponent {
         }
 
         // Ctrl+O : ouvrir un fichier
-        if (event.ctrlKey && event.key === "o") {
+        if (event.ctrlKey && !event.altKey && event.key === "o") {
             event.preventDefault();
             this.dbService.openFileDialog();
         }
 
         // Ctrl+W : fermer l'onglet actif (si un onglet est ouvert)
-        if (event.ctrlKey && event.key === "w") {
+        if (event.ctrlKey && !event.altKey && event.key === "w") {
             event.preventDefault();
             if (this.state.connected() && this.dbService.tabs.activeTabIndex() >= 0) {
                 void this.dbService.closeActiveTab();
@@ -243,7 +251,7 @@ export class AppComponent {
         }
 
         // Ctrl+Shift+N : nouvelle fenêtre
-        if (event.ctrlKey && event.shiftKey && event.key === "N") {
+        if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "N") {
             event.preventDefault();
             this.noxus.ipc.newWindow();
         }
@@ -255,7 +263,7 @@ export class AppComponent {
         }
 
         // Ctrl+E : toggle mode édition
-        if (event.ctrlKey && event.key === "e") {
+        if (event.ctrlKey && !event.altKey && event.key === "e") {
             event.preventDefault();
             if (this.state.connected()) {
                 this.dbService.toggleReadOnly();
@@ -263,7 +271,7 @@ export class AppComponent {
         }
 
         // Ctrl+T : démarrer une transaction (si pas déjà active) / aucune action sinon
-        if (event.ctrlKey && !event.shiftKey && event.key === "t" && !this.ctrlKPressed) {
+        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "t" && !this.ctrlKPressed) {
             event.preventDefault();
             if (this.state.connected() && !this.dbService.inTransaction()) {
                 this.dbService.transactionAction("begin");
@@ -271,7 +279,7 @@ export class AppComponent {
         }
 
         // Ctrl+Z : annuler la dernière mutation
-        if (event.ctrlKey && !event.shiftKey && event.key === "z") {
+        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "z") {
             const target = event.target as HTMLElement;
             if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
                 event.preventDefault();
@@ -282,7 +290,7 @@ export class AppComponent {
         }
 
         // Ctrl+Y : rétablir la dernière mutation annulée
-        if (event.ctrlKey && !event.shiftKey && event.key === "y") {
+        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "y") {
             const target = event.target as HTMLElement;
             if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
                 event.preventDefault();
@@ -293,7 +301,7 @@ export class AppComponent {
         }
 
         // Ctrl+Shift+Q : ouvrir l'éditeur SQL
-        if (event.ctrlKey && event.shiftKey && event.key === "Q") {
+        if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "Q") {
             event.preventDefault();
             if (this.state.connected()) {
                 this.router.navigate(["/dashboard/sql-editor"]);

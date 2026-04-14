@@ -68,7 +68,7 @@ input[type="checkbox"] {
     aspect-ratio: 1/1;
     height: 18px;
     position: relative;
-    border: 1px solid var(--color-medium);
+    border: 1px solid var(--border);
     background: none;
     transition-duration: .2s;
     cursor: pointer;
@@ -103,6 +103,14 @@ input[type="checkbox"] {
 
 input[type="radio"] {
     border-radius: 100%;
+}
+
+input[type="checkbox"] {
+    border-radius: 3px;
+
+    &::after {
+        border-radius: 2px;
+    }
 }
 
 .radio-item,

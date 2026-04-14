@@ -184,6 +184,20 @@ export class Database {
     }
 
     /**
+     * Récupère le SQL de création de chaque table depuis sqlite_master.
+     * @returns Tableau d'objets { name, sql } triés par nom.
+     */
+    public getTablesSql(): { name: string; sql: string }[] {
+        this.ensureOpen();
+
+        const rows = this.db!.prepare(
+            "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL ORDER BY name"
+        ).all() as { name: string; sql: string }[];
+
+        return rows;
+    }
+
+    /**
      * Récupère les données paginées d'une table, avec tri et filtre optionnels.
      * @param filterMode - "sqlite" pour un filtre WHERE brut, "fulltext" pour une recherche texte sur toutes les colonnes.
      */

@@ -4,12 +4,10 @@
  * @see https://github.com/NoxFly
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
-import { DatabaseService } from "src/app/core/services/database.service";
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from "@angular/core";
 import { I18nService } from "src/app/core/services/i18n.service";
-import { StateService } from "src/app/core/services/state.service";
+import { NoxusService } from "src/app/core/services/noxus.service";
 import { ButtonComponent } from "@ui/button/button.component";
-import type { TableSchema } from "@shared/types";
 
 /** Représente le SQL de création d'une table. */
 interface TableSchemaSql {
@@ -19,7 +17,7 @@ interface TableSchemaSql {
 
 /**
  * Modal d'affichage du schéma complet de la base de données.
- * Affiche le DDL de chaque table et permet de le copier ou exporter.
+ * Affiche le DDL de chaque table (récupéré depuis sqlite_master) et permet de le copier ou exporter.
  */
 @Component({
     selector: "app-database-schema",
@@ -29,9 +27,8 @@ interface TableSchemaSql {
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [ButtonComponent],
 })
-export class DatabaseSchemaComponent {
-    private readonly dbService = inject(DatabaseService);
-    private readonly state = inject(StateService);
+export class DatabaseSchemaComponent implements OnInit {
+    private readonly noxus = inject(NoxusService);
     protected readonly i18n = inject(I18nService);
 
     /** Callback de fermeture. */
@@ -40,17 +37,13 @@ export class DatabaseSchemaComponent {
     /** Indique si le "Copié !" est visible. */
     protected readonly copied = signal<boolean>(false);
 
-    /** DDL de toutes les tables construit depuis le schéma en mémoire. */
-    protected readonly schemaSqls = computed<TableSchemaSql[]>(() => {
-        const db = this.state.database();
-        if (!db) {
-            return [];
-        }
-        return db.tables.map(t => ({
-            name: t.name,
-            sql: this.generateCreateSql(t),
-        }));
-    });
+    /** DDL de toutes les tables récupéré depuis sqlite_master. */
+    protected readonly schemaSqls = signal<TableSchemaSql[]>([]);
+
+    public async ngOnInit(): Promise<void> {
+        const rows = await this.noxus.ipc.getTablesSql();
+        this.schemaSqls.set(rows);
+    }
 
     protected close(): void {
         this.dismiss?.();
@@ -60,7 +53,7 @@ export class DatabaseSchemaComponent {
      * Copie tout le schéma dans le presse-papier.
      */
     protected async copyAll(): Promise<void> {
-        const allSql = this.schemaSqls().map(s => `-- ${s.name}\n${s.sql};`).join("\n\n");
+        const allSql = this.schemaSqls().map(s => `${s.sql};`).join("\n\n");
         await navigator.clipboard.writeText(allSql);
         this.copied.set(true);
         setTimeout(() => this.copied.set(false), 2000);
@@ -70,43 +63,13 @@ export class DatabaseSchemaComponent {
      * Exporte le schéma complet en fichier .sql.
      */
     protected exportSql(): void {
-        const allSql = this.schemaSqls().map(s => `-- ${s.name}\n${s.sql};`).join("\n\n");
+        const allSql = this.schemaSqls().map(s => `${s.sql};`).join("\n\n");
         const blob = new Blob([allSql], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        const dbName = this.state.database()?.name ?? "schema";
         a.href = url;
-        a.download = `${dbName}.sql`;
+        a.download = "schema.sql";
         a.click();
         URL.revokeObjectURL(url);
-    }
-
-    /**
-     * Génère le SQL CREATE TABLE depuis le schéma Angular en mémoire.
-     */
-    private generateCreateSql(table: TableSchema): string {
-        const cols = table.fields.map(f => {
-            let def = `    ${this.quoteIdent(f.name)} ${f.type || "TEXT"}`;
-            if (f.pk) {
-                def += " PRIMARY KEY";
-            }
-            if (f.notnull && !f.pk) {
-                def += " NOT NULL";
-            }
-            if (f.dflt_value !== null && f.dflt_value !== undefined) {
-                def += ` DEFAULT ${f.dflt_value}`;
-            }
-            if (f.fk) {
-                def += ` REFERENCES ${this.quoteIdent(f.fk.table)}(${this.quoteIdent(f.fk.column)})`;
-            }
-            return def;
-        });
-
-        return `CREATE TABLE ${this.quoteIdent(table.name)} (\n${cols.join(",\n")}\n)`;
-    }
-
-    /** Échappe un identifiant SQLite. */
-    private quoteIdent(name: string): string {
-        return `"${name.replace(/"/g, '""')}"`;
     }
 }

@@ -15,13 +15,28 @@
             @for (table of tables(); track table.name) {
                 <li
                     [class.active]="(dbService.tabs.activeTab()?.tableName ?? dbService.selectedTable()) === table.name"
+                    [class.expanded]="isExpanded(table.name)"
                     (click)="selectTable(table.name)"
                     (contextmenu)="onTableContextMenu($event, table.name)"
                     [tooltip]="table.name + ' (' + i18n.t('sidebar.rows', { count: table.recordCount }) + ')'"
                 >
-                    <span class="table-icon">&#xE80F;</span>
-                    <span class="table-name">{{ table.name }}</span>
-                    <span class="table-count">{{ table.recordCount }}</span>
+                    <div class="table-row">
+                        <button class="expand-toggle" (click)="toggleExpand($event, table.name)">
+                            <span class="expand-icon" [class.open]="isExpanded(table.name)">&#xE76C;</span>
+                        </button>
+                        <span class="table-name">{{ table.name }}</span>
+                        <span class="table-count">{{ table.recordCount }}</span>
+                    </div>
+                    @if (isExpanded(table.name)) {
+                        <div class="table-fields" (click)="$event.stopPropagation()">
+                            @for (field of table.fields; track field.name) {
+                                <div class="field-entry" [class.pk]="field.pk" [class.fk]="!!field.fk">
+                                    <span class="field-name">{{ field.name }}</span>
+                                    <span class="field-type">{{ field.type }}</span>
+                                </div>
+                            }
+                        </div>
+                    }
                 </li>
             }
         </ul>
