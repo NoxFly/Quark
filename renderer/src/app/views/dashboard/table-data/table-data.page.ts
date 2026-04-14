@@ -37,6 +37,7 @@ import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.d
     imports: [FormsModule, ContextMenuComponent, ButtonComponent, TooltipDirective],
     host: {
         "[class.transaction-mode]": "dbService.inTransaction()",
+        "[class.edit-mode]": "!dbService.readOnly()",
         "(keydown)": "onKeydown($event)",
         "tabindex": "0",
     },

@@ -19,6 +19,15 @@
                 <span class="transaction-badge">{{ transactionInfo() }}</span>
             }
             <button
+                class="sql-editor-btn"
+                [class.active]="isInSqlEditor()"
+                (click)="toggleSqlEditor()"
+                [tooltip]="isInSqlEditor() ? i18n.t('statusbar.sqlEditorClose') : i18n.t('statusbar.sqlEditorOpen')"
+            >
+                <span class="segoe-icon">&#xE943;</span>
+                <span class="edit-mode-label">{{ i18n.t('statusbar.sqlEditor') }}</span>
+            </button>
+            <button
                 class="edit-mode-btn"
                 [class.active]="!readOnly()"
                 (click)="toggleReadOnly()"

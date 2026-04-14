@@ -236,7 +236,7 @@ thead {
             position: absolute;
             top: 0;
             right: 0;
-            width: 6px;
+            width: 5px;
             height: 100%;
             cursor: col-resize;
             z-index: 10;
@@ -247,16 +247,19 @@ thead {
                 position: absolute;
                 top: 0;
                 left: 50%;
-                width: 2px;
+                width: 1px;
                 height: 100%;
                 transform: translateX(-50%);
                 background: transparent;
-                transition: background 0.1s;
+                transition: background 0.1s, box-shadow 0.1s;
             }
 
             &:hover::after,
             &:active::after {
                 background: var(--interactive, var(--color-primary));
+                // box-shadow n’est pas clipé par overflow: auto, ce qui permet
+                // à la ligne de s’étendre sur toute la hauteur du tableau
+                box-shadow: 0 9999px 0 var(--interactive, var(--color-primary));
             }
         }
 
@@ -299,7 +302,7 @@ tbody {
         text-overflow: ellipsis;
         max-width: 400px;
         border-right: 1px solid rgba(127, 127, 127, 0.06);
-        color: var(--text-color);
+        color: color-mix(in srgb, var(--text-color), transparent 20%);
 
         &.checkbox-col {
             width: 40px;
@@ -342,6 +345,21 @@ tbody {
             outline: none;
             font-family: inherit;
             margin: 0;
+        }
+    }
+}
+
+// --- Mode édition : bordures de colonnes plus prononcées ---
+
+:host.edit-mode {
+    tbody {
+        td {
+            border-right-color: rgba(127, 127, 127, 0.4);
+            color: var(--text-color);
+        }
+
+        tr {
+            border-bottom-color: rgba(127, 127, 127, 0.4);
         }
     }
 }

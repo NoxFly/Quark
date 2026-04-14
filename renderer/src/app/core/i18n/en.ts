@@ -112,6 +112,9 @@ export const en: Record<string, string> = {
     "statusbar.transaction": "Active transaction",
     "statusbar.readOnly": "Read-only",
     "statusbar.readWrite": "Edit",
+    "statusbar.sqlEditor": "SQL Editor",
+    "statusbar.sqlEditorOpen": "Switch to SQL Editor",
+    "statusbar.sqlEditorClose": "Back to table view",
 
     // --- No table ---
     "noTable.title": "Select a table",

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from "@angular/core";
+import { Router } from "@angular/router";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
@@ -19,6 +20,7 @@ export class StatusbarComponent {
     protected readonly state = inject(StateService);
     protected readonly dbService = inject(DatabaseService);
     protected readonly i18n = inject(I18nService);
+    private readonly router = inject(Router);
 
     protected readonly recordInfo = computed(() => {
         const loaded = this.dbService.tableData().length;
@@ -77,6 +79,29 @@ export class StatusbarComponent {
             ? this.i18n.t("statusbar.readOnly")
             : this.i18n.t("statusbar.readWrite");
     });
+
+    /**
+     * Indique si l'utilisateur est actuellement dans l'éditeur SQL.
+     */
+    protected readonly isInSqlEditor = computed(() => this.router.url.includes("/sql-editor"));
+
+    /**
+     * Bascule entre l'éditeur SQL et la vue table (données).
+     */
+    protected toggleSqlEditor(): void {
+        if (this.isInSqlEditor()) {
+            const table = this.dbService.selectedTable();
+            if (table) {
+                void this.router.navigate(["/dashboard/table-data"]);
+            }
+            else {
+                void this.router.navigate(["/dashboard/no-table"]);
+            }
+        }
+        else {
+            void this.router.navigate(["/dashboard/sql-editor"]);
+        }
+    }
 
     /**
      * Toggle le mode lecture seule / lecture-écriture.

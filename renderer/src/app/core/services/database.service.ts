@@ -138,10 +138,17 @@ export class DatabaseService {
 
     /**
      * Rafraîchit la base de données (ferme et réouvre).
+     * Si une table était sélectionnée et qu'elle existe toujours dans le nouveau schéma,
+     * son contenu est rechargé plutôt que de naviguer vers la vue vide.
      */
     public async refreshDatabase(): Promise<void> {
         try {
             this.loading.set(true);
+
+            // Mémoriser la table active avant le rechargement
+            const previousTable = this.selectedTable();
+            const wasOnTableData = this.router.url.includes("/dashboard/table-data");
+
             const response = await this.noxus.ipc.refreshDatabase();
 
             if (response.needsPassword) {
@@ -150,7 +157,30 @@ export class DatabaseService {
             }
 
             if (response.database) {
-                this.onDatabaseOpened(response.database);
+                const tableStillExists = previousTable !== null
+                    && response.database.tables.some(t => t.name === previousTable);
+
+                // Mettre à jour le schéma sans naviguer
+                this.state.connected.set(true);
+                this.state.database.set(response.database);
+                this.state.filePath.set(response.database.path);
+                this.state.title.set(response.database.name);
+                this.state.fileName.set(response.database.name);
+
+                if (wasOnTableData && tableStillExists) {
+                    // Recharger les données de la table active en place
+                    const schema = response.database.tables.find(t => t.name === previousTable) ?? null;
+                    this.tableSchema.set(schema);
+                    await this.loadTableData(true);
+                }
+                else {
+                    // Aucune table active ou table supprimée : aller sur la vue vide
+                    this.selectedTable.set(null);
+                    this.tableData.set([]);
+                    this.totalCount.set(0);
+                    this.tableSchema.set(null);
+                    this.router.navigate(["/dashboard/no-table"]);
+                }
             }
         }
         catch (err) {
