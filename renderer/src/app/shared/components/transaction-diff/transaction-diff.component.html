@@ -1,0 +1,37 @@
+<div class="transaction-diff">
+    <div class="modal-header">
+        <h2>{{ i18n.t('transactionDiff.title') }}</h2>
+        <p class="subtitle">{{ i18n.t('transactionDiff.subtitle', { count: mutations().length }) }}</p>
+    </div>
+
+    <div class="modal-body">
+        @if (mutations().length === 0) {
+            <div class="empty">{{ i18n.t('transactionDiff.noChanges') }}</div>
+        }
+
+        @for (mutation of mutations(); track mutation.id) {
+            <div class="diff-block" [class]="mutation.type">
+                <div class="diff-hunk-header">
+                    <span class="hunk-type">{{ getHunkLabel(mutation.type) }}</span>
+                    <span class="hunk-table">{{ mutation.table }}</span>
+                    <span class="hunk-sep">·</span>
+                    <span class="hunk-row">#{{ mutation.rowid }}</span>
+                </div>
+                <div class="diff-content">
+                    @for (line of getDiffLines(mutation); track $index) {
+                        <div class="diff-line" [class.added]="line.sign === '+'" [class.removed]="line.sign === '-'">
+                            <span class="diff-sign">{{ line.sign }}</span>
+                            <span class="diff-key">{{ line.key }}</span>
+                            <span class="diff-colon">:</span>
+                            <span class="diff-value">{{ line.value }}</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="modal-actions">
+        <ui-button color="secondary" (click)="close()">{{ i18n.t('indexViewer.close') }}</ui-button>
+    </div>
+</div>

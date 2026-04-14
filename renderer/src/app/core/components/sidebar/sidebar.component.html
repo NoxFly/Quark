@@ -1,10 +1,10 @@
 @if (state.connected()) {
     <div class="sidebar-header">
         <div class="header-actions">
-            <ui-button class="header-btn refresh-btn" icon="e72c" (click)="refreshDatabase()" [title]="i18n.t('sidebar.refresh.tooltip')">
+            <ui-button class="header-btn refresh-btn" icon="e72c" (click)="refreshDatabase()" [tooltip]="i18n.t('sidebar.refresh.tooltip')">
                 {{ i18n.t("sidebar.refresh") }}
             </ui-button>
-            <ui-button class="header-btn close-btn" icon="e8bb" (click)="closeFile()" [title]="i18n.t('sidebar.close.tooltip')">
+            <ui-button class="header-btn close-btn" icon="e8bb" (click)="closeFile()" [tooltip]="i18n.t('sidebar.close.tooltip')">
                 {{ i18n.t("sidebar.close") }}
             </ui-button>
         </div>
@@ -14,9 +14,10 @@
         <ul>
             @for (table of tables(); track table.name) {
                 <li
-                    [class.active]="selectedTable() === table.name"
+                    [class.active]="(dbService.tabs.activeTab()?.tableName ?? dbService.selectedTable()) === table.name"
                     (click)="selectTable(table.name)"
-                    [title]="table.name + ' (' + i18n.t('sidebar.rows', { count: table.recordCount }) + ')'"
+                    (contextmenu)="onTableContextMenu($event, table.name)"
+                    [tooltip]="table.name + ' (' + i18n.t('sidebar.rows', { count: table.recordCount }) + ')'"
                 >
                     <span class="table-icon">&#xE80F;</span>
                     <span class="table-name">{{ table.name }}</span>
@@ -26,8 +27,21 @@
         </ul>
     </nav>
 
+    <div class="sidebar-footer">
+        <ui-button
+            class="footer-btn"
+            icon="e710"
+            (click)="dispatchCreateTable()"
+            [tooltip]="i18n.t('sidebar.createTable.tooltip')"
+        >
+            {{ i18n.t("sidebar.createTable") }}
+        </ui-button>
+    </div>
+
     <div
         class="resize-handle"
         (mousedown)="startResize($event)"
     ></div>
+
+    <app-context-menu></app-context-menu>
 }

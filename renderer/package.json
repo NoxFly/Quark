@@ -6,7 +6,7 @@
     },
     "version": "0.0.0",
     "scripts": {
-      "start": "ng s",
+      "start": "ng s --port=4201",
       "build": "ng build --configuration development",
       "build:prod": "ng build --configuration production",
       "check": "biome check --write ."

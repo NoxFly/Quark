@@ -3,14 +3,20 @@ import { FormsModule } from "@angular/forms";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
+import { BatchEditComponent } from "src/app/shared/components/batch-edit/batch-edit.component";
 import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
 import type { ContextMenuItem } from "src/app/shared/components/context-menu/context-menu.component";
+import { ImportDataComponent } from "src/app/shared/components/import-data/import-data.component";
+import { IndexViewerComponent } from "src/app/shared/components/index-viewer/index-viewer.component";
 import { RecordEditorComponent } from "src/app/shared/components/record-editor/record-editor.component";
 import type { RecordEditorMode } from "src/app/shared/components/record-editor/record-editor.component";
+import { SchemaEditorComponent } from "src/app/shared/components/schema-editor/schema-editor.component";
+import { TransactionDiffComponent } from "src/app/shared/components/transaction-diff/transaction-diff.component";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 import type { DbRecord, FieldDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
 /**
  * Page d'affichage des données d'une table avec :
@@ -28,7 +34,7 @@ import { ButtonComponent } from "@ui/button/button.component";
     templateUrl: "./table-data.page.html",
     styleUrl: "./table-data.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ContextMenuComponent, ButtonComponent],
+    imports: [FormsModule, ContextMenuComponent, ButtonComponent, TooltipDirective],
     host: {
         "[class.transaction-mode]": "dbService.inTransaction()",
         "(keydown)": "onKeydown($event)",
@@ -462,6 +468,23 @@ export class TableDataPage {
                 icon: "\uE710",
                 action: () => this.openRecordEditor("create"),
             },
+        ];
+
+        if (hasMultipleSelection) {
+            items.push({
+                label: "",
+                icon: "",
+                action: () => {},
+                separator: true,
+            });
+            items.push({
+                label: this.i18n.t("contextMenu.batchEdit"),
+                icon: "\uE70F",
+                action: () => this.openBatchEdit(),
+            });
+        }
+
+        items.push(
             {
                 label: "",
                 icon: "",
@@ -472,6 +495,27 @@ export class TableDataPage {
                 label: this.i18n.t("contextMenu.copyJson"),
                 icon: "\uE8C8",
                 action: () => this.copySelectionAsJson(record),
+            },
+            {
+                label: this.i18n.t("contextMenu.importData"),
+                icon: "\uE8E5",
+                action: () => this.openImportData(),
+            },
+            {
+                label: "",
+                icon: "",
+                action: () => {},
+                separator: true,
+            },
+            {
+                label: this.i18n.t("contextMenu.schemaEditor"),
+                icon: "\uE70F",
+                action: () => this.openSchemaEditor(),
+            },
+            {
+                label: this.i18n.t("contextMenu.indexViewer"),
+                icon: "\uE721",
+                action: () => this.openIndexViewer(),
             },
             {
                 label: "",
@@ -489,7 +533,7 @@ export class TableDataPage {
                     : this.dbService.deleteRow(rowid),
                 danger: true,
             },
-        ];
+        );
 
         this.contextMenu()?.open(event, items);
     }
@@ -666,6 +710,129 @@ export class TableDataPage {
 
         const json = JSON.stringify(cleaned.length === 1 ? cleaned[0] : cleaned, null, 2);
         await navigator.clipboard.writeText(json);
+    }
+
+    /**
+     * Ouvre le modal d'édition par lot pour modifier un champ sur toutes les lignes sélectionnées.
+     */
+    protected async openBatchEdit(): Promise<void> {
+        const fields = this.fields().filter(f => !f.pk);
+        const rowids = Array.from(this.dbService.selectedRowIds());
+        if (fields.length === 0 || rowids.length === 0) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: BatchEditComponent,
+            componentProps: { fields, rowCount: rowids.length },
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const editor = modal.getComponentInstance<BatchEditComponent>();
+        if (editor) {
+            editor.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+        modal.didDismiss.subscribe(async result => {
+            if (result.role === "confirm" && result.data) {
+                const { column, value } = result.data as { column: string; value: unknown };
+                await this.dbService.batchUpdate(rowids, column, value);
+            }
+        });
+    }
+
+    /**
+     * Ouvre le modal d'import de données (CSV/JSON) avec aperçu.
+     */
+    protected async openImportData(): Promise<void> {
+        const table = this.dbService.selectedTable();
+        if (!table) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: ImportDataComponent,
+            componentProps: { tableName: table },
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<ImportDataComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+        modal.didDismiss.subscribe(async result => {
+            if (result.data?.["imported"] === true) {
+                await this.dbService.loadTableData(true);
+            }
+        });
+    }
+
+    /**
+     * Ouvre le modal d'édition de schéma (renommer table/colonnes, ajouter/supprimer colonnes).
+     */
+    protected async openSchemaEditor(): Promise<void> {
+        const table = this.dbService.selectedTable();
+        const fields = this.fields();
+        if (!table || fields.length === 0) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: SchemaEditorComponent,
+            componentProps: { tableName: table, fields },
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<SchemaEditorComponent>();
+        if (comp) {
+            comp.dismiss = async data => {
+                if (data?.["changed"] === true) {
+                    const actions = comp.getAlterActions();
+                    for (const action of actions) {
+                        await this.dbService.alterTable(action);
+                    }
+                }
+                modal.dismiss(data as Partial<UIDismissData>);
+            };
+        }
+    }
+
+    /**
+     * Ouvre le modal de visualisation et gestion des index de la table courante.
+     */
+    protected async openIndexViewer(): Promise<void> {
+        const table = this.dbService.selectedTable();
+        const fields = this.fields();
+        if (!table) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: IndexViewerComponent,
+            componentProps: { tableName: table, fields },
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<IndexViewerComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+    }
+
+    /**
+     * Ouvre le modal de diff montrant les mutations en attente dans la transaction courante.
+     */
+    protected async openTransactionDiff(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: TransactionDiffComponent,
+            componentProps: {},
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<TransactionDiffComponent>();
+        if (comp) {
+            comp.dismiss = () => modal.dismiss();
+        }
     }
 
 }

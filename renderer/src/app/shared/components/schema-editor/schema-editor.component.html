@@ -1,0 +1,106 @@
+<div class="schema-editor">
+    <div class="modal-header">
+        <h2>{{ i18n.t('schemaEditor.title') }}</h2>
+    </div>
+
+    @if (errorMessage()) {
+        <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    <div class="modal-body">
+        <!-- Renommage de table -->
+        <div class="section">
+            <div class="section-title">{{ i18n.t('schemaEditor.tableName') }}</div>
+            <input
+                type="text"
+                [(ngModel)]="newTableName"
+                [placeholder]="tableName()" />
+        </div>
+
+        <!-- Colonnes -->
+        <div class="section">
+            <div class="section-title">{{ i18n.t('schemaEditor.columns') }}</div>
+            <div class="columns-list">
+                @for (col of editableColumns(); track col.original.name) {
+                    <div class="column-row" [class.marked-drop]="col.markedForDrop">
+                        <div class="col-badges">
+                            @if (col.original.pk) {
+                                <span class="badge pk">PK</span>
+                            }
+                            @if (col.original.fk) {
+                                <span class="badge fk">FK</span>
+                            }
+                        </div>
+                        <input
+                            type="text"
+                            [(ngModel)]="col.newName"
+                            [disabled]="col.markedForDrop || col.original.pk"
+                            class="col-name-input" />
+                        <span class="col-type">{{ col.original.type }}</span>
+                        @if (!col.original.pk) {
+                            <button
+                                class="drop-btn"
+                                [class.drop-active]="col.markedForDrop"
+                                (click)="toggleDrop(col)"
+                                [tooltip]="col.markedForDrop ? i18n.t('schemaEditor.cancelDrop') : i18n.t('schemaEditor.dropColumn')">
+                                {{ col.markedForDrop ? '↩' : '✕' }}
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Ajouter une colonne -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">{{ i18n.t('schemaEditor.addColumn') }}</div>
+                <button class="toggle-btn" (click)="showAddColumn.set(!showAddColumn())">
+                    {{ showAddColumn() ? '▲' : '▼' }}
+                </button>
+            </div>
+
+            @if (showAddColumn()) {
+                <div class="add-column-form">
+                    <input
+                        type="text"
+                        [(ngModel)]="newColumnName"
+                        [placeholder]="i18n.t('schemaEditor.colName')" />
+                    <select [(ngModel)]="newColumnType">
+                        @for (type of columnTypes; track type) {
+                            <option [value]="type">{{ type }}</option>
+                        }
+                    </select>
+                    <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="newColumnNotNull" />
+                        NOT NULL
+                    </label>
+                    <input
+                        type="text"
+                        [(ngModel)]="newColumnDefault"
+                        [placeholder]="i18n.t('schemaEditor.defaultValue')" />
+                </div>
+            }
+        </div>
+
+        <!-- Récapitulatif des changements -->
+        @if (getPendingChanges().length > 0) {
+            <div class="changes-summary">
+                <div class="section-title">{{ i18n.t('schemaEditor.pendingChanges') }}</div>
+                @for (change of getPendingChanges(); track change) {
+                    <div class="change-item">{{ change }}</div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="modal-actions">
+        <ui-button color="secondary" (click)="cancel()">{{ i18n.t('editor.cancel') }}</ui-button>
+        <ui-button
+            color="primary"
+            [disabled]="isSaving() || getPendingChanges().length === 0"
+            (click)="confirm()">
+            {{ isSaving() ? i18n.t('editor.saving') : i18n.t('schemaEditor.apply') }}
+        </ui-button>
+    </div>
+</div>

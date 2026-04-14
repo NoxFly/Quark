@@ -28,12 +28,12 @@
             class="btn-filter-mode"
             [class.active]="sqliteFilterMode()"
             (click)="toggleSqliteFilterMode()"
-            [title]="sqliteFilterMode() ? i18n.t('table.switchToSearch') : i18n.t('table.switchToSqlite')"
+            [tooltip]="sqliteFilterMode() ? i18n.t('table.switchToSearch') : i18n.t('table.switchToSqlite')"
         >
             SQL
         </button>
     </div>
-    <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [title]="i18n.t('table.newRecord')">
+    <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [tooltip]="i18n.t('table.newRecord')">
         <span class="btn-icon">{{ i18n.t("short.new") }}</span>
     </ui-button>
 </div>
@@ -48,7 +48,7 @@
                         type="checkbox"
                         [checked]="isAllSelected()"
                         (change)="toggleSelectAll()"
-                        [title]="i18n.t('table.selectAll')"
+                        [tooltip]="i18n.t('table.selectAll')"
                     />
                 </th>
                 @for (field of fields(); track field.name) {
@@ -67,7 +67,7 @@
                                     class="col-timestamp-toggle"
                                     [class.active]="isTimestampColumn(field.name)"
                                     (click)="toggleTimestampColumn(field.name); $event.stopPropagation()"
-                                    [title]="i18n.t('table.toggleTimestamp')"
+                                    [tooltip]="i18n.t('table.toggleTimestamp')"
                                 >
                                     &#xE787;
                                 </button>
@@ -108,7 +108,7 @@
                             [class.null-value]="record[field.name] === null || record[field.name] === undefined"
                             [class.editing]="isEditing($any(record['rowid']), field.name)"
                             [class.fk-cell]="!!field.fk"
-                            [title]="field.fk ? i18n.t('table.ctrlClickFk', { table: field.fk.table, column: field.fk.column }) : ''"
+                            [tooltip]="field.fk ? i18n.t('table.ctrlClickFk', { table: field.fk.table, column: field.fk.column }) : ''"
                         >
                             @if (isEditing($any(record['rowid']), field.name)) {
                                 <input

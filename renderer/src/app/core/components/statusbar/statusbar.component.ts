@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from "@angular/core";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
@@ -9,6 +10,7 @@ import { StateService } from "src/app/core/services/state.service";
     templateUrl: "./statusbar.component.html",
     styleUrl: "./statusbar.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [TooltipDirective],
     host: {
         "[class.visible]": "state.connected()",
     },
@@ -29,6 +31,30 @@ export class StatusbarComponent {
 
         return this.i18n.t("statusbar.rows", { loaded, total });
     });
+
+    protected readonly tableSizeInfo = computed(() => {
+        const size = this.dbService.tableSize();
+        if (!size || !this.dbService.selectedTable()) {
+            return "";
+        }
+        return this.formatSize(size);
+    });
+
+    /**
+     * Formate une taille en octets en une représentation lisible.
+     */
+    private formatSize(bytes: number): string {
+        if (bytes === 0) {
+            return "";
+        }
+        if (bytes < 1024) {
+            return `${bytes} B`;
+        }
+        if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(1)} KB`;
+        }
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
 
     protected readonly tableName = computed(() => this.dbService.selectedTable());
 

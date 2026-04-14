@@ -4,10 +4,17 @@ import { Window } from "src/core/services/window";
 import { normalize, basename } from "node:path";
 import { environment } from "src/core/environment";
 import type {
+    R_AlterTableAction,
+    R_BatchUpdateBody,
+    R_ChangePasswordBody,
+    R_CreateIndexBody,
+    R_CreateTableBody,
     R_DeleteRowsBody,
     R_ExportBody,
     R_GetRowBody,
+    R_ImportDataBody,
     R_InsertRowBody,
+    R_SqlExecBody,
     R_TableDataBody,
     R_TransactionAction,
     R_UpdateCellBody,
@@ -373,6 +380,105 @@ export class Application implements IApp {
                 needsPassword,
                 database: needsPassword ? null : window.getDatabaseSchema(),
             };
+        });
+
+        ipcMain.handle("db-exec-sql", (_event, body: R_SqlExecBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            return window.database.execSql(body.sql);
+        });
+
+        ipcMain.handle("db-import-data", (_event, body: R_ImportDataBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.importData(body.table, body.format, body.data, body.mode);
+        });
+
+        ipcMain.handle("db-preview-import", (_event, body: Omit<R_ImportDataBody, "mode">) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            return window.database.previewImport(body.table, body.format, body.data);
+        });
+
+        ipcMain.handle("db-get-indexes", (_event, table: string) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            return { indexes: window.database.getIndexes(table) };
+        });
+
+        ipcMain.handle("db-create-index", (_event, body: R_CreateIndexBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.createIndex(body.table, body.name, body.columns, body.unique);
+        });
+
+        ipcMain.handle("db-drop-index", (_event, name: string) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.dropIndex(name);
+        });
+
+        ipcMain.handle("db-create-table", (_event, body: R_CreateTableBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.createTable(body.name, body.columns, body.ifNotExists);
+        });
+
+        ipcMain.handle("db-alter-table", (_event, action: R_AlterTableAction) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.alterTable(action);
+        });
+
+        ipcMain.handle("db-change-password", (_event, body: R_ChangePasswordBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.changePassword(body.newPassword);
+        });
+
+        ipcMain.handle("db-batch-update", (_event, body: R_BatchUpdateBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.batchUpdate(body.table, body.rowids, body.column, body.value);
+        });
+
+        ipcMain.handle("db-drop-table", (_event, tableName: string) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            window.database.dropTable(tableName);
         });
     }
 }

@@ -77,6 +77,7 @@ export type R_TableDataBody = {
 export type R_TableDataResponse = {
     records: DbRecord[];
     totalCount: number;
+    tableSize: number;
 };
 
 export type R_UpdateCellBody = {
@@ -129,5 +130,109 @@ export type R_WindowStateResponse = {
     selectedTable: string | null;
     database: DatabaseSchema | null;
     filePath: string | null;
+};
+
+// --- Mutation history (undo/redo) ---
+
+export type MutationType = "update" | "insert" | "delete";
+
+export type MutationRecord = {
+    id: number;
+    type: MutationType;
+    table: string;
+    rowid: number;
+    column?: string;
+    oldValue?: unknown;
+    newValue?: unknown;
+    oldRecord?: DbRecord;
+};
+
+// --- SQL Editor ---
+
+export type R_SqlExecBody = {
+    sql: string;
+};
+
+export type R_SqlExecResponse = {
+    columns: string[];
+    rows: unknown[][];
+    rowsAffected: number;
+    lastInsertId?: number;
+    isSelect: boolean;
+    executionTimeMs: number;
+};
+
+// --- Import ---
+
+export type R_ImportDataBody = {
+    table: string;
+    format: "csv" | "json";
+    data: string;
+    mode: "insert" | "upsert";
+};
+
+export type R_ImportPreviewResponse = {
+    preview: DbRecord[];
+    totalRows: number;
+    errors: string[];
+};
+
+// --- Indexes ---
+
+export type IndexDef = {
+    name: string;
+    table: string;
+    unique: boolean;
+    columns: string[];
+    origin: string;
+};
+
+export type R_GetIndexesResponse = {
+    indexes: IndexDef[];
+};
+
+export type R_CreateIndexBody = {
+    table: string;
+    name: string;
+    columns: string[];
+    unique: boolean;
+};
+
+// --- Schema operations ---
+
+export type CreateTableColumnDef = {
+    name: string;
+    type: string;
+    notNull: boolean;
+    defaultValue: string | null;
+    primaryKey: boolean;
+    unique: boolean;
+};
+
+export type R_CreateTableBody = {
+    name: string;
+    columns: CreateTableColumnDef[];
+    ifNotExists: boolean;
+};
+
+export type R_AlterTableAction =
+    | { action: "rename-table"; table: string; newName: string }
+    | { action: "add-column"; table: string; column: CreateTableColumnDef }
+    | { action: "rename-column"; table: string; column: string; newName: string }
+    | { action: "drop-column"; table: string; column: string };
+
+// --- Password / encryption ---
+
+export type R_ChangePasswordBody = {
+    newPassword: string | null;
+};
+
+// --- Batch update ---
+
+export type R_BatchUpdateBody = {
+    table: string;
+    rowids: number[];
+    column: string;
+    value: unknown;
 };
 

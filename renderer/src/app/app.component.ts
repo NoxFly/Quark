@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from "@angular/core";
 import { Router, RouterOutlet } from "@angular/router";
 import { AppState } from "@shared/types";
 import { DatabaseService } from "src/app/core/services/database.service";
@@ -7,10 +7,17 @@ import { StateService } from "src/app/core/services/state.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { SidebarComponent } from "./core/components/sidebar/sidebar.component";
 import { StatusbarComponent } from "./core/components/statusbar/statusbar.component";
+import { TabsBarComponent } from "./core/components/tabs-bar/tabs-bar.component";
 import { TitlebarComponent } from "./core/components/titlebar/titlebar.component";
 import { LoadingScreenComponent } from "./shared/components/loading-screen/loading-screen.component";
 import { ThemePickerComponent } from "./shared/components/theme-picker/theme-picker.component";
+import { ChangePasswordComponent } from "./shared/components/change-password/change-password.component";
+import { CreateTableComponent } from "./shared/components/create-table/create-table.component";
+import { IndexViewerComponent } from "./shared/components/index-viewer/index-viewer.component";
+import { SchemaEditorComponent } from "./shared/components/schema-editor/schema-editor.component";
 import { AlertController } from "@ui/alert/alert.controller";
+import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
+import type { UIDismissData } from "src/app/shared/ui/ui.types";
 
 
 @Component({
@@ -25,6 +32,7 @@ import { AlertController } from "@ui/alert/alert.controller";
         LoadingScreenComponent,
         SidebarComponent,
         StatusbarComponent,
+        TabsBarComponent,
         ThemePickerComponent,
     ],
     host: {
@@ -65,6 +73,8 @@ export class AppComponent {
     private readonly dbService = inject(DatabaseService);
     private readonly themeService = inject(ThemeService);
     private readonly alertCtrl = inject(AlertController);
+    private readonly modalCtrl = inject(ModalController);
+    private readonly destroyRef = inject(DestroyRef);
 
     /**
      *
@@ -98,7 +108,25 @@ export class AppComponent {
         });
 
         // Écouter l'événement "À propos" depuis le titlebar
-        document.addEventListener("open-about-dialog", () => this.showAboutDialog());
+        const onAbout = (): void => this.showAboutDialog();
+        const onCreateTable = (): void => { void this.openCreateTable(); };
+        const onChangePassword = (): void => { void this.openChangePassword(); };
+        const onSchemaEditor = (): void => { void this.openSchemaEditor(); };
+        const onIndexViewer = (): void => { void this.openIndexViewer(); };
+
+        document.addEventListener("open-about-dialog", onAbout);
+        document.addEventListener("open-create-table", onCreateTable);
+        document.addEventListener("open-change-password", onChangePassword);
+        document.addEventListener("open-schema-editor", onSchemaEditor);
+        document.addEventListener("open-index-viewer", onIndexViewer);
+
+        this.destroyRef.onDestroy(() => {
+            document.removeEventListener("open-about-dialog", onAbout);
+            document.removeEventListener("open-create-table", onCreateTable);
+            document.removeEventListener("open-change-password", onChangePassword);
+            document.removeEventListener("open-schema-editor", onSchemaEditor);
+            document.removeEventListener("open-index-viewer", onIndexViewer);
+        });
 
         this.load();
     }
@@ -166,6 +194,16 @@ export class AppComponent {
             return;
         }
 
+        // Chord: Ctrl+K, Ctrl+F → fermer le fichier
+        if (this.ctrlKPressed && event.ctrlKey && event.key === "f") {
+            event.preventDefault();
+            this.ctrlKPressed = false;
+            if (this.state.connected()) {
+                void this.dbService.closeFile();
+            }
+            return;
+        }
+
         if (event.ctrlKey && event.key === "k") {
             event.preventDefault();
             this.ctrlKPressed = true;
@@ -196,11 +234,11 @@ export class AppComponent {
             this.dbService.openFileDialog();
         }
 
-        // Ctrl+W : fermer le fichier
+        // Ctrl+W : fermer l'onglet actif (si un onglet est ouvert)
         if (event.ctrlKey && event.key === "w") {
             event.preventDefault();
-            if (this.state.connected()) {
-                this.dbService.closeFile();
+            if (this.state.connected() && this.dbService.tabs.activeTabIndex() >= 0) {
+                void this.dbService.closeActiveTab();
             }
         }
 
@@ -229,6 +267,36 @@ export class AppComponent {
             event.preventDefault();
             if (this.state.connected() && !this.dbService.inTransaction()) {
                 this.dbService.transactionAction("begin");
+            }
+        }
+
+        // Ctrl+Z : annuler la dernière mutation
+        if (event.ctrlKey && !event.shiftKey && event.key === "z") {
+            const target = event.target as HTMLElement;
+            if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+                event.preventDefault();
+                if (this.state.connected() && this.dbService.mutationHistory.canUndo()) {
+                    this.dbService.undoLastMutation();
+                }
+            }
+        }
+
+        // Ctrl+Y : rétablir la dernière mutation annulée
+        if (event.ctrlKey && !event.shiftKey && event.key === "y") {
+            const target = event.target as HTMLElement;
+            if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+                event.preventDefault();
+                if (this.state.connected() && this.dbService.mutationHistory.canRedo()) {
+                    this.dbService.redoLastMutation();
+                }
+            }
+        }
+
+        // Ctrl+Shift+Q : ouvrir l'éditeur SQL
+        if (event.ctrlKey && event.shiftKey && event.key === "Q") {
+            event.preventDefault();
+            if (this.state.connected()) {
+                this.router.navigate(["/dashboard/sql-editor"]);
             }
         }
     }
@@ -273,5 +341,96 @@ export class AppComponent {
                 },
             ],
         });
+    }
+
+    /**
+     * Ouvre le modal de création d'une nouvelle table.
+     */
+    private async openCreateTable(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: CreateTableComponent,
+            componentProps: {},
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<CreateTableComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+        modal.didDismiss.subscribe(async result => {
+            if (result.role === "confirm") {
+                await this.dbService.refreshDatabase();
+            }
+        });
+    }
+
+    /**
+     * Ouvre le modal de changement de mot de passe / chiffrement.
+     */
+    private async openChangePassword(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: ChangePasswordComponent,
+            componentProps: {},
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<ChangePasswordComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+    }
+
+    /**
+     * Ouvre le modal d'édition de schéma de la table active.
+     */
+    private async openSchemaEditor(): Promise<void> {
+        const table = this.dbService.selectedTable();
+        const fields = this.dbService.tableSchema()?.fields ?? [];
+        if (!table || fields.length === 0) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: SchemaEditorComponent,
+            componentProps: { tableName: table, fields },
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<SchemaEditorComponent>();
+        if (comp) {
+            comp.dismiss = async data => {
+                if (data?.["changed"] === true) {
+                    const actions = comp.getAlterActions();
+                    for (const action of actions) {
+                        await this.dbService.alterTable(action);
+                    }
+                }
+                modal.dismiss(data as Partial<UIDismissData>);
+            };
+        }
+    }
+
+    /**
+     * Ouvre le modal de visualisation des index de la table active.
+     */
+    private async openIndexViewer(): Promise<void> {
+        const table = this.dbService.selectedTable();
+        const fields = this.dbService.tableSchema()?.fields ?? [];
+        if (!table) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: IndexViewerComponent,
+            componentProps: { tableName: table, fields },
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<IndexViewerComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
     }
 }

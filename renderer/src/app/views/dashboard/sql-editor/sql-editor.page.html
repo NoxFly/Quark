@@ -1,0 +1,107 @@
+<div class="sql-editor">
+    <div class="editor-panel">
+        <div class="editor-toolbar">
+            <span class="editor-label">{{ i18n.t('sqlEditor.title') }}</span>
+            <ui-button
+                [disabled]="isExecuting() || !hasInput()"
+                color="primary"
+                (click)="execute()">
+                {{ isExecuting() ? i18n.t('sqlEditor.executing') : i18n.t('sqlEditor.execute') }}
+            </ui-button>
+            <ui-button
+                color="secondary"
+                (click)="clearResult()">
+                {{ i18n.t('sqlEditor.clear') }}
+            </ui-button>
+        </div>
+
+        <textarea
+            #sqlTextarea
+            class="sql-textarea"
+            [placeholder]="i18n.t('sqlEditor.placeholder')"
+            (input)="onTextareaInput()"
+            (keydown)="onEditorKeydown($event)"
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off">
+        </textarea>
+
+        <div class="editor-hint">{{ i18n.t('sqlEditor.hint') }}</div>
+    </div>
+
+    <div class="results-panel">
+        @if (errorMessage()) {
+            <div class="error-banner">
+                <span class="error-icon">&#xE783;</span>
+                <span class="error-text">{{ errorMessage() }}</span>
+            </div>
+        }
+
+        @if (result()) {
+            <div class="results-meta-bar">
+                @if (isSelectResult()) {
+                    <span class="meta-rows">
+                        {{ i18n.t('sqlEditor.rowCount', { count: totalResultRows() }) }}
+                        @if (resultTruncated()) {
+                            <span class="meta-truncated">{{ i18n.t('sqlEditor.truncated', { shown: resultRows().length }) }}</span>
+                        }
+                    </span>
+                }
+                @else {
+                    <span class="meta-rows">{{ i18n.t('sqlEditor.rowsAffected', { count: result()!.rowsAffected }) }}</span>
+                    @if (result()!.lastInsertId !== undefined) {
+                        <span class="meta-insert-id">{{ i18n.t('sqlEditor.lastInsertId', { id: (result()!.lastInsertId ?? 0) }) }}</span>
+                    }
+                }
+                @if (executionTime()) {
+                    <span class="meta-timing">{{ executionTime() }}</span>
+                }
+            </div>
+
+            @if (isSelectResult()) {
+                <div class="results-table-wrapper">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                @for (col of resultColumns(); track col) {
+                                    <th>{{ col }}</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (row of resultRows(); track $index) {
+                                <tr>
+                                    @for (cell of row; track $index) {
+                                        <td [class.null-cell]="isNull(cell)">{{ formatCell(cell) }}</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            @else {
+                <div class="success-banner">
+                    <span class="success-icon">&#xE73E;</span>
+                    <span>{{ i18n.t('sqlEditor.rowsAffected', { count: result()!.rowsAffected }) }}</span>
+                </div>
+            }
+        }
+
+        @if (!result() && !errorMessage()) {
+            <div class="empty-hint">{{ i18n.t('sqlEditor.emptyHint') }}</div>
+        }
+    </div>
+
+    @if (queryHistory().length > 0) {
+        <div class="history-panel">
+            <div class="history-title">{{ i18n.t('sqlEditor.history') }}</div>
+            @for (query of queryHistory(); track query) {
+                <div class="history-item" (click)="loadFromHistory(query)" title="{{ query }}">
+                    {{ query }}
+                </div>
+            }
+        </div>
+    }
+</div>

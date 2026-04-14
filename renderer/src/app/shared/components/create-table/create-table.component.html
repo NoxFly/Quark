@@ -1,0 +1,89 @@
+<div class="create-table">
+    <div class="modal-header">
+        <h2>{{ i18n.t('createTable.title') }}</h2>
+    </div>
+
+    <div class="modal-body">
+        <div class="form-group">
+            <label>{{ i18n.t('createTable.tableName') }}</label>
+            <input
+                type="text"
+                [(ngModel)]="tableName"
+                [placeholder]="i18n.t('createTable.tableNamePlaceholder')"
+                (keydown.enter)="confirm()" />
+        </div>
+
+        <div class="columns-section">
+            <div class="columns-header">
+                <span class="section-title">{{ i18n.t('createTable.columns') }}</span>
+                <button class="add-col-btn" (click)="addColumn()">
+                    + {{ i18n.t('createTable.addColumn') }}
+                </button>
+            </div>
+
+            <div class="columns-table">
+                <div class="col-header">
+                    <span>{{ i18n.t('createTable.colName') }}</span>
+                    <span>{{ i18n.t('createTable.colType') }}</span>
+                    <span>PK</span>
+                    <span>NN</span>
+                    <span>UQ</span>
+                    <span>{{ i18n.t('createTable.colDefault') }}</span>
+                    <span></span>
+                </div>
+
+                @for (col of columns(); track $index; let i = $index) {
+                    <div class="col-row">
+                        <input
+                            type="text"
+                            [value]="col.name"
+                            (input)="updateColumn(i, 'name', $any($event.target).value)"
+                            [placeholder]="i18n.t('createTable.colNamePlaceholder')" />
+                        <select
+                            [value]="col.type"
+                            (change)="updateColumn(i, 'type', $any($event.target).value)">
+                            @for (type of columnTypes; track type) {
+                                <option [value]="type" [selected]="col.type === type">{{ type }}</option>
+                            }
+                        </select>
+                        <input
+                            type="checkbox"
+                            [checked]="col.primaryKey"
+                            (change)="updateColumn(i, 'primaryKey', $any($event.target).checked)" />
+                        <input
+                            type="checkbox"
+                            [checked]="col.notNull"
+                            (change)="updateColumn(i, 'notNull', $any($event.target).checked)" />
+                        <input
+                            type="checkbox"
+                            [checked]="col.unique"
+                            (change)="updateColumn(i, 'unique', $any($event.target).checked)" />
+                        <input
+                            type="text"
+                            [value]="col.defaultValue ?? ''"
+                            (input)="updateColumn(i, 'defaultValue', $any($event.target).value || null)"
+                            [placeholder]="i18n.t('createTable.defaultPlaceholder')" />
+                        <button class="remove-btn" (click)="removeColumn(i)">✕</button>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (sqlPreview()) {
+            <div class="sql-preview">
+                <div class="section-title">{{ i18n.t('createTable.sqlPreview') }}</div>
+                <pre>{{ sqlPreview() }}</pre>
+            </div>
+        }
+    </div>
+
+    <div class="modal-actions">
+        <ui-button color="secondary" (click)="cancel()">{{ i18n.t('editor.cancel') }}</ui-button>
+        <ui-button
+            color="primary"
+            [disabled]="!isValid()"
+            (click)="confirm()">
+            {{ i18n.t('createTable.create') }}
+        </ui-button>
+    </div>
+</div>

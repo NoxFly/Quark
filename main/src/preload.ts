@@ -43,6 +43,17 @@ const api: IpcRendererBridge = {
     transactionAction: (action) => ipcRenderer.invoke("db-transaction", action),
     exportData: (body) => ipcRenderer.invoke("db-export", body),
     getWindowState: () => ipcRenderer.invoke("get-window-state"),
+    execSql: (body) => ipcRenderer.invoke("db-exec-sql", body),
+    importData: (body) => ipcRenderer.invoke("db-import-data", body),
+    previewImport: (body) => ipcRenderer.invoke("db-preview-import", body),
+    getIndexes: (table) => ipcRenderer.invoke("db-get-indexes", table),
+    createIndex: (body) => ipcRenderer.invoke("db-create-index", body),
+    dropIndex: (name) => ipcRenderer.invoke("db-drop-index", name),
+    createTable: (body) => ipcRenderer.invoke("db-create-table", body),
+    alterTable: (action) => ipcRenderer.invoke("db-alter-table", action),
+    changePassword: (body) => ipcRenderer.invoke("db-change-password", body),
+    batchUpdate: (body) => ipcRenderer.invoke("db-batch-update", body),
+    dropTable: (tableName) => ipcRenderer.invoke("db-drop-table", tableName),
 
     // Events from main
     onNavigationRequested: (cb) => {

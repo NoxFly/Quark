@@ -1,0 +1,166 @@
+@use "src/theme/mixins.scss" as *;
+
+:host {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.empty-state {
+    @include flex(flex, column, nowrap, center, center, 0);
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-style: italic;
+}
+
+.er-canvas-wrapper {
+    flex: 1;
+    overflow: auto;
+    background: var(--surface-alt);
+    padding: 16px;
+    cursor: grab;
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+.er-svg {
+    display: block;
+    font-family: inherit;
+}
+
+// --- Contrôles de zoom ---
+
+.zoom-controls {
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    @include flex(flex, row, nowrap, center, center, 4px);
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    z-index: 10;
+    user-select: none;
+}
+
+.zoom-btn,
+.zoom-reset {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-color);
+    border-radius: 4px;
+    transition: background 0.15s;
+
+    &:hover {
+        background: var(--surface-alt);
+    }
+}
+
+.zoom-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
+    font-weight: 700;
+    @include flex(flex, row, nowrap, center, center, 0);
+}
+
+.zoom-reset {
+    padding: 2px 8px;
+    font-size: 11px;
+    font-family: "Consolas", monospace;
+    color: var(--text-muted);
+    min-width: 48px;
+    text-align: center;
+}
+
+// --- Nœuds de tables ---
+
+.table-node {
+    cursor: grab;
+    user-select: none;
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+.table-bg {
+    fill: var(--surface);
+    stroke: var(--border-color);
+    stroke-width: 1.5;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12));
+}
+
+.table-header {
+    fill: var(--color-primary);
+    opacity: 0.9;
+}
+
+.table-name {
+    fill: white;
+    font-size: 13px;
+    font-weight: 700;
+    dominant-baseline: auto;
+}
+
+.field-row {
+    fill: transparent;
+
+    &.pk-row {
+        fill: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    }
+
+    &.fk-row {
+        fill: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    }
+}
+
+.field-divider {
+    stroke: var(--border-color);
+    stroke-width: 0.5;
+    opacity: 0.6;
+}
+
+.field-badge {
+    font-size: 9px;
+    font-weight: 700;
+    fill: var(--color-warning);
+    dominant-baseline: auto;
+}
+
+.field-name {
+    font-size: 12px;
+    fill: var(--text-color);
+    dominant-baseline: auto;
+}
+
+.field-type {
+    font-size: 10px;
+    fill: var(--text-muted);
+    dominant-baseline: auto;
+}
+
+// --- Liens FK ---
+
+.fk-link {
+    stroke: var(--color-primary);
+    stroke-width: 1.5;
+    stroke-dasharray: 5, 3;
+    opacity: 0.7;
+    transition: opacity 0.2s, stroke-width 0.2s;
+
+    &:hover {
+        opacity: 1;
+        stroke-width: 2;
+    }
+}
+
+.arrow-marker {
+    fill: var(--color-primary);
+}

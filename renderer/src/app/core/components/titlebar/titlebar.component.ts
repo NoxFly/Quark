@@ -1,9 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
+import { Router } from "@angular/router";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { ThemeService } from "src/app/core/services/theme.service";
+import { ChangePasswordComponent } from "src/app/shared/components/change-password/change-password.component";
+import { CreateTableComponent } from "src/app/shared/components/create-table/create-table.component";
+import { ImportDataComponent } from "src/app/shared/components/import-data/import-data.component";
+import { IndexViewerComponent } from "src/app/shared/components/index-viewer/index-viewer.component";
+import { SchemaEditorComponent } from "src/app/shared/components/schema-editor/schema-editor.component";
+import { TransactionDiffComponent } from "src/app/shared/components/transaction-diff/transaction-diff.component";
+import { DatabaseSchemaComponent } from "src/app/shared/components/database-schema/database-schema.component";
+import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
+import type { UIDismissData } from "src/app/shared/ui/ui.types";
 
 interface MenuItem {
     label: string;
@@ -35,6 +45,8 @@ export class TitlebarComponent {
     private readonly noxus = inject(NoxusService);
     private readonly dbService = inject(DatabaseService);
     private readonly i18n = inject(I18nService);
+    private readonly router = inject(Router);
+    private readonly modalCtrl = inject(ModalController);
     protected readonly state = inject(StateService);
     protected readonly themeService = inject(ThemeService);
 
@@ -48,6 +60,10 @@ export class TitlebarComponent {
         // Track locale changes to re-compute menu labels
         const t = (key: string): string => this.i18n.t(key);
 
+        const activeTableName = this.dbService.tabs.activeTab()?.tableName ?? this.dbService.selectedTable();
+        const hasTable = !!activeTableName;
+        const fields = this.dbService.tableSchema()?.fields ?? [];
+
         return [
             {
                 label: t("menu.file"),
@@ -56,7 +72,7 @@ export class TitlebarComponent {
                     { label: t("menu.newWindow"), shortcut: "Ctrl+Shift+N", action: () => this.noxus.ipc.newWindow() },
                     { label: "", separator: true },
                     { label: t("menu.refresh"), shortcut: "Ctrl+Shift+R", action: () => this.dbService.refreshDatabase(), disabled: !connected },
-                    { label: t("menu.closeFile"), shortcut: "Ctrl+W", action: () => this.dbService.closeFile(), disabled: !connected },
+                    { label: t("menu.closeFile"), shortcut: "Ctrl+K Ctrl+F", action: () => this.dbService.closeFile(), disabled: !connected },
                     { label: "", separator: true },
                     { label: t("menu.quit"), shortcut: "Alt+F4", action: () => this.noxus.ipc.quitApp() },
                 ],
@@ -64,13 +80,18 @@ export class TitlebarComponent {
             {
                 label: t("menu.edit"),
                 items: [
+                    { label: t("menu.undo"), shortcut: "Ctrl+Z", action: () => this.dbService.undoLastMutation(), disabled: !this.dbService.mutationHistory.canUndo() },
+                    { label: t("menu.redo"), shortcut: "Ctrl+Y", action: () => this.dbService.redoLastMutation(), disabled: !this.dbService.mutationHistory.canRedo() },
+                    { label: "", separator: true },
                     { label: t("menu.toggleEditMode"), shortcut: "Ctrl+E", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
                     { label: "", separator: true },
                     { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
                     { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: !this.dbService.inTransaction() },
                     { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: !this.dbService.inTransaction() },
+                    { label: t("menu.transactionDiff"), action: () => this.openTransactionDiff(), disabled: !this.dbService.inTransaction() },
                     { label: "", separator: true },
                     { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: !hasSelection },
+                    { label: t("menu.importData"), action: () => this.openImportData(), disabled: !connected || !hasTable },
                     { label: "", separator: true },
                     {
                         label: t("menu.export"),
@@ -85,6 +106,9 @@ export class TitlebarComponent {
             {
                 label: t("menu.view"),
                 items: [
+                    { label: t("menu.sqlEditor"), shortcut: "Ctrl+Shift+Q", action: () => this.router.navigate(["/dashboard/sql-editor"]), disabled: !connected },
+                    { label: t("menu.erDiagram"), action: () => this.router.navigate(["/dashboard/er-diagram"]), disabled: !connected },
+                    { label: "", separator: true },
                     { label: t("menu.fullscreen"), shortcut: "F11", action: () => this.noxus.ipc.toggleFullscreen() },
                     { label: "", separator: true },
                     { label: t("menu.changeTheme"), shortcut: "Ctrl+K Ctrl+T", action: () => this.openThemePicker() },
@@ -97,6 +121,17 @@ export class TitlebarComponent {
                             disabled: this.i18n.locale() === locale,
                         })),
                     },
+                ],
+            },
+            {
+                label: t("menu.database"),
+                items: [
+                    { label: t("menu.schemaEditor"), action: () => this.openSchemaEditor(fields), disabled: !connected || !hasTable },
+                    { label: t("menu.createTable"), action: () => this.openCreateTable(), disabled: !connected },
+                    { label: t("menu.indexViewer"), action: () => this.openIndexViewer(fields), disabled: !connected || !hasTable },
+                    { label: t("menu.viewSchema"), action: () => this.openDatabaseSchema(), disabled: !connected },
+                    { label: "", separator: true },
+                    { label: t("menu.changePassword"), action: () => this.openChangePassword(), disabled: !connected },
                 ],
             },
             {
@@ -165,10 +200,159 @@ export class TitlebarComponent {
     }
 
     /**
+     * Ouvre la modale de visualisation du schéma de la base.
+     */
+    private async openDatabaseSchema(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: DatabaseSchemaComponent,
+            componentProps: {},
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<DatabaseSchemaComponent>();
+        if (comp) {
+            comp.dismiss = () => modal.dismiss();
+        }
+    }
+
+    /**
      * Ouvre la modale "À propos".
      * Dispatche un événement personnalisé pour que le composant AppComponent l'intercepte.
      */
     private openAbout(): void {
         document.dispatchEvent(new CustomEvent("open-about-dialog"));
+    }
+
+    /**
+     * Ouvre le modal d'import de données pour la table active.
+     */
+    private async openImportData(): Promise<void> {
+        const table = this.dbService.selectedTable();
+        if (!table) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: ImportDataComponent,
+            componentProps: { tableName: table },
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<ImportDataComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+        modal.didDismiss.subscribe(async result => {
+            if (result.data?.["imported"] === true) {
+                await this.dbService.loadTableData(true);
+            }
+        });
+    }
+
+    /**
+     * Ouvre le modal d'édition de schéma de la table active.
+     */
+    private async openSchemaEditor(fields: import("@shared/types").FieldDef[]): Promise<void> {
+        const table = this.dbService.selectedTable();
+        if (!table || fields.length === 0) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: SchemaEditorComponent,
+            componentProps: { tableName: table, fields },
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<SchemaEditorComponent>();
+        if (comp) {
+            comp.dismiss = async data => {
+                if (data?.["changed"] === true) {
+                    const actions = comp.getAlterActions();
+                    for (const action of actions) {
+                        await this.dbService.alterTable(action);
+                    }
+                }
+                modal.dismiss(data as Partial<UIDismissData>);
+            };
+        }
+    }
+
+    /**
+     * Ouvre le modal de création d'une nouvelle table.
+     */
+    private async openCreateTable(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: CreateTableComponent,
+            componentProps: {},
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<CreateTableComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+        modal.didDismiss.subscribe(async result => {
+            if (result.role === "confirm") {
+                await this.dbService.refreshDatabase();
+            }
+        });
+    }
+
+    /**
+     * Ouvre le modal de visualisation des index de la table active.
+     */
+    private async openIndexViewer(fields: import("@shared/types").FieldDef[]): Promise<void> {
+        const table = this.dbService.selectedTable();
+        if (!table) {
+            return;
+        }
+        const modal = await this.modalCtrl.create({
+            component: IndexViewerComponent,
+            componentProps: { tableName: table, fields },
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<IndexViewerComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+    }
+
+    /**
+     * Ouvre le modal de changement de mot de passe / chiffrement.
+     */
+    private async openChangePassword(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: ChangePasswordComponent,
+            componentProps: {},
+            backdropClose: false,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<ChangePasswordComponent>();
+        if (comp) {
+            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+        }
+    }
+
+    /**
+     * Ouvre le modal de diff des mutations en attente.
+     */
+    private async openTransactionDiff(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: TransactionDiffComponent,
+            componentProps: {},
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<TransactionDiffComponent>();
+        if (comp) {
+            comp.dismiss = () => modal.dismiss();
+        }
     }
 }

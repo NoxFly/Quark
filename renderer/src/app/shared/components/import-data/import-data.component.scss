@@ -1,0 +1,221 @@
+@use "src/theme/mixins.scss" as *;
+
+.import-data {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    width: 580px;
+    max-height: 80vh;
+}
+
+.modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color);
+
+    h2 {
+        margin: 0 0 4px;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .subtitle {
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+}
+
+.step-indicator {
+    @include flex(flex, row, nowrap, flex-start, center, 6px);
+    font-size: 12px;
+    color: var(--text-muted);
+
+    span {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--surface-alt);
+        border: 1px solid var(--border-color);
+        @include flex(flex, row, nowrap, center, center, 0);
+        font-size: 11px;
+        font-weight: 600;
+        transition: background 0.2s, border-color 0.2s, color 0.2s;
+
+        &.active {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: white;
+        }
+    }
+
+    .step-sep {
+        width: auto;
+        height: auto;
+        border: none;
+        background: none;
+        font-size: 14px;
+        font-weight: 400;
+    }
+}
+
+.error-banner {
+    padding: 10px 24px;
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+    font-size: 13px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
+}
+
+.modal-body {
+    @include flex(flex, column, nowrap, stretch, stretch, 12px);
+    padding: 16px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.form-row {
+    @include flex(flex, row, nowrap, flex-start, flex-start, 16px);
+}
+
+.form-group {
+    @include flex(flex, column, nowrap, stretch, flex-start, 6px);
+    flex: 1;
+
+    label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    textarea {
+        width: 100%;
+        resize: vertical;
+        padding: 8px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--surface-alt);
+        color: var(--text-color);
+        font-family: "Consolas", monospace;
+        font-size: 12px;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--color-primary);
+        }
+    }
+
+    input[type="file"] {
+        font-size: 12px;
+    }
+}
+
+.radio-group {
+    @include flex(flex, row, nowrap, flex-start, center, 12px);
+}
+
+.radio-label {
+    @include flex(flex, row, nowrap, flex-start, center, 6px);
+    font-size: 13px;
+    color: var(--text-color);
+    cursor: pointer;
+    text-transform: none;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+.file-group {
+    flex: none;
+    width: 100%;
+}
+
+// --- Aperçu ---
+
+.preview-body {
+    padding-top: 12px;
+}
+
+.preview-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.parse-errors {
+    margin-bottom: 8px;
+}
+
+.parse-error {
+    padding: 6px 10px;
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--color-warning);
+    margin-bottom: 4px;
+}
+
+.preview-table-wrapper {
+    overflow: auto;
+    max-height: 300px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+
+    th, td {
+        padding: 5px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    th {
+        background: var(--surface);
+        font-weight: 600;
+        color: var(--text-muted);
+        position: sticky;
+        top: 0;
+    }
+
+    .new-row td {
+        background: color-mix(in srgb, var(--color-success) 10%, var(--surface-alt));
+    }
+
+    td.null-cell {
+        color: var(--text-muted);
+        font-style: italic;
+    }
+}
+
+// --- Succès ---
+
+.success-body {
+    @include flex(flex, column, nowrap, center, center, 12px);
+    flex: 1;
+    padding: 32px;
+
+    .success-icon {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 40px;
+        color: var(--color-success);
+    }
+
+    p {
+        font-size: 14px;
+        color: var(--text-color);
+        text-align: center;
+        margin: 0;
+    }
+}
+
+.modal-actions {
+    @include flex(flex, row, nowrap, flex-end, center, 8px);
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+}

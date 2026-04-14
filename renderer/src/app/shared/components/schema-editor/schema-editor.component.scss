@@ -1,0 +1,215 @@
+@use "src/theme/mixins.scss" as *;
+
+.schema-editor {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    width: 500px;
+    max-height: 80vh;
+}
+
+.modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color);
+
+    h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+}
+
+.error-banner {
+    padding: 10px 24px;
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+    font-size: 13px;
+}
+
+.modal-body {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.section {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border-color);
+
+    input[type="text"],
+    select {
+        width: 100%;
+        padding: 7px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--surface-alt);
+        color: var(--text-color);
+        font-size: 13px;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--color-primary);
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+}
+
+.section-header {
+    @include flex(flex, row, nowrap, space-between, center, 0);
+    margin-bottom: 10px;
+}
+
+.section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+
+    &:hover {
+        background: var(--surface-alt);
+    }
+}
+
+.columns-list {
+    @include flex(flex, column, nowrap, stretch, stretch, 4px);
+}
+
+.column-row {
+    @include flex(flex, row, nowrap, flex-start, center, 8px);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface-alt);
+    transition: background 0.15s;
+
+    &.marked-drop {
+        background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
+
+        .col-name-input {
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+    }
+}
+
+.col-badges {
+    @include flex(flex, row, nowrap, flex-start, center, 4px);
+    min-width: 40px;
+}
+
+.badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 4px;
+    border-radius: 3px;
+
+    &.pk {
+        background: color-mix(in srgb, var(--color-warning) 25%, transparent);
+        color: var(--color-warning);
+    }
+
+    &.fk {
+        background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+        color: var(--color-primary);
+    }
+}
+
+.col-name-input {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:focus {
+        border-color: var(--color-primary);
+        background: var(--surface);
+    }
+}
+
+.col-type {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.drop-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+    @include flex(flex, row, nowrap, center, center, 0);
+
+    &:hover {
+        background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+        color: var(--color-danger);
+    }
+
+    &.drop-active {
+        color: var(--color-success);
+
+        &:hover {
+            background: color-mix(in srgb, var(--color-success) 15%, transparent);
+        }
+    }
+}
+
+.add-column-form {
+    @include flex(flex, column, nowrap, stretch, stretch, 8px);
+    margin-top: -4px;
+
+    select {
+        width: 100%;
+    }
+}
+
+.checkbox-label {
+    @include flex(flex, row, nowrap, flex-start, center, 8px);
+    font-size: 13px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.changes-summary {
+    padding: 12px 24px;
+    background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+}
+
+.change-item {
+    font-family: "Consolas", monospace;
+    font-size: 12px;
+    color: var(--color-primary);
+    padding: 2px 0;
+}
+
+.modal-actions {
+    @include flex(flex, row, nowrap, flex-end, center, 8px);
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+}

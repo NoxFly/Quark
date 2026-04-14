@@ -9,5 +9,13 @@ export const routes: Routes = [
         path: "table-data",
         loadComponent: () => import("./table-data/table-data.page").then((c) => c.TableDataPage),
     },
+    {
+        path: "sql-editor",
+        loadComponent: () => import("./sql-editor/sql-editor.page").then((c) => c.SqlEditorPage),
+    },
+    {
+        path: "er-diagram",
+        loadComponent: () => import("./er-diagram/er-diagram.page").then((c) => c.ErDiagramPage),
+    },
     { path: "", redirectTo: "no-table", pathMatch: "full" },
 ];

@@ -1,14 +1,20 @@
 import { inject, Injectable, signal } from "@angular/core";
 import { Router } from "@angular/router";
 import type {
+    CreateTableColumnDef,
     DatabaseSchema,
     DbRecord,
+    IndexDef,
+    R_AlterTableAction,
     R_ExportResponse,
+    R_SqlExecResponse,
     R_TransactionAction,
     TableSchema,
 } from "@shared/types";
+import { MutationHistoryService } from "src/app/core/services/mutation-history.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
+import { TabsService } from "src/app/core/services/tabs.service";
 
 /**
  * Service gérant toute la logique d'interaction avec la base de données
@@ -19,12 +25,15 @@ export class DatabaseService {
     private readonly noxus = inject(NoxusService);
     private readonly state = inject(StateService);
     private readonly router = inject(Router);
+    public readonly mutationHistory = inject(MutationHistoryService);
+    public readonly tabs = inject(TabsService);
 
     public readonly inTransaction = signal<boolean>(false);
     public readonly selectedTable = signal<string | null>(null);
     public readonly tableData = signal<DbRecord[]>([]);
     public readonly totalCount = signal<number>(0);
     public readonly tableSchema = signal<TableSchema | null>(null);
+    public readonly tableSize = signal<number>(0);
     public readonly loading = signal<boolean>(false);
 
     public readonly orderBy = signal<string | null>(null);
@@ -113,10 +122,13 @@ export class DatabaseService {
             this.selectedTable.set(null);
             this.tableData.set([]);
             this.totalCount.set(0);
+            this.tableSize.set(0);
             this.tableSchema.set(null);
             this.inTransaction.set(false);
             this.selectedRowIds.set(new Set());
             this.allRowsSelected.set(false);
+            this.mutationHistory.clear();
+            this.tabs.closeAll();
             this.router.navigate(["/open-database"]);
         }
         catch (err) {
@@ -151,13 +163,41 @@ export class DatabaseService {
 
     /**
      * Sélectionne une table et charge ses données.
+     * Gère les onglets : ouvre un onglet existant ou en crée un.
      */
     public async selectTable(tableName: string): Promise<void> {
+        // Sauvegarder l'état de l'onglet actuel avant de changer
+        this.tabs.updateActiveTab({
+            filter: this.filter(),
+            sqliteFilterMode: this.sqliteFilterMode(),
+            orderBy: this.orderBy(),
+            orderDir: this.orderDir(),
+        });
+
+        const existingIndex = this.tabs.findTab(tableName);
+        this.tabs.openTab(tableName);
+
         this.selectedTable.set(tableName);
-        this.currentOffset = 0;
-        this.orderBy.set(null);
-        this.orderDir.set("ASC");
-        this.filter.set("");
+        this.mutationHistory.clear();
+
+        if (existingIndex >= 0) {
+            // Restaurer l'état de l'onglet existant
+            const tab = this.tabs.activeTab();
+            if (tab) {
+                this.filter.set(tab.filter);
+                this.sqliteFilterMode.set(tab.sqliteFilterMode);
+                this.orderBy.set(tab.orderBy);
+                this.orderDir.set(tab.orderDir);
+            }
+        }
+        else {
+            // Nouvel onglet : réinitialiser
+            this.currentOffset = 0;
+            this.orderBy.set(null);
+            this.orderDir.set("ASC");
+            this.filter.set("");
+        }
+
         this.selectedRowIds.set(new Set());
         this.allRowsSelected.set(false);
 
@@ -206,6 +246,7 @@ export class DatabaseService {
             }
 
             this.totalCount.set(response.totalCount);
+            this.tableSize.set(response.tableSize ?? 0);
         }
         catch (err) {
             console.error("Failed to load table data:", err);
@@ -265,7 +306,21 @@ export class DatabaseService {
             return;
         }
 
+        // Obtenir la valeur courante avant mise à jour pour l'historique
+        const currentRecord = this.tableData().find(r => r["rowid"] === rowid);
+        const oldValue = currentRecord?.[column];
+
         await this.noxus.ipc.updateCell({ table, rowid, column, value });
+
+        // Enregistrer dans l'historique
+        this.mutationHistory.push({
+            type: "update",
+            table,
+            rowid,
+            column,
+            oldValue,
+            newValue: value,
+        });
 
         // Mettre à jour localement
         this.tableData.update(records =>
@@ -289,7 +344,19 @@ export class DatabaseService {
             return;
         }
 
+        // Sauvegarder les records avant suppression pour l'historique
+        const recordsToDelete = this.tableData().filter(r => rowids.includes(r["rowid"] as number));
+
         await this.noxus.ipc.deleteRows({ table, rowids });
+
+        for (const record of recordsToDelete) {
+            this.mutationHistory.push({
+                type: "delete",
+                table,
+                rowid: record["rowid"] as number,
+                oldRecord: record,
+            });
+        }
 
         this.tableData.update(records =>
             records.filter(r => !rowids.includes(r["rowid"] as number))
@@ -307,7 +374,18 @@ export class DatabaseService {
             return;
         }
 
+        const record = this.tableData().find(r => r["rowid"] === rowid);
+
         await this.noxus.ipc.deleteRows({ table, rowids: [rowid] });
+
+        if (record) {
+            this.mutationHistory.push({
+                type: "delete",
+                table,
+                rowid,
+                oldRecord: record,
+            });
+        }
 
         this.tableData.update(records =>
             records.filter(r => (r["rowid"] as number) !== rowid)
@@ -332,6 +410,13 @@ export class DatabaseService {
         const response = await this.noxus.ipc.insertRow({ table, values });
 
         if (response.record) {
+            this.mutationHistory.push({
+                type: "insert",
+                table,
+                rowid: response.rowid,
+                oldRecord: undefined,
+                newValue: response.record,
+            });
             this.tableData.update(records => [...records, response.record]);
             this.totalCount.update(c => c + 1);
         }
@@ -391,10 +476,12 @@ export class DatabaseService {
         switch (action) {
             case "begin":
                 this.inTransaction.set(true);
+                this.mutationHistory.clear();
                 break;
             case "commit":
             case "rollback":
                 this.inTransaction.set(false);
+                this.mutationHistory.clear();
                 if (action === "rollback") {
                     await this.loadTableData(true);
                 }
@@ -548,5 +635,218 @@ export class DatabaseService {
         this.state.title.set(database.name);
         this.state.fileName.set(database.name);
         this.router.navigate(["/dashboard/no-table"]);
+    }
+
+    // --- Nouvelles fonctionnalités ---
+
+    /**
+     * Annule la dernière mutation (Ctrl+Z).
+     */
+    public async undoLastMutation(): Promise<void> {
+        const mutation = this.mutationHistory.popForUndo();
+        if (!mutation) {
+            return;
+        }
+
+        const table = mutation.table;
+
+        switch (mutation.type) {
+            case "update":
+                if (mutation.column !== undefined) {
+                    await this.noxus.ipc.updateCell({ table, rowid: mutation.rowid, column: mutation.column, value: mutation.oldValue });
+                    this.tableData.update(records =>
+                        records.map(r => r["rowid"] === mutation.rowid ? { ...r, [mutation.column!]: mutation.oldValue } : r)
+                    );
+                }
+                break;
+            case "insert":
+                await this.noxus.ipc.deleteRows({ table, rowids: [mutation.rowid] });
+                this.tableData.update(records => records.filter(r => r["rowid"] !== mutation.rowid));
+                this.totalCount.update(c => c - 1);
+                break;
+            case "delete":
+                if (mutation.oldRecord) {
+                    const { rowid: _id, ...values } = mutation.oldRecord;
+                    const response = await this.noxus.ipc.insertRow({ table, values: values as Record<string, unknown> });
+                    if (response.record) {
+                        this.tableData.update(records => [...records, response.record]);
+                        this.totalCount.update(c => c + 1);
+                    }
+                }
+                break;
+        }
+    }
+
+    /**
+     * Rétablit la dernière mutation annulée (Ctrl+Y).
+     */
+    public async redoLastMutation(): Promise<void> {
+        const mutation = this.mutationHistory.popForRedo();
+        if (!mutation) {
+            return;
+        }
+
+        const table = mutation.table;
+
+        switch (mutation.type) {
+            case "update":
+                if (mutation.column !== undefined) {
+                    await this.noxus.ipc.updateCell({ table, rowid: mutation.rowid, column: mutation.column, value: mutation.newValue });
+                    this.tableData.update(records =>
+                        records.map(r => r["rowid"] === mutation.rowid ? { ...r, [mutation.column!]: mutation.newValue } : r)
+                    );
+                }
+                break;
+            case "insert":
+                if (mutation.newValue && typeof mutation.newValue === "object") {
+                    const { rowid: _id, ...values } = mutation.newValue as DbRecord;
+                    const response = await this.noxus.ipc.insertRow({ table, values: values as Record<string, unknown> });
+                    if (response.record) {
+                        this.tableData.update(records => [...records, response.record]);
+                        this.totalCount.update(c => c + 1);
+                    }
+                }
+                break;
+            case "delete":
+                await this.noxus.ipc.deleteRows({ table, rowids: [mutation.rowid] });
+                this.tableData.update(records => records.filter(r => r["rowid"] !== mutation.rowid));
+                this.totalCount.update(c => c - 1);
+                break;
+        }
+    }
+
+    /**
+     * Applique la même valeur à un champ sur plusieurs lignes.
+     */
+    public async batchUpdate(rowids: number[], column: string, value: unknown): Promise<void> {
+        const table = this.selectedTable();
+        if (!table || rowids.length === 0) {
+            return;
+        }
+
+        await this.noxus.ipc.batchUpdate({ table, rowids, column, value });
+
+        // Enregistrer dans l'historique
+        for (const rowid of rowids) {
+            const record = this.tableData().find(r => r["rowid"] === rowid);
+            this.mutationHistory.push({
+                type: "update",
+                table,
+                rowid,
+                column,
+                oldValue: record?.[column],
+                newValue: value,
+            });
+        }
+
+        // Mettre à jour localement
+        this.tableData.update(records =>
+            records.map(r => rowids.includes(r["rowid"] as number) ? { ...r, [column]: value } : r)
+        );
+    }
+
+    /**
+     * Exécute une requête SQL arbitraire.
+     */
+    public async execSql(sql: string): Promise<R_SqlExecResponse> {
+        return this.noxus.ipc.execSql({ sql });
+    }
+
+    /**
+     * Récupère les index d'une table.
+     */
+    public async getIndexes(tableName: string): Promise<IndexDef[]> {
+        const response = await this.noxus.ipc.getIndexes(tableName);
+        return response.indexes;
+    }
+
+    /**
+     * Crée un index.
+     */
+    public async createIndex(tableName: string, indexName: string, columns: string[], unique: boolean): Promise<void> {
+        await this.noxus.ipc.createIndex({ table: tableName, name: indexName, columns, unique });
+    }
+
+    /**
+     * Supprime un index.
+     */
+    public async dropIndex(indexName: string): Promise<void> {
+        await this.noxus.ipc.dropIndex(indexName);
+    }
+
+    /**
+     * Crée une nouvelle table.
+     */
+    public async createTable(name: string, columns: CreateTableColumnDef[]): Promise<void> {
+        await this.noxus.ipc.createTable({ name, columns, ifNotExists: false });
+        // Rafraîchir le schéma
+        await this.refreshDatabase();
+    }
+
+    /**
+     * Modifie une table (ALTER TABLE).
+     */
+    public async alterTable(action: R_AlterTableAction): Promise<void> {
+        await this.noxus.ipc.alterTable(action);
+        // Rafraîchir le schéma et les données
+        await this.refreshDatabase();
+        const table = this.selectedTable();
+        if (table) {
+            const newTableName = action.action === "rename-table" ? action.newName : table;
+            await this.selectTable(newTableName);
+        }
+    }
+
+    /**
+     * Change le mot de passe de la base de données.
+     */
+    public async changePassword(newPassword: string | null): Promise<void> {
+        await this.noxus.ipc.changePassword({ newPassword });
+    }
+
+    /**
+     * Supprime une table et ferme son onglet s'il est ouvert.
+     */
+    public async deleteTable(tableName: string): Promise<void> {
+        await this.noxus.ipc.dropTable(tableName);
+
+        // Fermer l'onglet associé s'il est ouvert
+        const tabIdx = this.tabs.findTab(tableName);
+        if (tabIdx >= 0) {
+            const nextTable = this.tabs.closeTab(tabIdx);
+            if (nextTable) {
+                await this.selectTable(nextTable);
+            }
+            else {
+                this.selectedTable.set(null);
+                this.tableData.set([]);
+                this.totalCount.set(0);
+                this.tableSchema.set(null);
+                this.router.navigate(["/dashboard/no-table"]);
+            }
+        }
+
+        await this.refreshDatabase();
+    }
+
+    /**
+     * Ferme l'onglet actif et bascule sur l'onglet adjacent.
+     */
+    public async closeActiveTab(): Promise<void> {
+        const activeIdx = this.tabs.activeTabIndex();
+        if (activeIdx < 0) {
+            return;
+        }
+        const nextTable = this.tabs.closeTab(activeIdx);
+        if (nextTable) {
+            await this.selectTable(nextTable);
+        }
+        else {
+            this.selectedTable.set(null);
+            this.tableData.set([]);
+            this.totalCount.set(0);
+            this.tableSchema.set(null);
+            this.router.navigate(["/dashboard/no-table"]);
+        }
     }
 }

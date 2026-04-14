@@ -1,15 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from "@angular/core";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import { ButtonComponent } from "@ui/button/button.component";
+import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
 @Component({
     selector: "app-sidebar",
     standalone: true,
     templateUrl: "./sidebar.component.html",
     styleUrl: "./sidebar.component.scss",
-    imports: [ButtonComponent],
+    imports: [ButtonComponent, ContextMenuComponent, TooltipDirective],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "[style.width.px]": "width()",
@@ -24,6 +26,8 @@ export class SidebarComponent {
     protected readonly width = signal<number>(220);
     protected readonly isResizing = signal<boolean>(false);
 
+    protected readonly contextMenu = viewChild.required(ContextMenuComponent);
+
     protected readonly tables = computed(() => {
         const db = this.state.database();
         return db?.tables ?? [];
@@ -36,6 +40,37 @@ export class SidebarComponent {
      */
     protected selectTable(tableName: string): void {
         this.dbService.selectTable(tableName);
+    }
+
+    /**
+     * Ouvre le menu contextuel pour une table.
+     */
+    protected onTableContextMenu(event: MouseEvent, tableName: string): void {
+        this.contextMenu().open(event, [
+            {
+                label: this.i18n.t("sidebar.table.schemaEditor"),
+                icon: "\uE70F",
+                action: () => {
+                    this.dbService.selectTable(tableName);
+                    document.dispatchEvent(new CustomEvent("open-schema-editor"));
+                },
+            },
+            {
+                label: this.i18n.t("sidebar.table.indexViewer"),
+                icon: "\uE773",
+                action: () => {
+                    this.dbService.selectTable(tableName);
+                    document.dispatchEvent(new CustomEvent("open-index-viewer"));
+                },
+            },
+            { label: "", action: () => {}, separator: true },
+            {
+                label: this.i18n.t("sidebar.table.deleteTable"),
+                icon: "\uE74D",
+                danger: true,
+                action: () => void this.dbService.deleteTable(tableName),
+            },
+        ]);
     }
 
     /**
@@ -76,5 +111,11 @@ export class SidebarComponent {
      */
     protected closeFile(): void {
         this.dbService.closeFile();
+    }
+    /**
+     * Dispatche l'événement d'ouverture du modal de création de table.
+     */
+    protected dispatchCreateTable(): void {
+        document.dispatchEvent(new CustomEvent("open-create-table"));
     }
 }

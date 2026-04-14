@@ -10,24 +10,37 @@
 export const en: Record<string, string> = {
     // --- Titlebar menus ---
     "menu.file": "File",
-    "menu.open": "Open...",
+    "menu.open": "Open",
     "menu.newWindow": "New window",
     "menu.refresh": "Refresh",
     "menu.closeFile": "Close file",
     "menu.quit": "Quit",
     "menu.edit": "Edit",
+    "menu.undo": "Undo",
+    "menu.redo": "Redo",
     "menu.toggleEditMode": "Toggle edit mode",
     "menu.startTransaction": "Start transaction",
     "menu.commitTransaction": "Commit transaction",
     "menu.rollbackTransaction": "Rollback transaction",
+    "menu.transactionDiff": "View pending changes",
     "menu.deleteSelection": "Delete selection",
+    "menu.importData": "Import data",
     "menu.view": "View",
+    "menu.sqlEditor": "SQL Editor",
+    "menu.erDiagram": "ER Diagram",
     "menu.fullscreen": "Fullscreen",
     "menu.changeTheme": "Change theme",
     "menu.language": "Language",
     "menu.export": "Export",
     "menu.exportJson": "Export as JSON",
     "menu.exportCsv": "Export as CSV",
+    "menu.database": "Database",
+    "menu.schemaEditor": "Edit table schema",
+    "menu.createTable": "Create table",
+    "menu.indexViewer": "View indexes",
+    "menu.changePassword": "Change encryption",
+    "menu.viewSchema": "View database schema",
+    "menu.dropTable": "Delete table",
     "menu.help": "Help",
     "menu.about": "About",
 
@@ -46,6 +59,14 @@ export const en: Record<string, string> = {
     "sidebar.rows": "{count} rows",
     "sidebar.refresh": "Refresh",
     "sidebar.close": "Close",
+    "sidebar.createTable": "Create table",
+    "sidebar.createTable.tooltip": "Create a new table",
+    "sidebar.schemaEditor": "Edit schema",
+    "sidebar.schemaEditor.tooltip": "Edit the current table schema",
+    "sidebar.indexViewer": "Indexes",
+    "sidebar.indexViewer.tooltip": "View and manage indexes",
+    "sidebar.changePassword": "Encryption",
+    "sidebar.changePassword.tooltip": "Change database encryption",
 
 
     // --- Table data ---
@@ -71,6 +92,10 @@ export const en: Record<string, string> = {
     "contextMenu.delete": "Delete record",
     "contextMenu.deleteSelection": "Delete selection",
     "contextMenu.copyJson": "Copy as JSON",
+    "contextMenu.batchEdit": "Edit selected field...",
+    "contextMenu.importData": "Import data...",
+    "contextMenu.schemaEditor": "Edit schema...",
+    "contextMenu.indexViewer": "View indexes...",
 
     // --- Record editor ---
     "editor.createTitle": "New record",
@@ -91,6 +116,132 @@ export const en: Record<string, string> = {
     "noTable.title": "Select a table",
     "noTable.hint": "Choose a table from the left panel to view its data.",
     "noTable.tableCount": "{count} table(s) available",
+
+    // --- SQL Editor ---
+    "sqlEditor.title": "SQL Editor",
+    "sqlEditor.execute": "Execute",
+    "sqlEditor.executing": "Executing...",
+    "sqlEditor.clear": "Clear",
+    "sqlEditor.placeholder": "Enter SQL query...",
+    "sqlEditor.hint": "Ctrl+Enter to execute  •  Ctrl+↑/↓ for history",
+    "sqlEditor.rowCount": "{count} rows",
+    "sqlEditor.rowsAffected": "{count} rows affected",
+    "sqlEditor.lastInsertId": "Last insert ID: {id}",
+    "sqlEditor.emptyHint": "Execute a query to see results",
+    "sqlEditor.history": "Query history",
+    "sqlEditor.truncated": "(showing first {shown})",
+
+    // --- ER Diagram ---
+    "erDiagram.noTables": "No tables found in the database.",
+
+    // --- Batch edit ---
+    "batchEdit.title": "Batch edit",
+    "batchEdit.subtitle": "{count} rows selected",
+    "batchEdit.column": "Column",
+    "batchEdit.value": "New value",
+    "batchEdit.valuePlaceholder": "Enter new value...",
+    "batchEdit.setNull": "Set to NULL",
+    "batchEdit.apply": "Apply to all",
+
+    // --- Import data ---
+    "importData.title": "Import data",
+    "importData.table": "Target table: {table}",
+    "importData.format": "Format",
+    "importData.mode": "Mode",
+    "importData.modeInsert": "Insert",
+    "importData.modeUpsert": "Insert or Replace",
+    "importData.file": "File",
+    "importData.orPaste": "Or paste data",
+    "importData.pastePlaceholder": "Paste CSV or JSON data here...",
+    "importData.parsing": "Parsing...",
+    "importData.preview": "Preview",
+    "importData.previewMeta": "Showing {shown} of {total} rows",
+    "importData.back": "Back",
+    "importData.importing": "Importing...",
+    "importData.confirm": "Import {count} rows",
+    "importData.success": "{count} rows imported successfully",
+    "importData.done": "Done",
+
+    // --- Schema editor ---
+    "schemaEditor.title": "Schema editor",
+    "schemaEditor.tableName": "Table name",
+    "schemaEditor.columns": "Columns",
+    "schemaEditor.addColumn": "Add column",
+    "schemaEditor.colName": "Name",
+    "schemaEditor.defaultValue": "Default value",
+    "schemaEditor.dropColumn": "Mark for deletion",
+    "schemaEditor.cancelDrop": "Cancel deletion",
+    "schemaEditor.pendingChanges": "Pending changes",
+    "schemaEditor.apply": "Apply changes",
+
+    // --- Create table ---
+    "createTable.title": "Create new table",
+    "createTable.tableName": "Table name",
+    "createTable.tableNamePlaceholder": "Enter table name...",
+    "createTable.columns": "Columns",
+    "createTable.addColumn": "Add column",
+    "createTable.colName": "Name",
+    "createTable.colType": "Type",
+    "createTable.colDefault": "Default",
+    "createTable.colNamePlaceholder": "column_name",
+    "createTable.defaultPlaceholder": "e.g. 0 or 'text'",
+    "createTable.sqlPreview": "SQL Preview",
+    "createTable.create": "Create table",
+
+    // --- Index viewer ---
+    "indexViewer.title": "Indexes",
+    "indexViewer.noIndexes": "No indexes on this table.",
+    "indexViewer.drop": "Drop",
+    "indexViewer.createIndex": "Create new index",
+    "indexViewer.indexName": "Index name",
+    "indexViewer.indexNamePlaceholder": "idx_tablename_column",
+    "indexViewer.selectColumns": "Columns",
+    "indexViewer.create": "Create index",
+    "indexViewer.close": "Close",
+
+    // --- Change password ---
+    "changePassword.title": "Change encryption",
+    "changePassword.modeSet": "Set / change password",
+    "changePassword.modeRemove": "Remove encryption",
+    "changePassword.newPassword": "New password",
+    "changePassword.passwordPlaceholder": "Enter new password...",
+    "changePassword.confirmPassword": "Confirm password",
+    "changePassword.confirmPlaceholder": "Confirm password...",
+    "changePassword.mismatch": "Passwords do not match",
+    "changePassword.removeWarning": "This will decrypt the database and save it without encryption.",
+    "changePassword.apply": "Apply",
+    "changePassword.changedSuccess": "Password changed successfully.",
+    "changePassword.removedSuccess": "Encryption removed successfully.",
+
+    // --- Transaction diff ---
+    "transactionDiff.title": "Transaction changes",
+    "transactionDiff.subtitle": "{count} change(s) pending",
+    "transactionDiff.noChanges": "No changes recorded yet.",
+    "transactionDiff.inserted": "New row inserted",
+    "transactionDiff.deleted": "Row deleted",
+
+    // --- Tabs bar ---
+    "tabs.close": "Close tab",
+    "tabs.closeAll": "Close all tabs",
+    "tabs.closeOthers": "Close other tabs",
+
+    // --- Sidebar table context menu ---
+    "sidebar.table.schemaEditor": "Edit table schema",
+    "sidebar.table.indexViewer": "View indexes",
+    "sidebar.table.deleteTable": "Delete table",
+
+    // --- Database schema viewer ---
+    "schemaViewer.title": "Database schema",
+    "schemaViewer.copyAll": "Copy all",
+    "schemaViewer.export": "Export SQL",
+    "schemaViewer.close": "Close",
+    "schemaViewer.copied": "Copied!",
+
+    // --- Confirm delete table ---
+    "confirmDelete.table.title": "Delete table",
+    "confirmDelete.table.message": "Are you sure you want to delete the table \"{table}\"? This action is irreversible.",
+    "confirmDelete.confirm": "Delete",
+    "confirmDelete.cancel": "Cancel",
 
     "short.new": "New",
 };

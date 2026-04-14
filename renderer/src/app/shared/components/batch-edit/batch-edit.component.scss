@@ -1,0 +1,74 @@
+@use "src/theme/mixins.scss" as *;
+
+.batch-edit {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    width: 400px;
+}
+
+.modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color);
+
+    h2 {
+        margin: 0 0 4px;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .subtitle {
+        margin: 0;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+}
+
+.modal-body {
+    @include flex(flex, column, nowrap, stretch, stretch, 12px);
+    padding: 20px 24px;
+    flex: 1;
+}
+
+.form-group {
+    @include flex(flex, column, nowrap, stretch, flex-start, 6px);
+
+    label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .checkbox-label {
+        @include flex(flex, row, nowrap, flex-start, center, 8px);
+        text-transform: none;
+        cursor: pointer;
+        font-weight: 400;
+        color: var(--text-color);
+    }
+
+    select,
+    input[type="text"] {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--surface-alt);
+        color: var(--text-color);
+        font-size: 13px;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--color-primary);
+        }
+    }
+}
+
+.modal-actions {
+    @include flex(flex, row, nowrap, flex-end, center, 8px);
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+}

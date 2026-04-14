@@ -1,0 +1,140 @@
+<div class="import-data">
+    <div class="modal-header">
+        <h2>{{ i18n.t('importData.title') }}</h2>
+        <p class="subtitle">{{ i18n.t('importData.table', { table: tableName() }) }}</p>
+
+        <div class="step-indicator">
+            <span [class.active]="step() >= 1">1</span>
+            <span class="step-sep">›</span>
+            <span [class.active]="step() >= 2">2</span>
+            <span class="step-sep">›</span>
+            <span [class.active]="step() >= 3">3</span>
+        </div>
+    </div>
+
+    @if (errorMessage()) {
+        <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    <!-- Étape 1 : saisie des données -->
+    @if (step() === 1) {
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>{{ i18n.t('importData.format') }}</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" [(ngModel)]="format" value="csv" />
+                            CSV
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" [(ngModel)]="format" value="json" />
+                            JSON
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>{{ i18n.t('importData.mode') }}</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" [(ngModel)]="importMode" value="insert" />
+                            {{ i18n.t('importData.modeInsert') }}
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" [(ngModel)]="importMode" value="upsert" />
+                            {{ i18n.t('importData.modeUpsert') }}
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group file-group">
+                <label>{{ i18n.t('importData.file') }}</label>
+                <input type="file" accept=".csv,.json,.txt" (change)="loadFile($event)" />
+            </div>
+
+            <div class="form-group">
+                <label>{{ i18n.t('importData.orPaste') }}</label>
+                <textarea
+                    [(ngModel)]="rawData"
+                    [placeholder]="i18n.t('importData.pastePlaceholder')"
+                    rows="8"
+                    spellcheck="false">
+                </textarea>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <ui-button color="secondary" (click)="close(false)">{{ i18n.t('editor.cancel') }}</ui-button>
+            <ui-button
+                color="primary"
+                [disabled]="isLoading() || !rawData().trim()"
+                (click)="preview()">
+                {{ isLoading() ? i18n.t('importData.parsing') : i18n.t('importData.preview') }}
+            </ui-button>
+        </div>
+    }
+
+    <!-- Étape 2 : aperçu -->
+    @if (step() === 2) {
+        <div class="modal-body preview-body">
+            <div class="preview-meta">
+                {{ i18n.t('importData.previewMeta', { shown: previewRows().length, total: totalRows() }) }}
+            </div>
+
+            @if (parseErrors().length > 0) {
+                <div class="parse-errors">
+                    @for (err of parseErrors(); track err) {
+                        <div class="parse-error">⚠ {{ err }}</div>
+                    }
+                </div>
+            }
+
+            <div class="preview-table-wrapper">
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            @for (col of previewColumns(); track col) {
+                                <th>{{ col }}</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (row of previewRows(); track $index) {
+                            <tr class="new-row">
+                                @for (col of previewColumns(); track col) {
+                                    <td [class.null-cell]="isNullValue(row[col])">
+                                        {{ formatPreviewCell(row[col]) }}
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <ui-button color="secondary" (click)="backToStep1()">{{ i18n.t('importData.back') }}</ui-button>
+            <ui-button
+                color="primary"
+                [disabled]="isLoading() || parseErrors().length > 0"
+                (click)="doImport()">
+                {{ isLoading() ? i18n.t('importData.importing') : i18n.t('importData.confirm', { count: totalRows() }) }}
+            </ui-button>
+        </div>
+    }
+
+    <!-- Étape 3 : succès -->
+    @if (step() === 3) {
+        <div class="success-body">
+            <div class="success-icon">&#xE73E;</div>
+            <p>{{ i18n.t('importData.success', { count: totalRows() }) }}</p>
+        </div>
+
+        <div class="modal-actions">
+            <ui-button color="primary" (click)="close(true)">{{ i18n.t('importData.done') }}</ui-button>
+        </div>
+    }
+</div>

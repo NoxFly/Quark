@@ -132,3 +132,33 @@ a[href], .link-like {
     padding: 20px;
 }
 
+// --- Tooltip global ---
+
+.ui-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: rgba(28, 28, 30, 0.92);
+    color: #fff;
+    padding: 4px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    line-height: 1.4;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: 280px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
+    animation: tooltip-in 0.1s ease;
+}
+
+@keyframes tooltip-in {
+    from {
+        opacity: 0;
+        transform: translateY(-2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+

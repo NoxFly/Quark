@@ -1,0 +1,91 @@
+<div class="index-viewer">
+    <div class="modal-header">
+        <h2>{{ i18n.t('indexViewer.title') }} — {{ tableName() }}</h2>
+    </div>
+
+    @if (errorMessage()) {
+        <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    <div class="modal-body">
+        @if (isLoading() && indexes().length === 0) {
+            <div class="loading">{{ i18n.t('table.loading') }}</div>
+        }
+
+        @if (indexes().length === 0 && !isLoading()) {
+            <div class="empty">{{ i18n.t('indexViewer.noIndexes') }}</div>
+        }
+
+        @for (index of indexes(); track index.name) {
+            <div class="index-item">
+                <div class="index-header">
+                    <div class="index-name">
+                        {{ index.name }}
+                        @if (index.unique) {
+                            <span class="badge unique">UNIQUE</span>
+                        }
+                        <span class="badge origin">{{ getOriginLabel(index.origin) }}</span>
+                    </div>
+                    @if (index.origin === 'c') {
+                        <button class="drop-btn" (click)="dropIndex(index.name)" [disabled]="isLoading()">
+                            {{ i18n.t('indexViewer.drop') }}
+                        </button>
+                    }
+                </div>
+                <div class="index-columns">
+                    {{ index.columns.join(', ') }}
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="create-section">
+        <button class="toggle-create-btn" (click)="showCreateForm.set(!showCreateForm())">
+            {{ showCreateForm() ? '▲ ' : '+ ' }}{{ i18n.t('indexViewer.createIndex') }}
+        </button>
+
+        @if (showCreateForm()) {
+            <div class="create-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>{{ i18n.t('indexViewer.indexName') }}</label>
+                        <input
+                            type="text"
+                            [(ngModel)]="newIndexName"
+                            [placeholder]="i18n.t('indexViewer.indexNamePlaceholder')" />
+                    </div>
+                    <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="newIndexUnique" />
+                        UNIQUE
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>{{ i18n.t('indexViewer.selectColumns') }}</label>
+                    <div class="col-checkboxes">
+                        @for (field of fields(); track field.name) {
+                            <label class="col-checkbox">
+                                <input
+                                    type="checkbox"
+                                    [checked]="isColumnSelected(field.name)"
+                                    (change)="toggleColumn(field.name)" />
+                                {{ field.name }}
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <ui-button
+                    color="primary"
+                    [disabled]="isLoading() || !newIndexName().trim() || newIndexColumns().size === 0"
+                    (click)="createIndex()">
+                    {{ i18n.t('indexViewer.create') }}
+                </ui-button>
+            </div>
+        }
+    </div>
+
+    <div class="modal-actions">
+        <ui-button color="secondary" (click)="close()">{{ i18n.t('indexViewer.close') }}</ui-button>
+    </div>
+</div>

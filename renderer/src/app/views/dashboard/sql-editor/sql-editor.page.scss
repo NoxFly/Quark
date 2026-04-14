@@ -1,0 +1,231 @@
+@use "src/theme/mixins.scss" as *;
+
+:host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.sql-editor {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    height: 100%;
+    overflow: hidden;
+}
+
+// --- Éditeur ---
+
+.editor-panel {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.editor-toolbar {
+    @include flex(flex, row, nowrap, flex-start, center, 8px);
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.editor-label {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-color);
+    margin-right: auto;
+}
+
+.sql-textarea {
+    width: 100%;
+    min-height: 140px;
+    max-height: 300px;
+    resize: vertical;
+    padding: 12px;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+    background: var(--surface-alt);
+    border: none;
+    outline: none;
+    box-sizing: border-box;
+
+    &:focus {
+        background: var(--surface);
+    }
+}
+
+.editor-hint {
+    padding: 4px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+}
+
+// --- Résultats ---
+
+.results-panel {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    flex: 1;
+    overflow: hidden;
+}
+
+.error-banner {
+    @include flex(flex, row, nowrap, flex-start, center, 8px);
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+    color: var(--color-danger);
+    font-size: 13px;
+
+    .error-icon {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 14px;
+    }
+
+    .error-text {
+        font-family: "Consolas", monospace;
+        font-size: 12px;
+    }
+}
+
+.success-banner {
+    @include flex(flex, row, nowrap, flex-start, center, 12px);
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--color-success) 12%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+    color: var(--color-success);
+    font-size: 13px;
+
+    .success-icon {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 16px;
+    }
+}
+
+.results-meta-bar {
+    @include flex(flex, row, nowrap, flex-start, center, 12px);
+    padding: 5px 14px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.meta-rows {
+    @include flex(flex, row, nowrap, flex-start, center, 6px);
+}
+
+.meta-truncated {
+    color: var(--color-warning);
+    font-weight: 600;
+}
+
+.meta-insert-id {
+    font-family: "Consolas", monospace;
+}
+
+.meta-timing {
+    margin-left: auto;
+    font-family: "Consolas", monospace;
+    color: var(--color-primary);
+    opacity: 0.8;
+    @include flex(flex, row, nowrap, flex-start, center, 4px);
+
+    &::before {
+        content: '\E916';
+        font-family: "Segoe Fluent Icons", sans-serif;
+        font-size: 11px;
+    }
+}
+
+.results-table-wrapper {
+    flex: 1;
+    overflow: auto;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+
+    th, td {
+        padding: 6px 10px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    th {
+        background: var(--surface);
+        font-weight: 600;
+        color: var(--text-muted);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    td {
+        background: var(--surface-alt);
+        color: var(--text-color);
+
+        &.null-cell {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+    }
+
+    tr:hover td {
+        background: color-mix(in srgb, var(--color-primary) 8%, var(--surface-alt));
+    }
+}
+
+.empty-hint {
+    @include flex(flex, column, nowrap, center, center, 0);
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+    padding: 32px;
+}
+
+// --- Historique ---
+
+.history-panel {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border-color);
+    max-height: 150px;
+    overflow-y: auto;
+    background: var(--surface);
+}
+
+.history-title {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.history-item {
+    padding: 5px 12px;
+    font-family: "Consolas", monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover {
+        background: var(--surface-alt);
+        color: var(--text-color);
+    }
+}

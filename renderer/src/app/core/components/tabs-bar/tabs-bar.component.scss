@@ -1,0 +1,108 @@
+@use "src/theme/mixins.scss" as *;
+
+:host {
+    display: contents;
+}
+
+.tabs-bar {
+    @include flex(flex, row, nowrap, flex-start, stretch, 0);
+    height: 34px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+
+    // Masquer la scrollbar sur la barre d'onglets
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.tab {
+    @include flex(flex, row, nowrap, flex-start, center, 0);
+    min-width: 100px;
+    max-width: 180px;
+    height: 100%;
+    padding: 0 8px 0 10px;
+    gap: 6px;
+    cursor: pointer;
+    background: transparent;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    user-select: none;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+
+    &::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: transparent;
+        transition: background 0.15s;
+    }
+
+    &:hover {
+        background: var(--surface-alt);
+        color: var(--text-color);
+    }
+
+    &.dragging {
+        opacity: 0.4;
+    }
+
+    &.drag-over {
+        background: color-mix(in srgb, var(--color-primary) 15%, var(--surface-alt));
+
+        &::after {
+            background: var(--color-primary);
+        }
+    }
+
+    &.active {
+        background: var(--surface-alt);
+        color: var(--text-color);
+        font-weight: 500;
+
+        &::after {
+            background: var(--color-primary);
+        }
+    }
+}
+
+.tab-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tab-close {
+    --btn-padding: 5px;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 9px;
+    cursor: pointer;
+    @include flex(flex, row, nowrap, center, center, 0);
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+    opacity: 0;
+
+    .tab:hover & {
+        opacity: 1;
+    }
+
+    &:hover {
+        background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+        color: var(--color-danger);
+    }
+}

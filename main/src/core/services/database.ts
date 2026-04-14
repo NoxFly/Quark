@@ -1,5 +1,5 @@
 import { Logger } from "@noxfly/noxus/main";
-import type { DatabaseSchema, DbRecord, FieldDef, ForeignKeyDef, TableSchema } from "@shared/types";
+import type { CreateTableColumnDef, DatabaseSchema, DbRecord, FieldDef, ForeignKeyDef, IndexDef, R_AlterTableAction, R_SqlExecResponse, TableSchema } from "@shared/types";
 import DatabaseConstructor from "better-sqlite3-multiple-ciphers";
 import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { statSync } from "node:fs";
@@ -195,7 +195,7 @@ export class Database {
         orderDir?: "ASC" | "DESC",
         filter?: string,
         filterMode: "sqlite" | "fulltext" = "fulltext",
-    ): { records: DbRecord[]; totalCount: number } {
+    ): { records: DbRecord[]; totalCount: number; tableSize: number } {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
@@ -214,7 +214,7 @@ export class Database {
                 }
                 catch {
                     // Filtre invalide (saisie incomplète) : retourner un résultat vide
-                    return { records: [], totalCount: 0 };
+                    return { records: [], totalCount: 0, tableSize: 0 };
                 }
             }
             else {
@@ -242,9 +242,22 @@ export class Database {
         const dataSql = `SELECT rowid, * FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
         const records = this.db!.prepare(dataSql).all(...whereParams, limit, offset) as DbRecord[];
 
+        // Taille de la table via dbstat (virtual table SQLite)
+        let tableSize = 0;
+        try {
+            const sizeResult = this.db!.prepare(
+                "SELECT SUM(pgsize) as sz FROM dbstat WHERE name = ?"
+            ).get(tableName) as { sz: number | null };
+            tableSize = sizeResult?.sz ?? 0;
+        }
+        catch {
+            // dbstat non disponible
+        }
+
         return {
             records,
             totalCount: countResult.cnt,
+            tableSize,
         };
     }
 
@@ -399,6 +412,395 @@ export class Database {
         );
 
         return { data: [header, ...rows].join("\n"), filename };
+    }
+
+    /**
+     * Exécute une requête SQL arbitraire et retourne les résultats.
+     * Pour SELECT : retourne les colonnes + lignes.
+     * Pour les autres : retourne le nombre de lignes affectées.
+     */
+    public execSql(sql: string): R_SqlExecResponse {
+        this.ensureOpen();
+
+        let trimmed = sql.trim();
+        trimmed = trimmed.endsWith(';') ? trimmed : trimmed + ';';
+        const isSelect = /^SELECT\b/i.test(trimmed);
+
+        const t0 = performance.now();
+
+        try {
+            const stmt = this.db!.prepare(trimmed);
+
+            if (isSelect) {
+                const rows = stmt.all() as Record<string, unknown>[];
+                const executionTimeMs = performance.now() - t0;
+                const columns = rows.length > 0 ? Object.keys(rows[0]) : stmt.columns().map(c => c.name);
+                return {
+                    columns,
+                    rows: rows.map(r => columns.map(c => r[c])),
+                    rowsAffected: 0,
+                    isSelect: true,
+                    executionTimeMs,
+                };
+            }
+            else {
+                const result = stmt.run();
+                const executionTimeMs = performance.now() - t0;
+                return {
+                    columns: [],
+                    rows: [],
+                    rowsAffected: result.changes,
+                    lastInsertId: Number(result.lastInsertRowid) || undefined,
+                    isSelect: false,
+                    executionTimeMs,
+                };
+            }
+        }
+        catch (err) {
+            throw new Error(`SQL error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+
+    /**
+     * Importe des données dans une table depuis du CSV ou JSON.
+     */
+    public importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): void {
+        this.ensureOpen();
+
+        const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
+
+        if (records.length === 0) {
+            return;
+        }
+
+        const safeTable = this.escapeIdentifier(tableName);
+        const columns = Object.keys(records[0]);
+        const safeColumns = columns.map(c => this.escapeIdentifier(c)).join(", ");
+        const placeholders = columns.map(() => "?").join(", ");
+
+        const orClause = mode === "upsert" ? " OR REPLACE" : "";
+        const sql = `INSERT${orClause} INTO ${safeTable} (${safeColumns}) VALUES (${placeholders})`;
+        const stmt = this.db!.prepare(sql);
+
+        const runAll = this.db!.transaction((rows: Record<string, unknown>[]) => {
+            for (const row of rows) {
+                stmt.run(...columns.map(c => row[c] ?? null));
+            }
+        });
+
+        runAll(records);
+    }
+
+    /**
+     * Parse et retourne un aperçu des données importées sans les insérer.
+     */
+    public previewImport(tableName: string, format: "csv" | "json", data: string): { preview: DbRecord[]; totalRows: number; errors: string[] } {
+        this.ensureOpen();
+
+        const errors: string[] = [];
+
+        try {
+            const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
+
+            // Valider les colonnes contre le schéma
+            const schema = this.db!.prepare(`PRAGMA table_info(${this.escapeIdentifier(tableName)})`).all() as { name: string }[];
+            const validColumns = new Set(schema.map(c => c.name));
+
+            for (const col of records.length > 0 ? Object.keys(records[0]) : []) {
+                if (!validColumns.has(col)) {
+                    errors.push(`Column "${col}" does not exist in table "${tableName}"`);
+                }
+            }
+
+            return {
+                preview: records.slice(0, 20),
+                totalRows: records.length,
+                errors,
+            };
+        }
+        catch (err) {
+            return {
+                preview: [],
+                totalRows: 0,
+                errors: [`Parse error: ${err instanceof Error ? err.message : String(err)}`],
+            };
+        }
+    }
+
+    /**
+     * Récupère les index d'une table.
+     */
+    public getIndexes(tableName: string): IndexDef[] {
+        this.ensureOpen();
+
+        const rawIndexes = this.db!.pragma(`index_list(${this.escapeIdentifier(tableName)})`) as {
+            seq: number;
+            name: string;
+            unique: number;
+            origin: string;
+            partial: number;
+        }[];
+
+        return rawIndexes.map(idx => {
+            const columns = (this.db!.pragma(`index_info(${this.escapeIdentifier(idx.name)})`) as { name: string }[])
+                .map(c => c.name);
+            return {
+                name: idx.name,
+                table: tableName,
+                unique: idx.unique === 1,
+                columns,
+                origin: idx.origin,
+            };
+        });
+    }
+
+    /**
+     * Crée un index sur une table.
+     */
+    public createIndex(tableName: string, indexName: string, columns: string[], unique: boolean): void {
+        this.ensureOpen();
+
+        const uniqueClause = unique ? "UNIQUE " : "";
+        const safeIndex = this.escapeIdentifier(indexName);
+        const safeTable = this.escapeIdentifier(tableName);
+        const safeCols = columns.map(c => this.escapeIdentifier(c)).join(", ");
+
+        this.db!.prepare(`CREATE ${uniqueClause}INDEX IF NOT EXISTS ${safeIndex} ON ${safeTable} (${safeCols})`).run();
+    }
+
+    /**
+     * Supprime un index.
+     */
+    public dropIndex(indexName: string): void {
+        this.ensureOpen();
+
+        const safeIndex = this.escapeIdentifier(indexName);
+        this.db!.prepare(`DROP INDEX IF EXISTS ${safeIndex}`).run();
+    }
+
+    /**
+     * Crée une nouvelle table.
+     */
+    public createTable(name: string, columns: CreateTableColumnDef[], ifNotExists: boolean): void {
+        this.ensureOpen();
+
+        const safeTable = this.escapeIdentifier(name);
+        const ifNotExistsClause = ifNotExists ? "IF NOT EXISTS " : "";
+
+        const pkColumns = columns.filter(c => c.primaryKey);
+        const hasSinglePk = pkColumns.length === 1;
+        const hasCompositePk = pkColumns.length > 1;
+
+        const colDefs = columns.map(col => {
+            const safeName = this.escapeIdentifier(col.name);
+            const type = col.type || "TEXT";
+            let def = `${safeName} ${type}`;
+            if (hasSinglePk && col.primaryKey) {
+                def += " PRIMARY KEY";
+            }
+            if (col.notNull && !col.primaryKey) {
+                def += " NOT NULL";
+            }
+            if (col.unique && !col.primaryKey) {
+                def += " UNIQUE";
+            }
+            if (col.defaultValue !== null && col.defaultValue !== undefined && col.defaultValue !== "") {
+                def += ` DEFAULT ${col.defaultValue}`;
+            }
+            return def;
+        });
+
+        if (hasCompositePk) {
+            const pkCols = pkColumns.map(c => this.escapeIdentifier(c.name)).join(", ");
+            colDefs.push(`PRIMARY KEY (${pkCols})`);
+        }
+
+        this.db!.prepare(`CREATE TABLE ${ifNotExistsClause}${safeTable} (${colDefs.join(", ")})`).run();
+    }
+
+    /**
+     * Modifie le schéma d'une table (rename table, add/rename/drop column).
+     */
+    public alterTable(action: R_AlterTableAction): void {
+        this.ensureOpen();
+
+        switch (action.action) {
+            case "rename-table": {
+                const safeOld = this.escapeIdentifier(action.table);
+                const safeNew = this.escapeIdentifier(action.newName);
+                this.db!.prepare(`ALTER TABLE ${safeOld} RENAME TO ${safeNew}`).run();
+                break;
+            }
+            case "add-column": {
+                const safeTable = this.escapeIdentifier(action.table);
+                const safeName = this.escapeIdentifier(action.column.name);
+                const type = action.column.type || "TEXT";
+                let colDef = `${safeName} ${type}`;
+                if (action.column.notNull) {
+                    colDef += " NOT NULL";
+                }
+                if (action.column.defaultValue !== null && action.column.defaultValue !== undefined && action.column.defaultValue !== "") {
+                    colDef += ` DEFAULT ${action.column.defaultValue}`;
+                }
+                this.db!.prepare(`ALTER TABLE ${safeTable} ADD COLUMN ${colDef}`).run();
+                break;
+            }
+            case "rename-column": {
+                const safeTable = this.escapeIdentifier(action.table);
+                const safeOldCol = this.escapeIdentifier(action.column);
+                const safeNewCol = this.escapeIdentifier(action.newName);
+                this.db!.prepare(`ALTER TABLE ${safeTable} RENAME COLUMN ${safeOldCol} TO ${safeNewCol}`).run();
+                break;
+            }
+            case "drop-column": {
+                const safeTable = this.escapeIdentifier(action.table);
+                const safeCol = this.escapeIdentifier(action.column);
+                this.db!.prepare(`ALTER TABLE ${safeTable} DROP COLUMN ${safeCol}`).run();
+                break;
+            }
+        }
+    }
+
+    /**
+     * Change ou supprime le mot de passe de la base SQLCipher.
+     * - Pour chiffrer une base non chiffrée : newPassword = 'nouveau mot de passe'
+     * - Pour déchiffrer (supprimer le chiffrement) : newPassword = null
+     * - Pour changer le mot de passe : newPassword = 'nouveau mot de passe'
+     */
+    public changePassword(newPassword: string | null): void {
+        this.ensureOpen();
+
+        if (newPassword === null) {
+            // Supprimer le chiffrement (rekey avec chaîne vide)
+            this.db!.pragma("rekey=''");
+        }
+        else {
+            const escaped = newPassword.replace(/'/g, "''");
+            this.db!.pragma(`rekey='${escaped}'`);
+        }
+
+        Logger.info("Database password changed");
+    }
+
+    /**
+     * Supprime une table de la base de données.
+     */
+    public dropTable(tableName: string): void {
+        this.ensureOpen();
+
+        const safeTable = this.escapeIdentifier(tableName);
+        this.db!.prepare(`DROP TABLE IF EXISTS ${safeTable}`).run();
+    }
+
+    /**
+     * Met à jour le même champ sur plusieurs lignes.
+     */
+    public batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): void {
+        this.ensureOpen();
+
+        if (rowids.length === 0) {
+            return;
+        }
+
+        const safeTable = this.escapeIdentifier(tableName);
+        const safeColumn = this.escapeIdentifier(column);
+        const placeholders = rowids.map(() => "?").join(",");
+
+        this.db!.prepare(
+            `UPDATE ${safeTable} SET ${safeColumn} = ? WHERE rowid IN (${placeholders})`
+        ).run(value, ...rowids);
+    }
+
+    // --- Helpers d'import ---
+
+    /**
+     * Parse un JSON pour l'import (tableau d'objets).
+     */
+    private parseJsonImport(data: string): Record<string, unknown>[] {
+        const parsed = JSON.parse(data);
+        if (!Array.isArray(parsed)) {
+            throw new Error("JSON must be an array of objects");
+        }
+        return parsed as Record<string, unknown>[];
+    }
+
+    /**
+     * Parse un CSV simple pour l'import.
+     */
+    private parseCsvImport(data: string): Record<string, unknown>[] {
+        const lines = data.split(/\r?\n/).filter(l => l.trim().length > 0);
+        if (lines.length < 2) {
+            return [];
+        }
+
+        const headers = this.parseCsvLine(lines[0]);
+        const records: Record<string, unknown>[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+            const values = this.parseCsvLine(lines[i]);
+            const record: Record<string, unknown> = {};
+            for (let j = 0; j < headers.length; j++) {
+                const header = headers[j];
+                if (header !== undefined) {
+                    record[header] = values[j] !== undefined ? this.parseCsvValue(values[j]) : null;
+                }
+            }
+            records.push(record);
+        }
+
+        return records;
+    }
+
+    /**
+     * Parse une ligne CSV en tenant compte des guillemets.
+     */
+    private parseCsvLine(line: string): string[] {
+        const fields: string[] = [];
+        let current = "";
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                }
+                else {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (char === "," && !inQuotes) {
+                fields.push(current);
+                current = "";
+            }
+            else {
+                current += char;
+            }
+        }
+
+        fields.push(current);
+        return fields;
+    }
+
+    /**
+     * Convertit une valeur CSV brute en type JS approprié.
+     */
+    private parseCsvValue(value: string): unknown {
+        if (value === "" || value.toLowerCase() === "null") {
+            return null;
+        }
+        if (value.toLowerCase() === "true") {
+            return 1;
+        }
+        if (value.toLowerCase() === "false") {
+            return 0;
+        }
+        const num = Number(value);
+        if (!Number.isNaN(num) && value.trim() !== "") {
+            return num;
+        }
+        return value;
     }
 
     // --- Helpers privés ---

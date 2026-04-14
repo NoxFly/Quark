@@ -7,6 +7,9 @@
             @if (recordInfo()) {
                 <span class="record-count">{{ recordInfo() }}</span>
             }
+            @if (tableSizeInfo()) {
+                <span class="table-size">{{ tableSizeInfo() }}</span>
+            }
             @if (selectionInfo()) {
                 <span class="selection-info">{{ selectionInfo() }}</span>
             }
@@ -19,7 +22,7 @@
                 class="edit-mode-btn"
                 [class.active]="!readOnly()"
                 (click)="toggleReadOnly()"
-                [title]="readOnly() ? i18n.t('table.switchToEdit') : i18n.t('table.switchToReadOnly')"
+                [tooltip]="readOnly() ? i18n.t('table.switchToEdit') : i18n.t('table.switchToReadOnly')"
             >
                 <span class="segoe-icon">{{ readOnly() ? '&#xE736;' : '&#xE70F;' }}</span>
                 <span class="edit-mode-label">{{ editModeLabel() }}</span>

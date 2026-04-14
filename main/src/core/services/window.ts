@@ -5,10 +5,11 @@ import { join, basename } from "node:path";
 import { environment } from "src/core/environment";
 import { Database } from "src/core/services/database";
 import type { DatabaseSchema } from "@shared/types";
+import { AppEnv } from "src/core/env.dto";
 
 const defaultWindowOptions: BrowserWindowConstructorOptions = {
     webPreferences: {
-        devTools: true,
+        devTools: environment.env === AppEnv.DEVELOPMENT,
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: false, // false pour supporter File.path dans le drag & drop — sécurisé grâce à contextIsolation

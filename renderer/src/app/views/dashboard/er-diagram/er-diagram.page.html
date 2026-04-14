@@ -1,0 +1,115 @@
+@if (nodes().length === 0) {
+    <div class="empty-state">
+        <p>{{ i18n.t('erDiagram.noTables') }}</p>
+    </div>
+}
+@else {
+    <div class="er-canvas-wrapper" #erWrapper
+        (mousedown)="startPan($event)"
+        (wheel)="onWheelZoom($event)">
+        <svg
+            class="er-svg"
+            [attr.width]="canvasSize().width"
+            [attr.height]="canvasSize().height"
+            xmlns="http://www.w3.org/2000/svg">
+
+            <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-marker" />
+                </marker>
+
+                <!-- ClipPaths pour tronquer le texte des noms de champs -->
+                @for (node of nodes(); track node.table.name) {
+                    <clipPath [attr.id]="'clip-fn-' + node.table.name">
+                        <rect x="0" y="0" [attr.width]="node.width - 90" height="28" />
+                    </clipPath>
+                }
+            </defs>
+
+            <!-- Tout le contenu est mis à l'échelle via zoom -->
+            <g [attr.transform]="'scale(' + zoom() + ')'">
+                <!-- Liens FK (rendus avant les nœuds pour être en dessous) -->
+                @for (link of links(); track link.fromTable + link.fromColumn) {
+                    <path
+                        [attr.d]="link.path"
+                        class="fk-link"
+                        marker-end="url(#arrow)"
+                        fill="none">
+                        <title>{{ link.fromTable }}.{{ link.fromColumn }} → {{ link.toTable }}.{{ link.toColumn }}</title>
+                    </path>
+                }
+
+                <!-- Nœuds de tables -->
+                @for (node of nodes(); track node.table.name; let i = $index) {
+                    <g
+                        class="table-node"
+                        [attr.transform]="'translate(' + node.x + ',' + node.y + ')'"
+                        (mousedown)="startDrag($event, i)">
+                        <!-- Fond de la table -->
+                        <rect
+                            [attr.width]="node.width"
+                            [attr.height]="node.height"
+                            class="table-bg"
+                            rx="6" ry="6" />
+
+                        <!-- En-tête de la table -->
+                        <rect
+                            [attr.width]="node.width"
+                            height="36"
+                            class="table-header"
+                            rx="6" ry="6" />
+                        <rect
+                            [attr.width]="node.width"
+                            height="10"
+                            y="26"
+                            class="table-header" />
+
+                        <!-- Nom de la table -->
+                        <text
+                            x="12"
+                            y="22"
+                            class="table-name">{{ node.table.name }}</text>
+
+                        <!-- Colonnes -->
+                        @for (field of node.table.fields; track field.name; let j = $index) {
+                            <g [attr.transform]="'translate(0,' + (36 + j * 28) + ')'">
+                                <rect
+                                    [attr.width]="node.width"
+                                    height="28"
+                                    [class]="'field-row ' + (field.pk ? 'pk-row' : field.fk ? 'fk-row' : '')" />
+                                <line x1="0" y1="0" [attr.x2]="node.width" y2="0" class="field-divider" />
+
+                                <!-- Badge PK/FK -->
+                                @if (getFieldBadge(field)) {
+                                    <text x="8" y="19" class="field-badge">{{ getFieldBadge(field) }}</text>
+                                }
+
+                                <!-- Nom du champ (avec clipPath pour éviter le débordement) -->
+                                <text
+                                    [attr.x]="getFieldBadge(field) ? 36 : 10"
+                                    y="19"
+                                    class="field-name"
+                                    [attr.clip-path]="'url(#clip-fn-' + node.table.name + ')'">{{ field.name }}</text>
+
+                                <!-- Type du champ -->
+                                <text
+                                    [attr.x]="node.width - 8"
+                                    y="19"
+                                    class="field-type"
+                                    text-anchor="end">{{ field.type }}</text>
+                            </g>
+                        }
+                    </g>
+                }
+            </g>
+        </svg>
+    </div>
+
+    <!-- Contrôles de zoom -->
+    <div class="zoom-controls">
+        <button class="zoom-btn" (click)="zoomOut()" title="Zoom out">−</button>
+        <button class="zoom-reset" (click)="resetZoom()">{{ zoomLabel() }}</button>
+        <button class="zoom-btn" (click)="zoomIn()" title="Zoom in">+</button>
+    </div>
+}
