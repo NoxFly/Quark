@@ -1,0 +1,12 @@
+<div class="blob-viewer-header">
+    <span class="blob-title">{{ fieldName() }}</span>
+    <button class="close-btn" (click)="close()">✕</button>
+</div>
+<div class="blob-viewer-body">
+    @if (imageUrl()) {
+        <img [src]="imageUrl()" alt="BLOB image" class="blob-image" />
+    }
+    @else {
+        <p class="blob-error">Unable to display this BLOB as an image.</p>
+    }
+</div>

@@ -378,11 +378,11 @@ export class Database {
     }
 
     /**
-     * Exporte les données d'une table au format JSON ou CSV.
+     * Exporte les données d'une table au format JSON, CSV ou XLSX.
      */
     public exportData(
         tableName: string,
-        format: "json" | "csv",
+        format: "json" | "csv" | "xlsx",
         rowids?: number[],
         filter?: string,
     ): { data: string; filename: string } {
@@ -407,14 +407,22 @@ export class Database {
             ? this.db!.prepare(sql).all(...rowids) as DbRecord[]
             : this.db!.prepare(sql).all() as DbRecord[];
 
-        const ext = format === "json" ? "json" : "csv";
-        const filename = `${tableName}.${ext}`;
-
         if (format === "json") {
-            return { data: JSON.stringify(records, null, 2), filename };
+            return { data: JSON.stringify(records, null, 2), filename: `${tableName}.json` };
+        }
+
+        if (format === "xlsx") {
+            const XLSX = require("xlsx");
+            const worksheet = XLSX.utils.json_to_sheet(records);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, tableName);
+            const buffer: Buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+            return { data: buffer.toString("base64"), filename: `${tableName}.xlsx` };
         }
 
         // CSV
+        const filename = `${tableName}.csv`;
+
         if (records.length === 0) {
             return { data: "", filename };
         }

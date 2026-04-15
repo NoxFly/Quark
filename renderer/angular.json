@@ -25,6 +25,11 @@
                             {
                                 "glob": "**/*",
                                 "input": "./public"
+                            },
+                            {
+                                "glob": "**/*",
+                                "input": "./node_modules/monaco-editor/min/vs",
+                                "output": "/vs"
                             }
                         ],
                         "styles": [

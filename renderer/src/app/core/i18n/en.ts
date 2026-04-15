@@ -34,6 +34,7 @@ export const en: Record<string, string> = {
     "menu.export": "Export",
     "menu.exportJson": "Export as JSON",
     "menu.exportCsv": "Export as CSV",
+    "menu.exportXlsx": "Export as XLSX",
     "menu.database": "Database",
     "menu.schemaEditor": "Edit table schema",
     "menu.createTable": "Create table",
@@ -85,6 +86,7 @@ export const en: Record<string, string> = {
     "table.switchToReadOnly": "Switch to read-only mode (Ctrl+E)",
     "table.selectAll": "Select all rows",
     "table.toggleTimestamp": "Toggle date display",
+    "table.viewImage": "View as image",
 
     // --- Context menu ---
     "contextMenu.edit": "Edit record",
@@ -122,7 +124,6 @@ export const en: Record<string, string> = {
     "noTable.tableCount": "{count} table(s) available",
 
     // --- SQL Editor ---
-    "sqlEditor.title": "SQL Editor",
     "sqlEditor.execute": "Execute",
     "sqlEditor.executing": "Executing...",
     "sqlEditor.clear": "Clear",
@@ -228,6 +229,7 @@ export const en: Record<string, string> = {
     "tabs.close": "Close tab",
     "tabs.closeAll": "Close all tabs",
     "tabs.closeOthers": "Close other tabs",
+    "tabs.sqlEditor": "SQL Editor",
 
     // --- Sidebar table context menu ---
     "sidebar.table.schemaEditor": "Edit table schema",
@@ -278,4 +280,7 @@ export const en: Record<string, string> = {
     "shortcuts.closeTab": "Close active tab",
     "shortcuts.executeSql": "Execute query",
     "shortcuts.sqlHistory": "Navigate query history",
+
+    // --- DB connection ---
+    "statusbar.dbType": "SQLite",
 };

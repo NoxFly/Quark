@@ -10,6 +10,7 @@ import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import { TabsService } from "src/app/core/services/tabs.service";
+import { SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
 import type { TableTab } from "src/app/core/services/tabs.service";
 import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
@@ -47,7 +48,20 @@ export class TabsBarComponent {
      * Bascule sur un onglet.
      */
     protected async switchTab(index: number, tab: TableTab): Promise<void> {
+        if (tab.tableName === SQL_EDITOR_TAB_ID) {
+            this.tabsService.switchTab(index);
+            this.dbService.selectedTable.set(null);
+            this.router.navigate(["/dashboard/sql-editor"]);
+            return;
+        }
         await this.dbService.selectTable(tab.tableName);
+    }
+
+    /**
+     * Retourne true si l'onglet est l'éditeur SQL.
+     */
+    protected isSqlEditorTab(tab: TableTab): boolean {
+        return tab.tableName === SQL_EDITOR_TAB_ID;
     }
 
     /**

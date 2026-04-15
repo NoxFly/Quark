@@ -10,7 +10,7 @@ import { Injectable, signal, computed } from "@angular/core";
  * Représente l'état d'un onglet de table ouvert.
  */
 export interface TableTab {
-    /** Nom de la table. */
+    /** Nom de la table, ou "__sql-editor__" pour l'éditeur SQL. */
     tableName: string;
     /** Filtre actuel de la table. */
     filter: string;
@@ -21,6 +21,9 @@ export interface TableTab {
     /** Sens de tri. */
     orderDir: "ASC" | "DESC";
 }
+
+/** Identifiant spécial pour l'onglet SQL Editor. */
+export const SQL_EDITOR_TAB_ID = "__sql-editor__";
 
 /**
  * Gère les onglets de tables ouverts dans le dashboard.

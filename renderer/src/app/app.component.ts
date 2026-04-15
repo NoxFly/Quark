@@ -4,6 +4,7 @@ import { AppState } from "@shared/types";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
+import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { SidebarComponent } from "./core/components/sidebar/sidebar.component";
 import { StatusbarComponent } from "./core/components/statusbar/statusbar.component";
@@ -73,6 +74,7 @@ export class AppComponent {
     private readonly router = inject(Router);
     private readonly noxus = inject(NoxusService);
     private readonly dbService = inject(DatabaseService);
+    private readonly tabsService = inject(TabsService);
     private readonly themeService = inject(ThemeService);
     private readonly alertCtrl = inject(AlertController);
     private readonly modalCtrl = inject(ModalController);
@@ -304,6 +306,8 @@ export class AppComponent {
         if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "Q") {
             event.preventDefault();
             if (this.state.connected()) {
+                this.tabsService.openTab(SQL_EDITOR_TAB_ID);
+                this.dbService.selectedTable.set(null);
                 this.router.navigate(["/dashboard/sql-editor"]);
             }
         }

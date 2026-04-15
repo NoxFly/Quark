@@ -443,6 +443,10 @@ export class TableDataPage {
         await this.dbService.exportData("csv", this.selectedRowIds().size > 0);
     }
 
+    protected async exportXlsx(): Promise<void> {
+        await this.dbService.exportData("xlsx", this.selectedRowIds().size > 0);
+    }
+
     // --- Menu contextuel ---
 
     /**
@@ -833,6 +837,40 @@ export class TableDataPage {
         const comp = modal.getComponentInstance<TransactionDiffComponent>();
         if (comp) {
             comp.dismiss = () => modal.dismiss();
+        }
+    }
+
+    /**
+     * Retourne true si la valeur est un BLOB (Buffer sérialisé, Uint8Array, ou ArrayBuffer).
+     */
+    protected isBlobValue(value: unknown): boolean {
+        if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+            return true;
+        }
+        if (typeof value === "object" && value !== null && "type" in value && (value as any).type === "Buffer") {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Ouvre le modal de visualisation d'une image BLOB.
+     */
+    protected async viewBlobImage(data: unknown, fieldName: string): Promise<void> {
+        const { BlobViewerComponent } = await import("src/app/shared/components/blob-viewer/blob-viewer.component");
+
+        const modal = await this.modalCtrl.create({
+            component: BlobViewerComponent,
+            componentProps: {},
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+
+        const comp = modal.getComponentInstance<InstanceType<typeof BlobViewerComponent>>();
+        if (comp) {
+            comp.dismiss = e => modal.dismiss(e);
+            comp.loadBlob(data, fieldName);
         }
     }
 

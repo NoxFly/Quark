@@ -4,6 +4,7 @@ import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
+import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { ChangePasswordComponent } from "src/app/shared/components/change-password/change-password.component";
 import { CreateTableComponent } from "src/app/shared/components/create-table/create-table.component";
@@ -48,6 +49,7 @@ export class TitlebarComponent {
     private readonly i18n = inject(I18nService);
     private readonly router = inject(Router);
     private readonly modalCtrl = inject(ModalController);
+    private readonly tabsService = inject(TabsService);
     protected readonly state = inject(StateService);
     protected readonly themeService = inject(ThemeService);
 
@@ -100,6 +102,7 @@ export class TitlebarComponent {
                         children: [
                             { label: t("menu.exportJson"), action: () => this.dbService.exportData("json", true), disabled: !hasSelection },
                             { label: t("menu.exportCsv"), action: () => this.dbService.exportData("csv", true), disabled: !hasSelection },
+                            { label: t("menu.exportXlsx"), action: () => this.dbService.exportData("xlsx", true), disabled: !hasSelection },
                         ],
                     },
                 ],
@@ -107,7 +110,7 @@ export class TitlebarComponent {
             {
                 label: t("menu.view"),
                 items: [
-                    { label: t("menu.sqlEditor"), shortcut: "Ctrl+Shift+Q", action: () => this.router.navigate(["/dashboard/sql-editor"]), disabled: !connected },
+                    { label: t("menu.sqlEditor"), shortcut: "Ctrl+Shift+Q", action: () => this.openSqlEditorTab(), disabled: !connected },
                     { label: t("menu.erDiagram"), action: () => this.router.navigate(["/dashboard/er-diagram"]), disabled: !connected },
                     { label: "", separator: true },
                     { label: t("menu.fullscreen"), shortcut: "F11", action: () => this.noxus.ipc.toggleFullscreen() },
@@ -200,6 +203,15 @@ export class TitlebarComponent {
      */
     private openThemePicker(): void {
         document.dispatchEvent(new CustomEvent("open-theme-picker"));
+    }
+
+    /**
+     * Ouvre l'éditeur SQL en tant qu'onglet dédié.
+     */
+    private openSqlEditorTab(): void {
+        this.tabsService.openTab(SQL_EDITOR_TAB_ID);
+        this.dbService.selectedTable.set(null);
+        this.router.navigate(["/dashboard/sql-editor"]);
     }
 
     /**

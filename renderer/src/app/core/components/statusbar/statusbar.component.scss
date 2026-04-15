@@ -110,3 +110,12 @@
         background: color-mix(in srgb, var(--color-primary), transparent 90%);
     }
 }
+
+.db-type-badge {
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: rgba(127, 127, 127, 0.6);
+    font-size: 0.95em;
+    font-weight: 600;
+    user-select: none;
+}

@@ -96,7 +96,7 @@ export type R_TransactionAction = "begin" | "commit" | "rollback";
 
 export type R_ExportBody = {
     table: string;
-    format: "json" | "csv";
+    format: "json" | "csv" | "xlsx";
     rowids?: number[];
     filter?: string;
 };

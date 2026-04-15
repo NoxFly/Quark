@@ -34,6 +34,7 @@ export const fr: Record<string, string> = {
     "menu.export": "Exporter",
     "menu.exportJson": "Exporter en JSON",
     "menu.exportCsv": "Exporter en CSV",
+    "menu.exportXlsx": "Exporter en XLSX",
     "menu.database": "Base de données",
     "menu.schemaEditor": "Modifier le schéma de la table",
     "menu.createTable": "Créer une table",
@@ -84,6 +85,7 @@ export const fr: Record<string, string> = {
     "table.switchToReadOnly": "Passer en mode lecture seule (Ctrl+E)",
     "table.selectAll": "Sélectionner toutes les lignes",
     "table.toggleTimestamp": "Afficher/masquer la date",
+    "table.viewImage": "Voir comme image",
 
     // --- Context menu ---
     "contextMenu.edit": "Modifier l'enregistrement",
@@ -121,7 +123,7 @@ export const fr: Record<string, string> = {
     "noTable.tableCount": "{count} table(s) disponible(s)",
 
     // --- SQL Editor ---
-    "sqlEditor.title": "Éditeur SQL",
+    "": "Éditeur SQL",
     "sqlEditor.execute": "Exécuter",
     "sqlEditor.executing": "Exécution...",
     "sqlEditor.clear": "Effacer",
@@ -227,6 +229,7 @@ export const fr: Record<string, string> = {
     "tabs.close": "Fermer l'onglet",
     "tabs.closeAll": "Fermer tous les onglets",
     "tabs.closeOthers": "Fermer les autres onglets",
+    "tabs.sqlEditor": "Éditeur SQL",
 
     // --- Sidebar table context menu ---
     "sidebar.table.schemaEditor": "Modifier le schéma de la table",
@@ -277,4 +280,7 @@ export const fr: Record<string, string> = {
     "shortcuts.closeTab": "Fermer l'onglet actif",
     "shortcuts.executeSql": "Exécuter la requête",
     "shortcuts.sqlHistory": "Naviguer dans l'historique",
+
+    // --- DB connection ---
+    "statusbar.dbType": "SQLite",
 };

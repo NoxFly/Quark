@@ -4,6 +4,11 @@
     display: contents;
 }
 
+.segoe-icon {
+    font-family: "Segoe Fluent Icons", sans-serif;
+    font-size: 12px;
+}
+
 .tabs-bar {
     @include flex(flex, row, nowrap, flex-start, stretch, 0);
     height: 34px;

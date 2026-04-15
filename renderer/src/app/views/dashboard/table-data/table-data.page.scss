@@ -312,7 +312,8 @@ tbody {
         }
 
         &.null-value .cell-value {
-            color: rgba(127, 127, 127, 0.4);
+            color: var(--text-color);
+            opacity: 0.5;
             font-style: italic;
         }
 
@@ -331,6 +332,30 @@ tbody {
 
         .cell-value {
             cursor: default;
+        }
+
+        .blob-view-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 6px;
+            padding: 0 4px;
+            border: none;
+            border-radius: 3px;
+            background: transparent;
+            color: rgba(127, 127, 127, 0.4);
+            font-family: "Segoe Fluent Icons", sans-serif;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition:
+                color 0.15s,
+                background 0.15s;
+            vertical-align: middle;
+
+            &:hover {
+                color: var(--color-primary);
+                background: color-mix(in srgb, var(--color-primary), transparent 90%);
+            }
         }
 
         .cell-edit {

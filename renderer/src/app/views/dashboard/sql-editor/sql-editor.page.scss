@@ -35,24 +35,11 @@
     margin-right: auto;
 }
 
-.sql-textarea {
-    width: 100%;
+.monaco-container {
     min-height: 140px;
-    max-height: 300px;
+    height: 200px;
     resize: vertical;
-    padding: 12px;
-    font-family: "Consolas", "Courier New", monospace;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--text-color);
-    background: var(--surface-alt);
-    border: none;
-    outline: none;
-    box-sizing: border-box;
-
-    &:focus {
-        background: var(--surface);
-    }
+    overflow: hidden;
 }
 
 .editor-hint {
@@ -174,7 +161,8 @@
         color: var(--text-color);
 
         &.null-cell {
-            color: var(--text-muted);
+            color: var(--text-color);
+            opacity: 0.5;
             font-style: italic;
         }
     }

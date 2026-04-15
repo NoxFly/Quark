@@ -4,20 +4,23 @@
  * @see https://github.com/NoxFly
  */
 
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal, viewChild } from "@angular/core";
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, inject, signal, viewChild } from "@angular/core";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
+import { StateService } from "src/app/core/services/state.service";
 import type { R_SqlExecResponse } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
 
+/** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
+declare const monaco: typeof import("monaco-editor");
+
 /**
- * Page d'éditeur SQL brut.
+ * Page d'éditeur SQL avec Monaco Editor.
  * Permet d'exécuter des requêtes SQL arbitraires sur la base de données.
  * Raccourci : Ctrl+Shift+Q
  *
- * Performances : la textarea n'est pas liée via ngModel pour éviter le
- * déclenchement de la détection de changements Angular à chaque frappe.
- * La valeur est lue directement depuis le DOM au moment de l'exécution.
+ * L'éditeur Monaco est chargé dynamiquement via un script AMD loader
+ * pré-configuré depuis les assets Angular (`/vs/`).
  */
 @Component({
     selector: "app-sql-editor",
@@ -30,8 +33,10 @@ import { ButtonComponent } from "@ui/button/button.component";
 export class SqlEditorPage {
     protected readonly dbService = inject(DatabaseService);
     protected readonly i18n = inject(I18nService);
+    private readonly state = inject(StateService);
+    private readonly destroyRef = inject(DestroyRef);
 
-    private readonly textareaRef = viewChild<ElementRef<HTMLTextAreaElement>>("sqlTextarea");
+    private readonly editorContainerRef = viewChild<ElementRef<HTMLDivElement>>("monacoContainer");
 
     protected readonly result = signal<R_SqlExecResponse | null>(null);
     protected readonly errorMessage = signal<string | null>(null);
@@ -44,6 +49,9 @@ export class SqlEditorPage {
 
     /** Limite d'affichage des lignes pour éviter le rendu de milliers de lignes. */
     private readonly MAX_DISPLAY_ROWS = 500;
+
+    private editor: import("monaco-editor").editor.IStandaloneCodeEditor | null = null;
+    private completionDisposable: import("monaco-editor").IDisposable | null = null;
 
     /** Nombre de colonnes du résultat. */
     protected readonly resultColumns = computed(() => this.result()?.columns ?? []);
@@ -69,11 +77,20 @@ export class SqlEditorPage {
         return ms < 1 ? `< 1 ms` : ms < 1000 ? `${ms.toFixed(1)} ms` : `${(ms / 1000).toFixed(2)} s`;
     });
 
+    public constructor() {
+        afterNextRender(() => this.initMonaco());
+
+        this.destroyRef.onDestroy(() => {
+            this.completionDisposable?.dispose();
+            this.editor?.dispose();
+        });
+    }
+
     /**
-     * Retourne le contenu actuel de la textarea.
+     * Retourne le contenu actuel de l'éditeur Monaco.
      */
     private getSql(): string {
-        return this.textareaRef()?.nativeElement.value.trim() ?? "";
+        return this.editor?.getValue().trim() ?? "";
     }
 
     /**
@@ -111,42 +128,13 @@ export class SqlEditorPage {
     }
 
     /**
-     * Met à jour `hasInput` quand la textarea change.
-     * N'utilise pas ngModel pour éviter la détection de changements à chaque frappe.
-     */
-    protected onTextareaInput(): void {
-        this.hasInput.set(this.getSql().length > 0);
-    }
-
-    /**
-     * Gère les raccourcis clavier dans l'éditeur.
-     * - Ctrl+Enter : exécuter
-     * - Ctrl+ArrowUp/Down : naviguer dans l'historique
-     */
-    protected onEditorKeydown(event: KeyboardEvent): void {
-        if (event.ctrlKey && event.key === "Enter") {
-            event.preventDefault();
-            this.execute();
-        }
-        else if (event.ctrlKey && event.key === "ArrowUp") {
-            event.preventDefault();
-            this.navigateHistory(-1);
-        }
-        else if (event.ctrlKey && event.key === "ArrowDown") {
-            event.preventDefault();
-            this.navigateHistory(1);
-        }
-    }
-
-    /**
      * Charge une requête depuis l'historique dans l'éditeur.
      */
     protected loadFromHistory(query: string): void {
-        const el = this.textareaRef()?.nativeElement;
-        if (el) {
-            el.value = query;
+        if (this.editor) {
+            this.editor.setValue(query);
             this.hasInput.set(true);
-            el.focus();
+            this.editor.focus();
         }
     }
 
@@ -198,5 +186,138 @@ export class SqlEditorPage {
                 this.loadFromHistory(query);
             }
         }
+    }
+
+    /**
+     * Charge Monaco Editor dynamiquement via le AMD loader puis crée l'éditeur.
+     */
+    private initMonaco(): void {
+        const container = this.editorContainerRef()?.nativeElement;
+        if (!container) {
+            return;
+        }
+
+        // Si Monaco est déjà chargé globalement, réutiliser
+        if (typeof monaco !== "undefined") {
+            this.createEditor(container);
+            return;
+        }
+
+        // Charger le loader AMD de Monaco
+        const loaderScript = document.createElement("script");
+        loaderScript.src = "vs/loader.js";
+        loaderScript.onload = () => {
+            (window as any).require.config({ paths: { vs: "vs" } });
+            (window as any).require(["vs/editor/editor.main"], () => {
+                this.createEditor(container);
+            });
+        };
+        document.head.appendChild(loaderScript);
+    }
+
+    /**
+     * Crée l'instance Monaco Editor et configure l'autocomplétion DB.
+     */
+    private createEditor(container: HTMLElement): void {
+        // Déterminer le thème en fonction du thème CSS actif
+        const isDark = document.documentElement.getAttribute("data-theme") !== "light"
+            && document.documentElement.getAttribute("data-theme") !== "legacy";
+
+        this.editor = monaco.editor.create(container, {
+            value: "",
+            language: "sql",
+            theme: isDark ? "vs-dark" : "vs",
+            minimap: { enabled: false },
+            fontSize: 13,
+            fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+            lineNumbers: "on",
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            wordWrap: "on",
+            tabSize: 4,
+            suggestOnTriggerCharacters: true,
+            quickSuggestions: true,
+            padding: { top: 8, bottom: 8 },
+        });
+
+        // Ctrl+Enter → exécuter
+        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+            void this.execute();
+        });
+
+        // Ctrl+ArrowUp → historique précédent
+        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.UpArrow, () => {
+            this.navigateHistory(-1);
+        });
+
+        // Ctrl+ArrowDown → historique suivant
+        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.DownArrow, () => {
+            this.navigateHistory(1);
+        });
+
+        // Mettre à jour hasInput quand le contenu change
+        this.editor.onDidChangeModelContent(() => {
+            this.hasInput.set((this.editor?.getValue().trim().length ?? 0) > 0);
+        });
+
+        this.registerCompletionProvider();
+    }
+
+    /**
+     * Enregistre un fournisseur d'autocomplétion pour les noms de tables et de colonnes
+     * à partir du schéma de la base de données.
+     */
+    private registerCompletionProvider(): void {
+        this.completionDisposable = monaco.languages.registerCompletionItemProvider("sql", {
+            provideCompletionItems: (_model, position) => {
+                const db = this.state.database();
+                if (!db) {
+                    return { suggestions: [] };
+                }
+
+                const word = _model.getWordUntilPosition(position);
+                const range = {
+                    startLineNumber: position.lineNumber,
+                    endLineNumber: position.lineNumber,
+                    startColumn: word.startColumn,
+                    endColumn: word.endColumn,
+                };
+
+                const suggestions: import("monaco-editor").languages.CompletionItem[] = [];
+
+                // Ajouter les noms de tables
+                for (const table of db.tables) {
+                    suggestions.push({
+                        label: table.name,
+                        kind: monaco.languages.CompletionItemKind.Class,
+                        insertText: table.name,
+                        detail: `Table (${table.fields.length} columns)`,
+                        range,
+                    });
+
+                    // Ajouter les colonnes de chaque table
+                    for (const field of table.fields) {
+                        suggestions.push({
+                            label: `${table.name}.${field.name}`,
+                            kind: monaco.languages.CompletionItemKind.Field,
+                            insertText: field.name,
+                            detail: `${field.type}${field.pk ? " PK" : ""}${field.fk ? ` FK → ${field.fk.table}` : ""}`,
+                            range,
+                        });
+
+                        // Aussi fournir le nom de colonne seul
+                        suggestions.push({
+                            label: field.name,
+                            kind: monaco.languages.CompletionItemKind.Field,
+                            insertText: field.name,
+                            detail: `${table.name}.${field.name} (${field.type})`,
+                            range,
+                        });
+                    }
+                }
+
+                return { suggestions };
+            },
+        });
     }
 }

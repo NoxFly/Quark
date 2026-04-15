@@ -122,6 +122,13 @@
                                 />
                             } @else {
                                 <span class="cell-value">{{ formatValue(record[field.name], field) }}</span>
+                                @if (isBlobValue(record[field.name])) {
+                                    <button
+                                        class="blob-view-btn"
+                                        (click)="viewBlobImage(record[field.name], field.name); $event.stopPropagation()"
+                                        [tooltip]="i18n.t('table.viewImage')"
+                                    >&#xEB9F;</button>
+                                }
                             }
                         </td>
                     }

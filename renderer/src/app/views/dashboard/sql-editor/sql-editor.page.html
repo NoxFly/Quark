@@ -1,7 +1,7 @@
 <div class="sql-editor">
     <div class="editor-panel">
         <div class="editor-toolbar">
-            <span class="editor-label">{{ i18n.t('sqlEditor.title') }}</span>
+            <span class="editor-label"></span>
             <ui-button
                 [disabled]="isExecuting() || !hasInput()"
                 color="primary"
@@ -15,17 +15,7 @@
             </ui-button>
         </div>
 
-        <textarea
-            #sqlTextarea
-            class="sql-textarea"
-            [placeholder]="i18n.t('sqlEditor.placeholder')"
-            (input)="onTextareaInput()"
-            (keydown)="onEditorKeydown($event)"
-            spellcheck="false"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off">
-        </textarea>
+        <div class="monaco-container" #monacoContainer></div>
 
         <div class="editor-hint">{{ i18n.t('sqlEditor.hint') }}</div>
     </div>

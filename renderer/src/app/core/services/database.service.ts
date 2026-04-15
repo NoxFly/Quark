@@ -522,7 +522,7 @@ export class DatabaseService {
     /**
      * Exporte les données.
      */
-    public async exportData(format: "json" | "csv", selectedOnly = false): Promise<void> {
+    public async exportData(format: "json" | "csv" | "xlsx", selectedOnly = false): Promise<void> {
         const table = this.selectedTable();
         if (!table) {
             return;
@@ -541,7 +541,20 @@ export class DatabaseService {
         const response = await this.noxus.ipc.exportData(body);
 
         // Déclencher le téléchargement
-        const blob = new Blob([response.data], { type: format === "json" ? "application/json" : "text/csv" });
+        let blob: Blob;
+
+        if (format === "xlsx") {
+            const binary = atob(response.data);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        }
+        else {
+            blob = new Blob([response.data], { type: format === "json" ? "application/json" : "text/csv" });
+        }
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;

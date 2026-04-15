@@ -4,6 +4,7 @@ import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.d
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
+import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
 
 @Component({
     selector: "app-statusbar",
@@ -21,6 +22,7 @@ export class StatusbarComponent {
     protected readonly dbService = inject(DatabaseService);
     protected readonly i18n = inject(I18nService);
     private readonly router = inject(Router);
+    private readonly tabsService = inject(TabsService);
 
     protected readonly recordInfo = computed(() => {
         const loaded = this.dbService.tableData().length;
@@ -86,19 +88,29 @@ export class StatusbarComponent {
     protected readonly isInSqlEditor = computed(() => this.router.url.includes("/sql-editor"));
 
     /**
-     * Bascule entre l'éditeur SQL et la vue table (données).
+     * Bascule entre l'éditeur SQL (onglet dédié) et la vue précédente.
      */
     protected toggleSqlEditor(): void {
         if (this.isInSqlEditor()) {
-            const table = this.dbService.selectedTable();
-            if (table) {
-                void this.router.navigate(["/dashboard/table-data"]);
+            // Fermer l'onglet SQL editor
+            const sqlIdx = this.tabsService.findTab(SQL_EDITOR_TAB_ID);
+            if (sqlIdx >= 0) {
+                const nextTable = this.tabsService.closeTab(sqlIdx);
+                if (nextTable && nextTable !== SQL_EDITOR_TAB_ID) {
+                    void this.dbService.selectTable(nextTable);
+                }
+                else {
+                    void this.router.navigate(["/dashboard/no-table"]);
+                }
             }
             else {
                 void this.router.navigate(["/dashboard/no-table"]);
             }
         }
         else {
+            // Ouvrir un onglet SQL editor
+            this.tabsService.openTab(SQL_EDITOR_TAB_ID);
+            this.dbService.selectedTable.set(null);
             void this.router.navigate(["/dashboard/sql-editor"]);
         }
     }
