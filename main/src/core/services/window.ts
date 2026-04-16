@@ -50,9 +50,9 @@ export class Window {
      * Change le type de driver (pour ouvrir un autre type de base).
      * Ferme le driver actuel si une connexion est ouverte.
      */
-    public setDriverType(type: DatabaseDriverType): void {
+    public async setDriverType(type: DatabaseDriverType): Promise<void> {
         if (this._database.isOpen) {
-            this._database.close();
+            await this._database.close();
         }
         this._database = createDriver(type);
     }
@@ -97,8 +97,8 @@ export class Window {
     /**
      * Ouvre une base de données. Retourne true si un mot de passe est nécessaire.
      */
-    public openDatabase(filePath: string): boolean {
-        const needsPassword = this.database.open(filePath);
+    public async openDatabase(filePath: string): Promise<boolean> {
+        const needsPassword = await this.database.open(filePath);
 
         if (!needsPassword) {
             this.updateTitle();
@@ -110,27 +110,27 @@ export class Window {
     /**
      * Déverrouille une base chiffrée.
      */
-    public unlockDatabase(password: string): void {
-        this.database.unlock(password);
+    public async unlockDatabase(password: string): Promise<void> {
+        await this.database.unlock(password);
         this.updateTitle();
     }
 
     /**
      * Ferme la base de données.
      */
-    public closeDatabase(): void {
-        this.database.close();
+    public async closeDatabase(): Promise<void> {
+        await this.database.close();
         this.updateTitle();
     }
 
     /**
      * Récupère le schéma de la base de données ouverte.
      */
-    public getDatabaseSchema(): DatabaseSchema | null {
+    public async getDatabaseSchema(): Promise<DatabaseSchema | null> {
         if (!this.database.isOpen) {
             return null;
         }
-        return this.database.getSchema();
+        return await this.database.getSchema();
     }
 
     /**

@@ -7,7 +7,7 @@ export class AppController {
     private readonly appService = inject(AppService);
 
     @Get("state")
-    public getAppState(request: Request): AppState {
-        return this.appService.getState(request);
+    public async getAppState(request: Request): Promise<AppState> {
+        return await this.appService.getState(request);
     }
 }

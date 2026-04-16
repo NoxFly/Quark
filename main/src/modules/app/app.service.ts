@@ -9,7 +9,7 @@ export class AppService {
     /**
      * Retourne l'état courant de la fenêtre associée au sender.
      */
-    public getState(request: Request): AppState {
+    public async getState(request: Request): Promise<AppState> {
         const window = this.application.getWindowBySenderId(request.senderId);
 
         if (!window) {
@@ -26,7 +26,7 @@ export class AppService {
 
         return {
             connected: isOpen,
-            database: isOpen ? window.getDatabaseSchema() : null,
+            database: isOpen ? await window.getDatabaseSchema() : null,
             filePath: window.database.path,
             driverType: window.database.driverType,
             driverInfo: window.database.info,

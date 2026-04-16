@@ -6,6 +6,12 @@
 
 import type { DatabaseCategory, DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
+import { MariadbDriver } from "src/core/drivers/mariadb.driver";
+import { MongodbDriver } from "src/core/drivers/mongodb.driver";
+import { MssqlDriver } from "src/core/drivers/mssql.driver";
+import { MysqlDriver } from "src/core/drivers/mysql.driver";
+import { OracleDriver } from "src/core/drivers/oracle.driver";
+import { PostgresqlDriver } from "src/core/drivers/postgresql.driver";
 import { SqliteDriver } from "src/core/drivers/sqlite.driver";
 
 /**
@@ -161,12 +167,17 @@ export function createDriver(type: DatabaseDriverType): DatabaseDriver {
         case "sqlite":
             return new SqliteDriver();
         case "mysql":
+            return new MysqlDriver();
         case "mariadb":
+            return new MariadbDriver();
         case "postgresql":
+            return new PostgresqlDriver();
         case "oracle":
+            return new OracleDriver();
         case "mssql":
+            return new MssqlDriver();
         case "mongodb":
-            throw new Error(`Driver "${type}" is not yet implemented`);
+            return new MongodbDriver();
         default:
             throw new Error(`Unknown driver type: "${type}"`);
     }

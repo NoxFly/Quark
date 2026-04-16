@@ -17,6 +17,10 @@ import type { DriverCapabilities, DriverInfo, DatabaseDriverType, DatabaseCatego
 /**
  * Contrat abstrait que tout driver de base de données doit implémenter.
  * Définit les opérations fondamentales communes à tous les types de bases.
+ *
+ * Toutes les méthodes opérationnelles sont asynchrones pour supporter
+ * aussi bien les drivers fichier (SQLite) que les drivers réseau
+ * (MySQL, PostgreSQL, etc.).
  */
 export interface DatabaseDriver {
     // --- Identité du driver ---
@@ -47,29 +51,30 @@ export interface DatabaseDriver {
     /**
      * Ouvre une connexion à la base de données.
      * Pour les drivers fichier : `filePath` est le chemin du fichier.
+     * Pour les drivers réseau : `filePath` est une URI de connexion.
      * Retourne `true` si un mot de passe est nécessaire.
      */
-    open(filePath: string): boolean;
+    open(filePath: string): Promise<boolean>;
 
     /**
      * Déverrouille une base chiffrée avec le mot de passe fourni.
      * @throws Si le driver ne supporte pas le chiffrement.
      */
-    unlock(password: string): void;
+    unlock(password: string): Promise<void>;
 
     /** Ferme la connexion et libère les ressources. */
-    close(): void;
+    close(): Promise<void>;
 
     // --- Schéma ---
 
     /** Récupère le schéma complet de la base. */
-    getSchema(): DatabaseSchema;
+    getSchema(): Promise<DatabaseSchema>;
 
     /**
      * Récupère le SQL de création de chaque table.
      * @throws Si le driver ne supporte pas les requêtes SQL.
      */
-    getTablesSql(): { name: string; sql: string }[];
+    getTablesSql(): Promise<{ name: string; sql: string }[]>;
 
     // --- Données ---
 
@@ -84,33 +89,33 @@ export interface DatabaseDriver {
         orderDir?: "ASC" | "DESC",
         filter?: string,
         filterMode?: "sqlite" | "fulltext",
-    ): { records: DbRecord[]; totalCount: number; tableSize: number };
+    ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }>;
 
     /** Met à jour une cellule. */
-    updateCell(tableName: string, rowid: number, column: string, value: unknown): void;
+    updateCell(tableName: string, rowid: number, column: string, value: unknown): Promise<void>;
 
     /** Supprime des lignes par leurs identifiants. */
-    deleteRows(tableName: string, rowids: number[]): void;
+    deleteRows(tableName: string, rowids: number[]): Promise<void>;
 
     /** Récupère une ligne par son identifiant. */
-    getRow(tableName: string, rowid: number): DbRecord | null;
+    getRow(tableName: string, rowid: number): Promise<DbRecord | null>;
 
     /** Insère une nouvelle ligne. Retourne l'identifiant de la ligne insérée. */
-    insertRow(tableName: string, values: Record<string, unknown>): number;
+    insertRow(tableName: string, values: Record<string, unknown>): Promise<number>;
 
     /** Met à jour le même champ sur plusieurs lignes. */
-    batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): void;
+    batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): Promise<void>;
 
     // --- Transactions ---
 
     /** Démarre une transaction. */
-    beginTransaction(): void;
+    beginTransaction(): Promise<void>;
 
     /** Valide la transaction en cours. */
-    commit(): void;
+    commit(): Promise<void>;
 
     /** Annule la transaction en cours. */
-    rollback(): void;
+    rollback(): Promise<void>;
 
     // --- Export / Import ---
 
@@ -122,12 +127,12 @@ export interface DatabaseDriver {
         format: "json" | "csv" | "xlsx",
         rowids?: number[],
         filter?: string,
-    ): { data: string; filename: string };
+    ): Promise<{ data: string; filename: string }>;
 
     /**
      * Importe des données dans une table.
      */
-    importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): void;
+    importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): Promise<void>;
 
     /**
      * Parse et retourne un aperçu des données importées.
@@ -136,7 +141,7 @@ export interface DatabaseDriver {
         tableName: string,
         format: "csv" | "json",
         data: string,
-    ): { preview: DbRecord[]; totalRows: number; errors: string[] };
+    ): Promise<{ preview: DbRecord[]; totalRows: number; errors: string[] }>;
 
     // --- SQL (uniquement pour les drivers SQL) ---
 
@@ -144,29 +149,29 @@ export interface DatabaseDriver {
      * Exécute une requête SQL arbitraire.
      * @throws Si le driver ne supporte pas les requêtes SQL.
      */
-    execSql(sql: string): R_SqlExecResponse;
+    execSql(sql: string): Promise<R_SqlExecResponse>;
 
     // --- Index (si supporté) ---
 
     /** Récupère les index d'une table. */
-    getIndexes(tableName: string): IndexDef[];
+    getIndexes(tableName: string): Promise<IndexDef[]>;
 
     /** Crée un index sur une table. */
-    createIndex(tableName: string, indexName: string, columns: string[], unique: boolean): void;
+    createIndex(tableName: string, indexName: string, columns: string[], unique: boolean): Promise<void>;
 
     /** Supprime un index. */
-    dropIndex(indexName: string): void;
+    dropIndex(indexName: string): Promise<void>;
 
     // --- Schéma (si supporté) ---
 
     /** Crée une nouvelle table. */
-    createTable(name: string, columns: CreateTableColumnDef[], ifNotExists: boolean): void;
+    createTable(name: string, columns: CreateTableColumnDef[], ifNotExists: boolean): Promise<void>;
 
     /** Modifie le schéma d'une table. */
-    alterTable(action: R_AlterTableAction): void;
+    alterTable(action: R_AlterTableAction): Promise<void>;
 
     /** Supprime une table. */
-    dropTable(tableName: string): void;
+    dropTable(tableName: string): Promise<void>;
 
     // --- Chiffrement (si supporté) ---
 
@@ -174,5 +179,5 @@ export interface DatabaseDriver {
      * Change ou supprime le mot de passe de la base.
      * @throws Si le driver ne supporte pas le chiffrement.
      */
-    changePassword(newPassword: string | null): void;
+    changePassword(newPassword: string | null): Promise<void>;
 }

@@ -29,6 +29,9 @@
         "@electron/fuses": "^2.1.0",
         "@electron/rebuild": "^4.0.3",
         "@types/node": "^24.1.0",
+        "@types/oracledb": "^6.10.3",
+        "@types/pg": "^8.20.0",
+        "@types/tedious": "^4.0.14",
         "cross-env": "^10.1.0",
         "electron": "^41.0.0",
         "electron-builder": "^26.8.1",
@@ -39,6 +42,11 @@
     "dependencies": {
         "@noxfly/noxus": "^3.0.0-dev.12",
         "better-sqlite3-multiple-ciphers": "^12.8.0",
+        "mongodb": "^7.1.1",
+        "mysql2": "^3.22.0",
+        "oracledb": "^6.10.0",
+        "pg": "^8.20.0",
+        "tedious": "^19.2.1",
         "xlsx": "^0.18.5"
     }
 }

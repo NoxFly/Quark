@@ -133,7 +133,7 @@ export class Application implements IApp {
 
     public async dispose(): Promise<void> {
         for (const window of this.windows.values()) {
-            window.database.close();
+            await window.database.close();
         }
     }
 
@@ -141,11 +141,11 @@ export class Application implements IApp {
      * Setup des IPC pour la gestion de fenêtre.
      */
     private setupBridge(): void {
-        ipcMain.handle("close-app", (_event) => {
+        ipcMain.handle("close-app", async (_event) => {
             const window = this.getWindowBySenderId(_event.sender.id);
 
             if (window) {
-                window.database.close();
+                await window.database.close();
                 this.windows.delete(window.id);
                 window.close();
             }
@@ -162,9 +162,9 @@ export class Application implements IApp {
             this.windows.set(newWin.id, newWin);
         });
 
-        ipcMain.handle("quit-app", () => {
+        ipcMain.handle("quit-app", async () => {
             for (const window of this.windows.values()) {
-                window.database.close();
+                await window.database.close();
                 window.close();
             }
             this.windows.clear();
@@ -209,7 +209,7 @@ export class Application implements IApp {
             window?.reloadRenderer();
         });
 
-        ipcMain.handle("get-window-state", (_event) => {
+        ipcMain.handle("get-window-state", async (_event) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 return { inTransaction: false, selectedTable: null, database: null, filePath: null, driverType: null, driverInfo: null };
@@ -219,7 +219,7 @@ export class Application implements IApp {
             return {
                 inTransaction: db.isInTransaction,
                 selectedTable: null, // La table sélectionnée est un état renderer uniquement
-                database: db.isOpen ? db.getSchema() : null,
+                database: db.isOpen ? await db.getSchema() : null,
                 filePath: db.path,
                 driverType: db.driverType,
                 driverInfo: db.info,
@@ -236,7 +236,7 @@ export class Application implements IApp {
      * Setup des IPC pour les opérations sur la base de données.
      */
     private setupDbBridge(): void {
-        ipcMain.handle("db-open-file", (_event, filePath: string) => {
+        ipcMain.handle("db-open-file", async (_event, filePath: string) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
@@ -249,7 +249,7 @@ export class Application implements IApp {
                 return { needsPassword: false, database: null, alreadyOpen: true };
             }
 
-            const needsPassword = window.openDatabase(filePath);
+            const needsPassword = await window.openDatabase(filePath);
 
             if (!needsPassword) {
                 this.recentDatabases.add(filePath);
@@ -257,42 +257,42 @@ export class Application implements IApp {
 
             return {
                 needsPassword,
-                database: needsPassword ? null : window.getDatabaseSchema(),
+                database: needsPassword ? null : await window.getDatabaseSchema(),
             };
         });
 
-        ipcMain.handle("db-submit-password", (_event, password: string) => {
+        ipcMain.handle("db-submit-password", async (_event, password: string) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.unlockDatabase(password);
+            await window.unlockDatabase(password);
 
             this.recentDatabases.add(window.database.path!);
 
             return {
-                database: window.getDatabaseSchema(),
+                database: await window.getDatabaseSchema(),
             };
         });
 
-        ipcMain.handle("db-close-file", (_event) => {
+        ipcMain.handle("db-close-file", async (_event) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.closeDatabase();
+            await window.closeDatabase();
             return { closed: true };
         });
 
-        ipcMain.handle("db-table-data", (_event, body: R_TableDataBody) => {
+        ipcMain.handle("db-table-data", async (_event, body: R_TableDataBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            return window.database.getTableData(
+            return await window.database.getTableData(
                 body.table,
                 body.offset,
                 body.limit,
@@ -303,25 +303,25 @@ export class Application implements IApp {
             );
         });
 
-        ipcMain.handle("db-update-cell", (_event, body: R_UpdateCellBody) => {
+        ipcMain.handle("db-update-cell", async (_event, body: R_UpdateCellBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.updateCell(body.table, body.rowid, body.column, body.value);
+            await window.database.updateCell(body.table, body.rowid, body.column, body.value);
         });
 
-        ipcMain.handle("db-delete-rows", (_event, body: R_DeleteRowsBody) => {
+        ipcMain.handle("db-delete-rows", async (_event, body: R_DeleteRowsBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.deleteRows(body.table, body.rowids);
+            await window.database.deleteRows(body.table, body.rowids);
         });
 
-        ipcMain.handle("db-transaction", (_event, action: R_TransactionAction) => {
+        ipcMain.handle("db-transaction", async (_event, action: R_TransactionAction) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
@@ -329,49 +329,49 @@ export class Application implements IApp {
 
             switch (action) {
                 case "begin":
-                    window.database.beginTransaction();
+                    await window.database.beginTransaction();
                     break;
                 case "commit":
-                    window.database.commit();
+                    await window.database.commit();
                     break;
                 case "rollback":
-                    window.database.rollback();
+                    await window.database.rollback();
                     break;
             }
         });
 
-        ipcMain.handle("db-export", (_event, body: R_ExportBody) => {
+        ipcMain.handle("db-export", async (_event, body: R_ExportBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            return window.database.exportData(body.table, body.format, body.rowids, body.filter);
+            return await window.database.exportData(body.table, body.format, body.rowids, body.filter);
         });
 
-        ipcMain.handle("db-insert-row", (_event, body: R_InsertRowBody) => {
+        ipcMain.handle("db-insert-row", async (_event, body: R_InsertRowBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            const rowid = window.database.insertRow(body.table, body.values);
-            const record = window.database.getRow(body.table, rowid);
+            const rowid = await window.database.insertRow(body.table, body.values);
+            const record = await window.database.getRow(body.table, rowid);
 
             return { rowid, record };
         });
 
-        ipcMain.handle("db-get-row", (_event, body: R_GetRowBody) => {
+        ipcMain.handle("db-get-row", async (_event, body: R_GetRowBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            const record = window.database.getRow(body.table, body.rowid);
+            const record = await window.database.getRow(body.table, body.rowid);
             return { record };
         });
 
-        ipcMain.handle("db-refresh", (_event) => {
+        ipcMain.handle("db-refresh", async (_event) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
@@ -383,121 +383,121 @@ export class Application implements IApp {
             }
 
             // Ferme et réouvre la même base de données
-            window.closeDatabase();
-            const needsPassword = window.openDatabase(dbPath);
+            await window.closeDatabase();
+            const needsPassword = await window.openDatabase(dbPath);
 
             return {
                 needsPassword,
-                database: needsPassword ? null : window.getDatabaseSchema(),
+                database: needsPassword ? null : await window.getDatabaseSchema(),
             };
         });
 
-        ipcMain.handle("db-exec-sql", (_event, body: R_SqlExecBody) => {
+        ipcMain.handle("db-exec-sql", async (_event, body: R_SqlExecBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            return window.database.execSql(body.sql);
+            return await window.database.execSql(body.sql);
         });
 
-        ipcMain.handle("db-import-data", (_event, body: R_ImportDataBody) => {
+        ipcMain.handle("db-import-data", async (_event, body: R_ImportDataBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.importData(body.table, body.format, body.data, body.mode);
+            await window.database.importData(body.table, body.format, body.data, body.mode);
         });
 
-        ipcMain.handle("db-preview-import", (_event, body: Omit<R_ImportDataBody, "mode">) => {
+        ipcMain.handle("db-preview-import", async (_event, body: Omit<R_ImportDataBody, "mode">) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            return window.database.previewImport(body.table, body.format, body.data);
+            return await window.database.previewImport(body.table, body.format, body.data);
         });
 
-        ipcMain.handle("db-get-indexes", (_event, table: string) => {
+        ipcMain.handle("db-get-indexes", async (_event, table: string) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            return { indexes: window.database.getIndexes(table) };
+            return { indexes: await window.database.getIndexes(table) };
         });
 
-        ipcMain.handle("db-create-index", (_event, body: R_CreateIndexBody) => {
+        ipcMain.handle("db-create-index", async (_event, body: R_CreateIndexBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.createIndex(body.table, body.name, body.columns, body.unique);
+            await window.database.createIndex(body.table, body.name, body.columns, body.unique);
         });
 
-        ipcMain.handle("db-drop-index", (_event, name: string) => {
+        ipcMain.handle("db-drop-index", async (_event, name: string) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.dropIndex(name);
+            await window.database.dropIndex(name);
         });
 
-        ipcMain.handle("db-create-table", (_event, body: R_CreateTableBody) => {
+        ipcMain.handle("db-create-table", async (_event, body: R_CreateTableBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.createTable(body.name, body.columns, body.ifNotExists);
+            await window.database.createTable(body.name, body.columns, body.ifNotExists);
         });
 
-        ipcMain.handle("db-alter-table", (_event, action: R_AlterTableAction) => {
+        ipcMain.handle("db-alter-table", async (_event, action: R_AlterTableAction) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.alterTable(action);
+            await window.database.alterTable(action);
         });
 
-        ipcMain.handle("db-change-password", (_event, body: R_ChangePasswordBody) => {
+        ipcMain.handle("db-change-password", async (_event, body: R_ChangePasswordBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.changePassword(body.newPassword);
+            await window.database.changePassword(body.newPassword);
         });
 
-        ipcMain.handle("db-batch-update", (_event, body: R_BatchUpdateBody) => {
+        ipcMain.handle("db-batch-update", async (_event, body: R_BatchUpdateBody) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.batchUpdate(body.table, body.rowids, body.column, body.value);
+            await window.database.batchUpdate(body.table, body.rowids, body.column, body.value);
         });
 
-        ipcMain.handle("db-drop-table", (_event, tableName: string) => {
+        ipcMain.handle("db-drop-table", async (_event, tableName: string) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            window.database.dropTable(tableName);
+            await window.database.dropTable(tableName);
         });
 
-        ipcMain.handle("db-get-tables-sql", (_event) => {
+        ipcMain.handle("db-get-tables-sql", async (_event) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
                 throw new Error("Window not found");
             }
 
-            return window.database.getTablesSql();
+            return await window.database.getTablesSql();
         });
 
         ipcMain.handle("get-recent-databases", () => {

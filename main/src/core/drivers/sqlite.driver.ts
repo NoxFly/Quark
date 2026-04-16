@@ -54,7 +54,7 @@ export class SqliteDriver implements DatabaseDriver {
      * Ouvre une base de données SQLite.
      * Retourne `true` si un mot de passe est nécessaire (base chiffrée).
      */
-    public open(filePath: string): boolean {
+    public async open(filePath: string): Promise<boolean> {
         this.close();
         this.filePath = filePath;
 
@@ -87,7 +87,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Déchiffre et ouvre une base chiffrée avec le mot de passe fourni.
      */
-    public unlock(password: string): void {
+    public async unlock(password: string): Promise<void> {
         if (!this.filePath) {
             throw new Error("No database file to unlock");
         }
@@ -111,7 +111,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Ferme la connexion à la base de données.
      */
-    public close(): void {
+    public async close(): Promise<void> {
         if (this._inTransaction) {
             try {
                 this.rollback();
@@ -145,7 +145,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Récupère le schéma complet de la base de données.
      */
-    public getSchema(): DatabaseSchema {
+    public async getSchema(): Promise<DatabaseSchema> {
         this.ensureOpen();
 
         const name = this.filePath ? basename(this.filePath) : "unknown";
@@ -224,7 +224,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Récupère le SQL de création de chaque table depuis sqlite_master.
      */
-    public getTablesSql(): { name: string; sql: string }[] {
+    public async getTablesSql(): Promise<{ name: string; sql: string }[]> {
         this.ensureOpen();
 
         const rows = this.db!.prepare(
@@ -239,7 +239,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Récupère les données paginées d'une table, avec tri et filtre optionnels.
      */
-    public getTableData(
+    public async getTableData(
         tableName: string,
         offset: number,
         limit: number,
@@ -247,7 +247,7 @@ export class SqliteDriver implements DatabaseDriver {
         orderDir?: "ASC" | "DESC",
         filter?: string,
         filterMode: "sqlite" | "fulltext" = "fulltext",
-    ): { records: DbRecord[]; totalCount: number; tableSize: number } {
+    ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
@@ -310,7 +310,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Met à jour une cellule dans une table.
      */
-    public updateCell(tableName: string, rowid: number, column: string, value: unknown): void {
+    public async updateCell(tableName: string, rowid: number, column: string, value: unknown): Promise<void> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
@@ -322,7 +322,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Supprime des lignes d'une table par leurs rowids.
      */
-    public deleteRows(tableName: string, rowids: number[]): void {
+    public async deleteRows(tableName: string, rowids: number[]): Promise<void> {
         this.ensureOpen();
 
         if (rowids.length === 0) {
@@ -338,7 +338,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Récupère une ligne par son rowid.
      */
-    public getRow(tableName: string, rowid: number): DbRecord | null {
+    public async getRow(tableName: string, rowid: number): Promise<DbRecord | null> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
@@ -350,7 +350,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Insère une nouvelle ligne dans une table.
      */
-    public insertRow(tableName: string, values: Record<string, unknown>): number {
+    public async insertRow(tableName: string, values: Record<string, unknown>): Promise<number> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
@@ -369,7 +369,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Met à jour le même champ sur plusieurs lignes.
      */
-    public batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): void {
+    public async batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): Promise<void> {
         this.ensureOpen();
 
         if (rowids.length === 0) {
@@ -390,7 +390,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Démarre une transaction.
      */
-    public beginTransaction(): void {
+    public async beginTransaction(): Promise<void> {
         this.ensureOpen();
 
         if (this._inTransaction) {
@@ -404,7 +404,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Valide la transaction en cours.
      */
-    public commit(): void {
+    public async commit(): Promise<void> {
         this.ensureOpen();
 
         if (!this._inTransaction) {
@@ -418,7 +418,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Annule la transaction en cours.
      */
-    public rollback(): void {
+    public async rollback(): Promise<void> {
         this.ensureOpen();
 
         if (!this._inTransaction) {
@@ -434,12 +434,12 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Exporte les données d'une table au format JSON, CSV ou XLSX.
      */
-    public exportData(
+    public async exportData(
         tableName: string,
         format: "json" | "csv" | "xlsx",
         rowids?: number[],
         filter?: string,
-    ): { data: string; filename: string } {
+    ): Promise<{ data: string; filename: string }> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
@@ -493,7 +493,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Importe des données dans une table depuis du CSV ou JSON.
      */
-    public importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): void {
+    public async importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): Promise<void> {
         this.ensureOpen();
 
         const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
@@ -523,11 +523,11 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Parse et retourne un aperçu des données importées sans les insérer.
      */
-    public previewImport(
+    public async previewImport(
         tableName: string,
         format: "csv" | "json",
         data: string,
-    ): { preview: DbRecord[]; totalRows: number; errors: string[] } {
+    ): Promise<{ preview: DbRecord[]; totalRows: number; errors: string[] }> {
         this.ensureOpen();
 
         const errors: string[] = [];
@@ -564,7 +564,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Exécute une requête SQL arbitraire et retourne les résultats.
      */
-    public execSql(sql: string): R_SqlExecResponse {
+    public async execSql(sql: string): Promise<R_SqlExecResponse> {
         this.ensureOpen();
 
         let trimmed = sql.trim();
@@ -611,7 +611,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Récupère les index d'une table.
      */
-    public getIndexes(tableName: string): IndexDef[] {
+    public async getIndexes(tableName: string): Promise<IndexDef[]> {
         this.ensureOpen();
 
         const rawIndexes = this.db!.pragma(`index_list(${this.escapeIdentifier(tableName)})`) as {
@@ -638,7 +638,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Crée un index sur une table.
      */
-    public createIndex(tableName: string, indexName: string, columns: string[], unique: boolean): void {
+    public async createIndex(tableName: string, indexName: string, columns: string[], unique: boolean): Promise<void> {
         this.ensureOpen();
 
         const uniqueClause = unique ? "UNIQUE " : "";
@@ -652,7 +652,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Supprime un index.
      */
-    public dropIndex(indexName: string): void {
+    public async dropIndex(indexName: string): Promise<void> {
         this.ensureOpen();
 
         const safeIndex = this.escapeIdentifier(indexName);
@@ -664,7 +664,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Crée une nouvelle table.
      */
-    public createTable(name: string, columns: CreateTableColumnDef[], ifNotExists: boolean): void {
+    public async createTable(name: string, columns: CreateTableColumnDef[], ifNotExists: boolean): Promise<void> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(name);
@@ -704,7 +704,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Modifie le schéma d'une table.
      */
-    public alterTable(action: R_AlterTableAction): void {
+    public async alterTable(action: R_AlterTableAction): Promise<void> {
         this.ensureOpen();
 
         switch (action.action) {
@@ -747,7 +747,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Supprime une table.
      */
-    public dropTable(tableName: string): void {
+    public async dropTable(tableName: string): Promise<void> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
@@ -759,7 +759,7 @@ export class SqliteDriver implements DatabaseDriver {
     /**
      * Change ou supprime le mot de passe de la base SQLCipher.
      */
-    public changePassword(newPassword: string | null): void {
+    public async changePassword(newPassword: string | null): Promise<void> {
         this.ensureOpen();
 
         if (newPassword === null) {

@@ -20,46 +20,46 @@ export class DbService {
     /**
      * Ouvre un fichier de base de données pour la fenêtre donnée.
      */
-    public openFile(senderId: number, filePath: string): R_OpenFileResponse {
+    public async openFile(senderId: number, filePath: string): Promise<R_OpenFileResponse> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
         }
 
-        const needsPassword = window.openDatabase(filePath);
+        const needsPassword = await window.openDatabase(filePath);
 
         return {
             needsPassword,
-            database: needsPassword ? null : window.getDatabaseSchema(),
+            database: needsPassword ? null : await window.getDatabaseSchema(),
         };
     }
 
     /**
      * Soumet un mot de passe pour déchiffrer la base.
      */
-    public submitPassword(senderId: number, password: string): R_PasswordResponse {
+    public async submitPassword(senderId: number, password: string): Promise<R_PasswordResponse> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
         }
 
-        window.unlockDatabase(password);
+        await window.unlockDatabase(password);
 
         return {
-            database: window.getDatabaseSchema()!,
+            database: (await window.getDatabaseSchema())!,
         };
     }
 
     /**
      * Ferme le fichier de base de données.
      */
-    public closeFile(senderId: number): R_CloseFileResponse {
+    public async closeFile(senderId: number): Promise<R_CloseFileResponse> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
         }
 
-        window.closeDatabase();
+        await window.closeDatabase();
 
         return { closed: true };
     }
@@ -67,13 +67,13 @@ export class DbService {
     /**
      * Récupère les données paginées d'une table.
      */
-    public getTableData(senderId: number, body: R_TableDataBody): R_TableDataResponse {
+    public async getTableData(senderId: number, body: R_TableDataBody): Promise<R_TableDataResponse> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
         }
 
-        return window.database.getTableData(
+        return await window.database.getTableData(
             body.table,
             body.offset,
             body.limit,
@@ -86,31 +86,31 @@ export class DbService {
     /**
      * Met à jour une cellule.
      */
-    public updateCell(senderId: number, body: R_UpdateCellBody): void {
+    public async updateCell(senderId: number, body: R_UpdateCellBody): Promise<void> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
         }
 
-        window.database.updateCell(body.table, body.rowid, body.column, body.value);
+        await window.database.updateCell(body.table, body.rowid, body.column, body.value);
     }
 
     /**
      * Supprime des lignes.
      */
-    public deleteRows(senderId: number, body: R_DeleteRowsBody): void {
+    public async deleteRows(senderId: number, body: R_DeleteRowsBody): Promise<void> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
         }
 
-        window.database.deleteRows(body.table, body.rowids);
+        await window.database.deleteRows(body.table, body.rowids);
     }
 
     /**
      * Gère les actions de transaction (begin, commit, rollback).
      */
-    public transactionAction(senderId: number, action: R_TransactionAction): void {
+    public async transactionAction(senderId: number, action: R_TransactionAction): Promise<void> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
@@ -118,13 +118,13 @@ export class DbService {
 
         switch (action) {
             case "begin":
-                window.database.beginTransaction();
+                await window.database.beginTransaction();
                 break;
             case "commit":
-                window.database.commit();
+                await window.database.commit();
                 break;
             case "rollback":
-                window.database.rollback();
+                await window.database.rollback();
                 break;
         }
     }
@@ -132,12 +132,12 @@ export class DbService {
     /**
      * Exporte les données.
      */
-    public exportData(senderId: number, body: R_ExportBody): R_ExportResponse {
+    public async exportData(senderId: number, body: R_ExportBody): Promise<R_ExportResponse> {
         const window = this.application.getWindowBySenderId(senderId);
         if (!window) {
             throw new NotFoundException("Window not found");
         }
 
-        return window.database.exportData(body.table, body.format, body.rowids, body.filter);
+        return await window.database.exportData(body.table, body.format, body.rowids, body.filter);
     }
 }
