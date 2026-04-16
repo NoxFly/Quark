@@ -63,6 +63,35 @@
     }
 }
 
+.execute-btn {
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-primary);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    @include flex(flex, row, nowrap, center, center, 0);
+
+    .execute-icon {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 14px;
+        pointer-events: none;
+    }
+
+    &:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+        color: var(--color-primary-tint);
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+}
+
 .monaco-container {
     min-height: 140px;
     height: 200px;
@@ -75,6 +104,7 @@
     font-size: 11px;
     color: var(--text-muted);
     background: var(--surface);
+    user-select: none;
 }
 
 // --- Résultats ---
@@ -130,11 +160,6 @@
 
 .meta-rows {
     @include flex(flex, row, nowrap, flex-start, center, 6px);
-}
-
-.meta-truncated {
-    color: var(--color-warning);
-    font-weight: 600;
 }
 
 .meta-insert-id {
@@ -207,6 +232,7 @@
     font-size: 13px;
     font-style: italic;
     padding: 32px;
+    user-select: none;
 }
 
 // --- Historique ---

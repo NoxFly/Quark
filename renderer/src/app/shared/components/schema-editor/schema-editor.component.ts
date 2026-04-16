@@ -4,9 +4,10 @@
  * @see https://github.com/NoxFly
  */
 
-import { ChangeDetectionStrategy, Component, inject, input, OnInit, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { I18nService } from "src/app/core/services/i18n.service";
+import { StateService } from "src/app/core/services/state.service";
 import type { FieldDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
@@ -32,6 +33,8 @@ interface EditableColumn {
 })
 export class SchemaEditorComponent implements OnInit {
     protected readonly i18n = inject(I18nService);
+    protected readonly state = inject(StateService);
+    protected readonly isNoSql = computed(() => this.state.isNoSqlDatabase());
 
     /** Nom de la table. */
     public readonly tableName = input.required<string>();

@@ -45,6 +45,7 @@ import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.d
 export class TableDataPage {
     protected readonly dbService = inject(DatabaseService);
     protected readonly state = inject(StateService);
+    protected readonly isNoSql = computed(() => this.state.isNoSqlDatabase());
     protected readonly i18n = inject(I18nService);
     private readonly injector = inject(Injector);
     private readonly modalCtrl = inject(ModalController);
@@ -79,7 +80,20 @@ export class TableDataPage {
     protected readonly inTransaction = computed(() => this.dbService.inTransaction());
     protected readonly tableName = computed(() => this.dbService.selectedTable());
     protected readonly allRowsSelected = computed(() => this.dbService.allRowsSelected());
-    protected readonly sqliteFilterMode = computed(() => this.dbService.sqliteFilterMode());
+    protected readonly sqlFilterMode = computed(() => this.dbService.sqlFilterMode());
+
+    /** Placeholder de la barre de filtre SQL adapté au driver actif. */
+    protected readonly filterSqlPlaceholder = computed(() => {
+        const type = this.state.driverType();
+        const isNoSql = this.state.isNoSqlDatabase();
+        if (isNoSql) {
+            return this.i18n.t("table.filterPlaceholder.nosql");
+        }
+        if (type === "postgresql") {
+            return this.i18n.t("table.filterPlaceholder.postgresql");
+        }
+        return this.i18n.t("table.filterPlaceholder");
+    });
 
     constructor() {
         // Réinitialiser le filtre lors du changement de table
@@ -104,10 +118,11 @@ export class TableDataPage {
 
     /**
      * Retourne le badge PK/FK pour un champ.
+     * En mode NoSQL, la clé primaire s'affiche "ID" plutôt que "PK".
      */
     protected getFieldBadge(field: FieldDef): string {
         if (field.pk) {
-            return "PK";
+            return this.state.isNoSqlDatabase() ? "ID" : "PK";
         }
         if (field.fk) {
             return `FK → ${field.fk.table}`;
@@ -145,8 +160,8 @@ export class TableDataPage {
     /**
      * Toggle le mode de filtre SQLite / full-text et réapplique le filtre.
      */
-    protected toggleSqliteFilterMode(): void {
-        this.dbService.toggleSqliteFilterMode();
+    protected toggleSqlFilterMode(): void {
+        this.dbService.toggleSqlFilterMode();
         const currentFilter = this.filterInput();
         if (currentFilter.trim().length > 0) {
             this.dbService.applyFilter(currentFilter);
@@ -459,17 +474,17 @@ export class TableDataPage {
 
         const items: ContextMenuItem[] = [
             {
-                label: this.i18n.t("contextMenu.edit"),
+                label: this.i18n.t(this.isNoSql() ? "contextMenu.edit.nosql" : "contextMenu.edit"),
                 icon: "\uE70F",
                 action: () => this.openRecordEditor("edit", record),
             },
             {
-                label: this.i18n.t("contextMenu.duplicate"),
+                label: this.i18n.t(this.isNoSql() ? "contextMenu.duplicate.nosql" : "contextMenu.duplicate"),
                 icon: "\uE8C8",
                 action: () => this.openRecordEditor("duplicate", record),
             },
             {
-                label: this.i18n.t("contextMenu.new"),
+                label: this.i18n.t(this.isNoSql() ? "contextMenu.new.nosql" : "contextMenu.new"),
                 icon: "\uE710",
                 action: () => this.openRecordEditor("create"),
             },
@@ -531,7 +546,7 @@ export class TableDataPage {
             {
                 label: hasMultipleSelection
                     ? this.i18n.t("contextMenu.deleteSelection")
-                    : this.i18n.t("contextMenu.delete"),
+                    : this.i18n.t(this.isNoSql() ? "contextMenu.delete.nosql" : "contextMenu.delete"),
                 icon: "\uE74D",
                 action: () => hasMultipleSelection
                     ? this.dbService.deleteSelectedRows()

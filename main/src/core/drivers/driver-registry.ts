@@ -6,7 +6,6 @@
 
 import type { DatabaseCategory, DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
-import { MariadbDriver } from "src/core/drivers/mariadb.driver";
 import { MongodbDriver } from "src/core/drivers/mongodb.driver";
 import { MssqlDriver } from "src/core/drivers/mssql.driver";
 import { MysqlDriver } from "src/core/drivers/mysql.driver";
@@ -20,7 +19,6 @@ import { SqliteDriver } from "src/core/drivers/sqlite.driver";
 const DRIVER_CATEGORIES: Record<DatabaseDriverType, DatabaseCategory> = {
     sqlite: "sql",
     mysql: "sql",
-    mariadb: "sql",
     postgresql: "sql",
     oracle: "sql",
     mssql: "sql",
@@ -51,25 +49,7 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
     mysql: {
         type: "mysql",
         category: "sql",
-        displayName: "MySQL",
-        defaultPort: 3306,
-        capabilities: {
-            transactions: true,
-            schemaEditing: true,
-            sqlQueries: true,
-            foreignKeys: true,
-            encryption: false,
-            indexes: true,
-            importExport: true,
-            erDiagram: true,
-            collections: false,
-            networkConnection: true,
-        },
-    },
-    mariadb: {
-        type: "mariadb",
-        category: "sql",
-        displayName: "MariaDB",
+        displayName: "MySQL / MariaDB",
         defaultPort: 3306,
         capabilities: {
             transactions: true,
@@ -168,8 +148,6 @@ export function createDriver(type: DatabaseDriverType): DatabaseDriver {
             return new SqliteDriver();
         case "mysql":
             return new MysqlDriver();
-        case "mariadb":
-            return new MariadbDriver();
         case "postgresql":
             return new PostgresqlDriver();
         case "oracle":

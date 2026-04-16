@@ -88,7 +88,7 @@ export interface DatabaseDriver {
         orderBy?: string,
         orderDir?: "ASC" | "DESC",
         filter?: string,
-        filterMode?: "sqlite" | "fulltext",
+        filterMode?: "sql" | "fulltext",
     ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }>;
 
     /** Met à jour une cellule. */

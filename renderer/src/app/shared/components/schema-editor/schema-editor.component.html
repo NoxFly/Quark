@@ -10,7 +10,7 @@
     <div class="modal-body">
         <!-- Renommage de table -->
         <div class="section">
-            <div class="section-title">{{ i18n.t('schemaEditor.tableName') }}</div>
+            <div class="section-title">{{ i18n.t(state.isNoSqlDatabase() ? 'schemaEditor.tableName.nosql' : 'schemaEditor.tableName') }}</div>
             <input
                 type="text"
                 [(ngModel)]="newTableName"
@@ -19,7 +19,7 @@
 
         <!-- Colonnes -->
         <div class="section">
-            <div class="section-title">{{ i18n.t('schemaEditor.columns') }}</div>
+            <div class="section-title">{{ i18n.t(state.isNoSqlDatabase() ? 'schemaEditor.columns.nosql' : 'schemaEditor.columns') }}</div>
             <div class="columns-list">
                 @for (col of editableColumns(); track col.original.name) {
                     <div class="column-row" [class.marked-drop]="col.markedForDrop">
@@ -54,7 +54,7 @@
         <!-- Ajouter une colonne -->
         <div class="section">
             <div class="section-header">
-                <div class="section-title">{{ i18n.t('schemaEditor.addColumn') }}</div>
+                <div class="section-title">{{ i18n.t(state.isNoSqlDatabase() ? 'schemaEditor.addColumn.nosql' : 'schemaEditor.addColumn') }}</div>
                 <button class="toggle-btn" (click)="showAddColumn.set(!showAddColumn())">
                     {{ showAddColumn() ? '▲' : '▼' }}
                 </button>

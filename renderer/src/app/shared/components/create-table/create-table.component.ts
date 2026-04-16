@@ -4,9 +4,10 @@
  * @see https://github.com/NoxFly
  */
 
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal, computed } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { I18nService } from "src/app/core/services/i18n.service";
+import { StateService } from "src/app/core/services/state.service";
 import type { CreateTableColumnDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
 
@@ -23,6 +24,8 @@ import { ButtonComponent } from "@ui/button/button.component";
 })
 export class CreateTableComponent implements OnInit {
     protected readonly i18n = inject(I18nService);
+    protected readonly state = inject(StateService);
+    protected readonly isNoSql = computed(() => this.state.isNoSqlDatabase());
 
     /** Callback de fermeture. */
     public dismiss?: (data?: { tableName: string; columns: CreateTableColumnDef[] } | null) => void;

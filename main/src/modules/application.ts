@@ -15,11 +15,14 @@ import type {
     R_GetRowBody,
     R_ImportDataBody,
     R_InsertRowBody,
+    R_NetworkConnectBody,
     R_SqlExecBody,
     R_TableDataBody,
     R_TransactionAction,
     R_UpdateCellBody,
 } from "@shared/types";
+import type { DatabaseDriverType } from "@shared/driver";
+import { getAllDriverInfos } from "src/core/drivers/driver-registry";
 
 @Injectable({ lifetime: "singleton" })
 export class Application implements IApp {
@@ -502,6 +505,41 @@ export class Application implements IApp {
 
         ipcMain.handle("get-recent-databases", () => {
             return this.recentDatabases.getAll();
+        });
+
+        ipcMain.handle("db-set-driver-type", async (_event, type: DatabaseDriverType) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+            await window.setDriverType(type);
+        });
+
+        ipcMain.handle("db-connect-network", async (_event, body: R_NetworkConnectBody) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            // Connexion pure — ne charge pas le schéma pour répondre immédiatement.
+            // Le schéma est chargé séparément via `db-get-schema` (phase 2).
+            const uri = `${body.username}:${body.password}@${body.host}:${body.port}/${body.database}`;
+            await window.setDriverType(body.driverType);
+            await window.openDatabase(uri);
+
+            return { connected: true };
+        });
+
+        ipcMain.handle("db-get-schema", async (_event) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window || !window.database.isOpen) {
+                return null;
+            }
+            return await window.getDatabaseSchema();
+        });
+
+        ipcMain.handle("db-get-driver-infos", () => {
+            return getAllDriverInfos();
         });
     }
 }

@@ -8,6 +8,7 @@ import { ChangeDetectionStrategy, Component, inject, input, OnInit, signal } fro
 import { FormsModule } from "@angular/forms";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { I18nService } from "src/app/core/services/i18n.service";
+import { StateService } from "src/app/core/services/state.service";
 import type { DbRecord } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
 
@@ -28,6 +29,7 @@ import { ButtonComponent } from "@ui/button/button.component";
 export class ImportDataComponent implements OnInit {
     private readonly noxus = inject(NoxusService);
     protected readonly i18n = inject(I18nService);
+    protected readonly state = inject(StateService);
 
     /** Table cible de l'import. */
     public readonly tableName = input.required<string>();

@@ -11,7 +11,6 @@
 export type DatabaseDriverType =
     | "sqlite"
     | "mysql"
-    | "mariadb"
     | "postgresql"
     | "oracle"
     | "mssql"

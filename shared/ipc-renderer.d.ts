@@ -54,6 +54,10 @@ export interface IpcRendererBridge {
     dropTable(tableName: string): Promise<void>;
     getTablesSql(): Promise<{ name: string; sql: string }[]>;
     getRecentDatabases(): Promise<RecentDatabaseEntry[]>;
+    setDriverType(type: import("./driver").DatabaseDriverType): Promise<void>;
+    connectNetwork(body: import("./types").R_NetworkConnectBody): Promise<import("./types").R_ConnectNetworkResponse>;
+    getSchema(): Promise<import("./types").DatabaseSchema | null>;
+    getAllDriverInfos(): Promise<import("./driver").DriverInfo[]>;
 
     onNavigationRequested(cb: (route: NavigationRequest) => void): void;
     onFileOpened(cb: (filePath: string) => void): void;

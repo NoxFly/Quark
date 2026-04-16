@@ -2,12 +2,6 @@
     <div class="editor-panel">
         <div class="editor-toolbar">
             <span class="editor-label"></span>
-            <ui-button
-                [disabled]="isExecuting() || !hasInput()"
-                color="primary"
-                (click)="execute()">
-                {{ isExecuting() ? i18n.t('sqlEditor.executing') : i18n.t('sqlEditor.execute') }}
-            </ui-button>
             <button
                 class="history-toggle-btn"
                 [class.active]="historyVisible()"
@@ -16,11 +10,18 @@
                 <span class="segoe-icon">&#xE81C;</span>
                 <span>{{ i18n.t('sqlEditor.history') }}</span>
             </button>
-            <ui-button
+            <!-- <ui-button
                 color="secondary"
                 (click)="clearResult()">
                 {{ i18n.t('sqlEditor.clear') }}
-            </ui-button>
+            </ui-button> -->
+            <button
+                class="execute-btn"
+                [disabled]="isExecuting() || !hasInput()"
+                (click)="execute()"
+                [tooltip]="isExecuting() ? i18n.t('sqlEditor.executing') : i18n.t('sqlEditor.execute')">
+                <span class="execute-icon">&#xE768;</span>
+            </button>
         </div>
 
         <div class="monaco-container" #monacoContainer></div>
@@ -41,9 +42,6 @@
                 @if (isSelectResult()) {
                     <span class="meta-rows">
                         {{ i18n.t('sqlEditor.rowCount', { count: totalResultRows() }) }}
-                        @if (resultTruncated()) {
-                            <span class="meta-truncated">{{ i18n.t('sqlEditor.truncated', { shown: resultRows().length }) }}</span>
-                        }
                     </span>
                 }
                 @else {

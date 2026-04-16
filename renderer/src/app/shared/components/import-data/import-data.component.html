@@ -1,7 +1,7 @@
 <div class="import-data">
     <div class="modal-header">
         <h2>{{ i18n.t('importData.title') }}</h2>
-        <p class="subtitle">{{ i18n.t('importData.table', { table: tableName() }) }}</p>
+        <p class="subtitle">{{ i18n.t(state.isNoSqlDatabase() ? 'importData.collection' : 'importData.table', { table: tableName() }) }}</p>
 
         <div class="step-indicator">
             <span [class.active]="step() >= 1">1</span>

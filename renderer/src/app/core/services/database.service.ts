@@ -1,15 +1,16 @@
 import { inject, Injectable, signal } from "@angular/core";
 import { Router } from "@angular/router";
+import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type {
     CreateTableColumnDef,
     DatabaseSchema,
     DbRecord,
     IndexDef,
     R_AlterTableAction,
-    R_ExportResponse,
+    R_NetworkConnectBody,
     R_SqlExecResponse,
     R_TransactionAction,
-    TableSchema,
+    TableSchema
 } from "@shared/types";
 import { MutationHistoryService } from "src/app/core/services/mutation-history.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
@@ -47,7 +48,10 @@ export class DatabaseService {
     public readonly readOnly = signal<boolean>(true);
 
     /** Mode de filtre SQLite (WHERE clause) vs recherche full-text. */
-    public readonly sqliteFilterMode = signal<boolean>(false);
+    public readonly sqlFilterMode = signal<boolean>(false);
+
+    /** Cache des informations de driver, chargé une seule fois via IPC. */
+    private readonly driverInfosCache = new Map<DatabaseDriverType, DriverInfo>();
 
     private currentOffset = 0;
     private readonly pageSize = 50;
@@ -168,6 +172,8 @@ export class DatabaseService {
                 this.state.filePath.set(response.database.path);
                 this.state.title.set(response.database.name);
                 this.state.fileName.set(response.database.name);
+                // driverType ne change pas lors d'un refresh, mais on s'assure que driverInfo est bien positionné
+                void this.resolveAndSetDriverInfo(response.database.driverType);
 
                 if (wasOnTableData && tableStillExists) {
                     // Recharger les données de la table active en place
@@ -201,7 +207,7 @@ export class DatabaseService {
         // Sauvegarder l'état de l'onglet actuel avant de changer
         this.tabs.updateActiveTab({
             filter: this.filter(),
-            sqliteFilterMode: this.sqliteFilterMode(),
+            sqlFilterMode: this.sqlFilterMode(),
             orderBy: this.orderBy(),
             orderDir: this.orderDir(),
         });
@@ -217,7 +223,7 @@ export class DatabaseService {
             const tab = this.tabs.activeTab();
             if (tab) {
                 this.filter.set(tab.filter);
-                this.sqliteFilterMode.set(tab.sqliteFilterMode);
+                this.sqlFilterMode.set(tab.sqlFilterMode);
                 this.orderBy.set(tab.orderBy);
                 this.orderDir.set(tab.orderDir);
             }
@@ -267,7 +273,7 @@ export class DatabaseService {
                 orderBy: this.orderBy() ?? undefined,
                 orderDir: this.orderDir(),
                 filter: this.filter() || undefined,
-                filterMode: this.sqliteFilterMode() ? "sqlite" : "fulltext",
+                filterMode: this.sqlFilterMode() ? "sql" : "fulltext",
             });
 
             if (reset) {
@@ -575,8 +581,8 @@ export class DatabaseService {
     /**
      * Toggle le mode de filtre SQLite / full-text.
      */
-    public toggleSqliteFilterMode(): void {
-        this.sqliteFilterMode.update(v => !v);
+    public toggleSqlFilterMode(): void {
+        this.sqlFilterMode.update(v => !v);
     }
 
     /**
@@ -681,6 +687,61 @@ export class DatabaseService {
         this.state.title.set(database.name);
         this.state.fileName.set(database.name);
         this.router.navigate(["/dashboard/no-table"]);
+        // Résolu en arrière-plan : ne bloque pas la navigation
+        void this.resolveAndSetDriverInfo(database.driverType);
+    }
+
+    /**
+     * Récupère et met en cache les infos de tous les drivers (au premier appel),
+     * puis positionne le driverInfo du driver actif dans le state.
+     */
+    private async resolveAndSetDriverInfo(driverType: DatabaseDriverType): Promise<void> {
+        if (this.driverInfosCache.size === 0) {
+            const infos = await this.noxus.ipc.getAllDriverInfos();
+            for (const info of infos) {
+                this.driverInfosCache.set(info.type, info);
+            }
+        }
+        this.state.driverInfo.set(this.driverInfosCache.get(driverType) ?? null);
+    }
+    /**
+     * Connexion réseau en deux phases :
+     * 1. Ouvre la connexion (rapide) et navigue immédiatement vers le dashboard.
+     * 2. Charge le schéma en arrière-plan avec un indicateur de chargement.
+     */
+    public async connectNetwork(body: R_NetworkConnectBody): Promise<void> {
+        // Phase 1 : connexion pure — peut lever une erreur si les credentials sont invalides
+        await this.noxus.ipc.connectNetwork(body);
+
+        // Connexion établie — basculer immédiatement sur le dashboard sans attendre le schéma
+        const path = `${body.host}:${body.port}/${body.database}`;
+        this.state.connected.set(true);
+        this.state.driverType.set(body.driverType);
+        this.state.filePath.set(path);
+        this.state.title.set(body.database);
+        this.state.fileName.set(body.database);
+        this.state.database.set({ name: body.database, path, tables: [], driverType: body.driverType });
+        this.state.schemaLoading.set(true);
+        void this.resolveAndSetDriverInfo(body.driverType);
+        this.router.navigate(["/dashboard/no-table"]);
+
+        // Phase 2 : chargement du schéma en arrière-plan (peut être long sur MSSQL)
+        void this.loadSchemaInBackground();
+    }
+
+    private async loadSchemaInBackground(): Promise<void> {
+        try {
+            const schema = await this.noxus.ipc.getSchema();
+            if (schema) {
+                this.state.database.set(schema);
+            }
+        }
+        catch (err) {
+            console.error("Failed to load schema:", err);
+        }
+        finally {
+            this.state.schemaLoading.set(false);
+        }
     }
 
     // --- Nouvelles fonctionnalités ---

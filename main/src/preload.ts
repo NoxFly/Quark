@@ -56,6 +56,10 @@ const api: IpcRendererBridge = {
     dropTable: (tableName) => ipcRenderer.invoke("db-drop-table", tableName),
     getTablesSql: () => ipcRenderer.invoke("db-get-tables-sql") as Promise<{ name: string; sql: string }[]>,
     getRecentDatabases: () => ipcRenderer.invoke("get-recent-databases"),
+    setDriverType: (type) => ipcRenderer.invoke("db-set-driver-type", type),
+    connectNetwork: (body) => ipcRenderer.invoke("db-connect-network", body),
+    getSchema: () => ipcRenderer.invoke("db-get-schema"),
+    getAllDriverInfos: () => ipcRenderer.invoke("db-get-driver-infos"),
 
     // Events from main
     onNavigationRequested: (cb) => {

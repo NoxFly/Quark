@@ -1,23 +1,23 @@
 <div class="create-table">
     <div class="modal-header">
-        <h2>{{ i18n.t('createTable.title') }}</h2>
+        <h2>{{ i18n.t(isNoSql() ? 'createTable.title.nosql' : 'createTable.title') }}</h2>
     </div>
 
     <div class="modal-body">
         <div class="form-group">
-            <label>{{ i18n.t('createTable.tableName') }}</label>
+            <label>{{ i18n.t(isNoSql() ? 'createTable.tableName.nosql' : 'createTable.tableName') }}</label>
             <input
                 type="text"
                 [(ngModel)]="tableName"
-                [placeholder]="i18n.t('createTable.tableNamePlaceholder')"
+                [placeholder]="i18n.t(isNoSql() ? 'createTable.tableNamePlaceholder.nosql' : 'createTable.tableNamePlaceholder')"
                 (keydown.enter)="confirm()" />
         </div>
 
         <div class="columns-section">
             <div class="columns-header">
-                <span class="section-title">{{ i18n.t('createTable.columns') }}</span>
+                <span class="section-title">{{ i18n.t(isNoSql() ? 'createTable.columns.nosql' : 'createTable.columns') }}</span>
                 <button class="add-col-btn" (click)="addColumn()">
-                    + {{ i18n.t('createTable.addColumn') }}
+                    + {{ i18n.t(isNoSql() ? 'createTable.addColumn.nosql' : 'createTable.addColumn') }}
                 </button>
             </div>
 

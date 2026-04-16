@@ -14,6 +14,7 @@ export const en: Record<string, string> = {
     "menu.newWindow": "New window",
     "menu.refresh": "Refresh",
     "menu.closeFile": "Close file",
+    "menu.disconnect": "Disconnect",
     "menu.quit": "Quit",
     "menu.edit": "Edit",
     "menu.undo": "Undo",
@@ -54,32 +55,54 @@ export const en: Record<string, string> = {
     "openDb.wrongPassword": "Incorrect password or corrupted database.",
     "openDb.title": "Open a SQLite database",
     "openDb.dropHint": "Click here or drag and drop a file",
+    "openDb.or": "OR",
+    "openDb.selectDriver": "Select a database type to connect",
+    "openDb.networkForm.title": "Connect to {driver}",
+    "openDb.networkForm.host": "Host",
+    "openDb.networkForm.port": "Port",
+    "openDb.networkForm.username": "Username",
+    "openDb.networkForm.password": "Password",
+    "openDb.networkForm.database": "Database",
+    "openDb.networkForm.connect": "Connect",
+    "openDb.networkForm.cancel": "Cancel",
+    "openDb.networkForm.connecting": "Connecting...",
+    "openDb.networkForm.error": "Connection failed",
 
     // --- Sidebar ---
     "sidebar.refresh.tooltip": "Refresh database",
     "sidebar.close.tooltip": "Close database",
+    "sidebar.disconnect.tooltip": "Close connection",
     "sidebar.rows": "{count} rows",
+    "sidebar.documents": "{count} documents",
     "sidebar.refresh": "Refresh",
     "sidebar.close": "Close",
+    "sidebar.disconnect": "Disconnect",
     "sidebar.createTable": "Create table",
     "sidebar.createTable.tooltip": "Create a new table",
+    "sidebar.createCollection": "Create collection",
+    "sidebar.createCollection.tooltip": "Create a new collection",
     "sidebar.schemaEditor": "Edit schema",
     "sidebar.schemaEditor.tooltip": "Edit the current table schema",
     "sidebar.indexViewer": "Indexes",
     "sidebar.indexViewer.tooltip": "View and manage indexes",
     "sidebar.changePassword": "Encryption",
     "sidebar.changePassword.tooltip": "Change database encryption",
+    "sidebar.schemaLoading": "Loading schema...",
 
 
     // --- Table data ---
     "table.transactionActive": "Transaction mode active",
     "table.commit": "Commit",
     "table.cancel": "Cancel",
-    "table.filterPlaceholder": "Filter... e.g. id = 1 and name like '%abc%'",
+    "table.filterPlaceholder": "Filter... e.g. id = 1 AND name LIKE '%abc%'",
+    "table.filterPlaceholder.postgresql": "Filter... e.g. id = 1 AND name ILIKE '%abc%'",
+    "table.filterPlaceholder.nosql": "Query... e.g. { \"status\": \"active\" }",
     "table.searchPlaceholder": "Search...",
-    "table.switchToSqlite": "Switch to SQLite filter mode",
+    "table.switchToSql": "Switch to SQL query mode",
+    "table.switchToNosql": "Switch to noSQL query mode",
     "table.switchToSearch": "Switch to full-text search mode",
     "table.newRecord": "New record",
+    "table.newRecord.nosql": "New document",
     "table.loading": "Loading...",
     "table.ctrlClickFk": "Ctrl+Click to navigate to {table}.{column}",
     "table.switchToEdit": "Switch to edit mode (Ctrl+E)",
@@ -90,9 +113,13 @@ export const en: Record<string, string> = {
 
     // --- Context menu ---
     "contextMenu.edit": "Edit record",
+    "contextMenu.edit.nosql": "Edit document",
     "contextMenu.duplicate": "Duplicate record",
+    "contextMenu.duplicate.nosql": "Duplicate document",
     "contextMenu.new": "New record",
+    "contextMenu.new.nosql": "New document",
     "contextMenu.delete": "Delete record",
+    "contextMenu.delete.nosql": "Delete document",
     "contextMenu.deleteSelection": "Delete selection",
     "contextMenu.copyJson": "Copy as JSON",
     "contextMenu.batchEdit": "Edit selected field...",
@@ -102,14 +129,18 @@ export const en: Record<string, string> = {
 
     // --- Record editor ---
     "editor.createTitle": "New record",
+    "editor.createTitle.nosql": "New document",
     "editor.editTitle": "Edit record",
+    "editor.editTitle.nosql": "Edit document",
     "editor.duplicateTitle": "Duplicate record",
+    "editor.duplicateTitle.nosql": "Duplicate document",
     "editor.cancel": "Cancel",
     "editor.save": "Save",
     "editor.saving": "Saving...",
 
     // --- Statusbar ---
     "statusbar.rows": "{loaded} / {total} rows",
+    "statusbar.documents": "{loaded} / {total} documents",
     "statusbar.selected": "{count} selected",
     "statusbar.transaction": "Active transaction",
     "statusbar.readOnly": "Read-only",
@@ -120,8 +151,12 @@ export const en: Record<string, string> = {
 
     // --- No table ---
     "noTable.title": "Select a table",
+    "noTable.title.nosql": "Select a collection",
     "noTable.hint": "Choose a table from the left panel to view its data.",
     "noTable.tableCount": "{count} table(s) available",
+    "noTable.collectionCount": "{count} collection(s) available",
+    "noTable.schemaLoading": "Loading schema...",
+    "noTable.schemaLoadingHint": "Connecting to the database...",
 
     // --- SQL Editor ---
     "sqlEditor.execute": "Execute",
@@ -133,8 +168,7 @@ export const en: Record<string, string> = {
     "sqlEditor.rowsAffected": "{count} rows affected",
     "sqlEditor.lastInsertId": "Last insert ID: {id}",
     "sqlEditor.emptyHint": "Execute a query to see results",
-    "sqlEditor.history": "Query history",
-    "sqlEditor.truncated": "(showing first {shown})",
+    "sqlEditor.history": "history",
 
     // --- ER Diagram ---
     "erDiagram.noTables": "No tables found in the database.",
@@ -151,6 +185,7 @@ export const en: Record<string, string> = {
     // --- Import data ---
     "importData.title": "Import data",
     "importData.table": "Target table: {table}",
+    "importData.collection": "Target collection: {table}",
     "importData.format": "Format",
     "importData.mode": "Mode",
     "importData.modeInsert": "Insert",
@@ -170,8 +205,11 @@ export const en: Record<string, string> = {
     // --- Schema editor ---
     "schemaEditor.title": "Schema editor",
     "schemaEditor.tableName": "Table name",
+    "schemaEditor.tableName.nosql": "Collection name",
     "schemaEditor.columns": "Columns",
+    "schemaEditor.columns.nosql": "Fields",
     "schemaEditor.addColumn": "Add column",
+    "schemaEditor.addColumn.nosql": "Add field",
     "schemaEditor.colName": "Name",
     "schemaEditor.defaultValue": "Default value",
     "schemaEditor.dropColumn": "Mark for deletion",
@@ -181,10 +219,15 @@ export const en: Record<string, string> = {
 
     // --- Create table ---
     "createTable.title": "Create new table",
+    "createTable.title.nosql": "Create new collection",
     "createTable.tableName": "Table name",
+    "createTable.tableName.nosql": "Collection name",
     "createTable.tableNamePlaceholder": "Enter table name...",
+    "createTable.tableNamePlaceholder.nosql": "Enter collection name...",
     "createTable.columns": "Columns",
+    "createTable.columns.nosql": "Fields",
     "createTable.addColumn": "Add column",
+    "createTable.addColumn.nosql": "Add field",
     "createTable.colName": "Name",
     "createTable.colType": "Type",
     "createTable.colDefault": "Default",
@@ -235,6 +278,7 @@ export const en: Record<string, string> = {
     "sidebar.table.schemaEditor": "Edit table schema",
     "sidebar.table.indexViewer": "View indexes",
     "sidebar.table.deleteTable": "Delete table",
+    "sidebar.table.deleteTable.nosql": "Delete collection",
 
     // --- Database schema viewer ---
     "schemaViewer.title": "Database schema",

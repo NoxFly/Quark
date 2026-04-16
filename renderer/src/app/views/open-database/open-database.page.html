@@ -1,5 +1,6 @@
 <div class="open-database" [class.dragging]="isDragging()">
     @if (state.needsPassword()) {
+        <!-- Formulaire de mot de passe -->
         <div class="password-prompt">
             <div class="icon">&#xE72E;</div>
             <h2>{{ "openDb.encrypted" | translate }}</h2>
@@ -24,12 +25,109 @@
                 <p class="error-message">{{ "openDb.wrongPassword" | translate }}</p>
             }
         </div>
+    } @else if (selectedDriver()) {
+        <!-- Formulaire de connexion réseau -->
+        <div class="network-form">
+            <div class="network-form-header">
+                <img
+                    class="driver-logo-large"
+                    [src]="driverLogos[selectedDriver()!.type]"
+                    [alt]="selectedDriver()!.displayName" />
+                <h2>{{ "openDb.networkForm.title" | translate: { driver: selectedDriver()!.displayName } }}</h2>
+            </div>
+
+            <div class="network-form-body">
+                <div class="form-row">
+                    <label>{{ "openDb.networkForm.host" | translate }}</label>
+                    <input
+                        type="text"
+                        [ngModel]="networkHost()"
+                        (ngModelChange)="networkHost.set($event)"
+                        placeholder="localhost" />
+                </div>
+
+                <div class="form-row">
+                    <label>{{ "openDb.networkForm.port" | translate }}</label>
+                    <input
+                        type="number"
+                        [ngModel]="networkPort()"
+                        (ngModelChange)="networkPort.set(+$event)"
+                        [placeholder]="selectedDriver()!.defaultPort?.toString() ?? ''" />
+                </div>
+
+                <div class="form-row">
+                    <label>{{ "openDb.networkForm.username" | translate }}</label>
+                    <input
+                        type="text"
+                        [ngModel]="networkUser()"
+                        (ngModelChange)="networkUser.set($event)" />
+                </div>
+
+                <div class="form-row">
+                    <label>{{ "openDb.networkForm.password" | translate }}</label>
+                    <input
+                        type="password"
+                        [ngModel]="networkPassword()"
+                        (ngModelChange)="networkPassword.set($event)" />
+                </div>
+
+                <div class="form-row">
+                    <label>{{ "openDb.networkForm.database" | translate }}</label>
+                    <input
+                        type="text"
+                        [ngModel]="networkDatabase()"
+                        (ngModelChange)="networkDatabase.set($event)" />
+                </div>
+
+                @if (networkError()) {
+                    <div class="network-error">{{ networkError() }}</div>
+                }
+            </div>
+
+            <div class="network-form-actions">
+                <button class="btn-cancel" (click)="cancelNetworkForm()" [disabled]="networkConnecting()">
+                    {{ "openDb.networkForm.cancel" | translate }}
+                </button>
+                <button
+                    class="btn-connect"
+                    [style.--accent]="driverColors[selectedDriver()!.type]"
+                    (click)="connectNetwork()"
+                    [disabled]="networkConnecting() || !networkHost() || !networkDatabase()">
+                    {{ networkConnecting() ? ("openDb.networkForm.connecting" | translate) : ("openDb.networkForm.connect" | translate) }}
+                </button>
+            </div>
+        </div>
     } @else {
-        <div class="drop-zone" (click)="openFileExplorer()">
-            <div class="drop-icon">&#xE8E5;</div>
-            <h2>{{ "openDb.title" | translate }}</h2>
-            <p>{{ "openDb.dropHint" | translate }}</p>
-            <p class="shortcut">Ctrl+O</p>
+        <!-- Écran principal : SQLite drop zone + liste des drivers réseau -->
+        <div class="main-screen">
+            <!-- Zone drag & drop SQLite -->
+            <div class="drop-zone" (click)="openFileExplorer()">
+                <div class="drop-icon">&#xE8B7;</div>
+                <h2>{{ "openDb.title" | translate }}</h2>
+                <p>{{ "openDb.dropHint" | translate }}</p>
+                <p class="shortcut">Ctrl+O</p>
+            </div>
+
+            <!-- Séparateur -->
+            <div class="separator">
+                <span>{{ "openDb.or" | translate }}</span>
+            </div>
+
+            <!-- Grille des drivers réseau -->
+            <div class="drivers-section">
+                <p class="drivers-hint">{{ "openDb.selectDriver" | translate }}</p>
+                <div class="drivers-grid">
+                    @for (driver of networkDrivers(); track driver.type) {
+                        <button
+                            class="driver-card"
+                            [style.--accent]="driverColors[driver.type]"
+                            (click)="selectDriver(driver)">
+                            <img class="driver-card-logo" [src]="driverLogos[driver.type]" [alt]="driver.displayName" />
+                            <span class="driver-card-name">{{ driver.displayName }}</span>
+                        </button>
+                    }
+                </div>
+            </div>
         </div>
     }
 </div>

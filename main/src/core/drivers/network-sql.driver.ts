@@ -202,6 +202,34 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
 
     // --- Données ---
 
+    /**
+     * Extrait la clause ORDER BY du filtre SQL s'il existe.
+     * Retourne { whereClause, orderClause } où orderClause est vide ou commence par " ORDER BY".
+     */
+    protected extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
+        const trimmed = filter.trim();
+
+        // Vérifier si le filtre commence par ORDER BY
+        if (trimmed.match(/^\s*ORDER\s+BY\s+/i)) {
+            return { whereClause: "", orderClause: trimmed };
+        }
+
+        // Chercher "ORDER BY" dans le filtre
+        const orderByMatch = trimmed.match(/^([\s\S]*?)\s+(ORDER\s+BY\s+[\s\S]+)$/i);
+
+        if (!orderByMatch) {
+            return { whereClause: trimmed, orderClause: "" };
+        }
+
+        const whereClause = orderByMatch[1].trim();
+        const orderByPart = orderByMatch[2];
+
+        return {
+            whereClause,
+            orderClause: orderByPart // Trimmed, sans espace avant
+        };
+    }
+
     public async getTableData(
         tableName: string,
         offset: number,
@@ -209,18 +237,26 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
         orderBy?: string,
         orderDir?: "ASC" | "DESC",
         filter?: string,
-        filterMode: "sqlite" | "fulltext" = "fulltext",
+        filterMode: "sql" | "fulltext" = "fulltext",
     ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
         let whereClause = "";
+        let filterOrderClause = "";
         const whereParams: unknown[] = [];
 
         if (filter && filter.trim().length > 0) {
-            if (filterMode === "sqlite") {
-                // Mode filtre brut — le driver réseau utilise la syntaxe SQL directe
-                whereClause = ` WHERE ${filter}`;
+            if (filterMode === "sql") {
+                // Extraire l'ORDER BY du filtre s'il existe
+                const { whereClause: sqlWhere, orderClause: sqlOrder } = this.extractOrderByFromFilter(filter);
+                filterOrderClause = sqlOrder;
+
+                // Ne construire whereClause que s'il y a une condition WHERE
+                if (sqlWhere.trim().length > 0) {
+                    whereClause = ` WHERE ${sqlWhere}`;
+                }
+                // Si sqlWhere est vide (juste ORDER BY), pas de WHERE clause
             }
             else {
                 const { fields } = await this.fetchTableSchema(tableName);
@@ -236,9 +272,23 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
         const totalCount = Number(countResult.rows[0]?.["cnt"] ?? 0);
 
         let orderClause = "";
-        if (orderBy) {
+        if (filterOrderClause) {
+            // Utiliser l'ORDER BY du filtre s'il existe (ajouter l'espace avant)
+            orderClause = ` ${filterOrderClause}`;
+        }
+        else if (orderBy) {
             const dir = orderDir === "DESC" ? "DESC" : "ASC";
             orderClause = ` ORDER BY ${this.escapeIdentifier(orderBy)} ${dir}`;
+        }
+        else if (filterMode === "sql") {
+            // En mode SQL, trier par clé primaire par défaut pour une pagination stable
+            try {
+                const pkColumn = await this.getPrimaryKeyColumn(tableName);
+                orderClause = ` ORDER BY ${this.escapeIdentifier(pkColumn)} ASC`;
+            }
+            catch {
+                // Si pas de clé primaire, pas de tri par défaut
+            }
         }
 
         const dataSql = `SELECT * FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;

@@ -37,6 +37,7 @@ export class SidebarComponent {
     });
 
     protected readonly selectedTable = computed(() => this.dbService.selectedTable());
+    protected readonly isNoSql = computed(() => this.state.isNoSqlDatabase());
 
     /**
      * Sélectionne une table.
@@ -103,7 +104,7 @@ export class SidebarComponent {
         }
 
         items.push({
-            label: this.i18n.t("sidebar.table.deleteTable"),
+            label: this.i18n.t(this.isNoSql() ? "sidebar.table.deleteTable.nosql" : "sidebar.table.deleteTable"),
             icon: "\uE74D",
             danger: true,
             action: () => void this.dbService.deleteTable(tableName),

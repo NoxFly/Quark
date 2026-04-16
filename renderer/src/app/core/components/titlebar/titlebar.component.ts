@@ -178,7 +178,7 @@ export class TitlebarComponent {
                     { label: t("menu.newWindow"), shortcut: "Ctrl+Shift+N", action: () => this.noxus.ipc.newWindow() },
                     { label: "", separator: true },
                     { label: t("menu.refresh"), shortcut: "Ctrl+Shift+R", action: () => this.dbService.refreshDatabase(), disabled: !connected },
-                    { label: t("menu.closeFile"), shortcut: "Ctrl+K Ctrl+F", action: () => this.dbService.closeFile(), disabled: !connected },
+                    { label: t(capabilities?.networkConnection ? "menu.disconnect" : "menu.closeFile"), shortcut: "Ctrl+K Ctrl+F", action: () => this.dbService.closeFile(), disabled: !connected },
                     { label: "", separator: true },
                     { label: t("menu.quit"), shortcut: "Alt+F4", action: () => this.noxus.ipc.quitApp() },
                 ],

@@ -5,7 +5,7 @@
  */
 
 import type { DatabaseDriverType } from "@shared/driver";
-import type { DbRecord, FieldDef, ForeignKeyDef, IndexDef } from "@shared/types";
+import type { DbRecord, DatabaseSchema, FieldDef, ForeignKeyDef, IndexDef, TableSchema } from "@shared/types";
 import { NetworkSqlDriver, type RawQueryResult } from "src/core/drivers/network-sql.driver";
 import { Connection, Request as TdsRequest, TYPES } from "tedious";
 
@@ -147,6 +147,33 @@ export class MssqlDriver extends NetworkSqlDriver {
     /**
      * Override pour convertir les ? en @p0, @p1, ... (paramètres nommés MSSQL).
      */
+    private extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
+        const trimmed = filter.trim();
+
+        // Vérifier si le filtre commence par ORDER BY
+        if (trimmed.match(/^\s*ORDER\s+BY\s+/i)) {
+            return { whereClause: "", orderClause: trimmed };
+        }
+
+        // Chercher "ORDER BY" de manière case-insensitive
+        const orderByMatch = trimmed.match(/^([\s\S]*?)\s+(ORDER\s+BY\s+[\s\S]+)$/i);
+
+        if (!orderByMatch) {
+            return { whereClause: trimmed, orderClause: "" };
+        }
+
+        const whereClause = orderByMatch[1].trim();
+        const orderByPart = orderByMatch[2];
+
+        return {
+            whereClause,
+            orderClause: orderByPart // Trimmed, sans espace avant
+        };
+    }
+
+    /**
+     * Override pour convertir les ? en @p0, @p1, ... (paramètres nommés MSSQL).
+     */
     public override async getTableData(
         tableName: string,
         offset: number,
@@ -154,17 +181,26 @@ export class MssqlDriver extends NetworkSqlDriver {
         orderBy?: string,
         orderDir?: "ASC" | "DESC",
         filter?: string,
-        filterMode: "sqlite" | "fulltext" = "fulltext",
+        filterMode: "sql" | "fulltext" = "fulltext",
     ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
         let whereClause = "";
+        let filterOrderClause = "";
         const whereParams: unknown[] = [];
 
         if (filter && filter.trim().length > 0) {
-            if (filterMode === "sqlite") {
-                whereClause = ` WHERE ${filter}`;
+            if (filterMode === "sql") {
+                // Extraire l'ORDER BY du filtre s'il existe
+                const { whereClause: sqlWhere, orderClause: sqlOrder } = this.extractOrderByFromFilter(filter);
+                filterOrderClause = sqlOrder;
+
+                // Ne construire whereClause que s'il y a une condition WHERE
+                if (sqlWhere.trim().length > 0) {
+                    whereClause = ` WHERE ${sqlWhere}`;
+                }
+                // Si sqlWhere est vide (juste ORDER BY), pas de WHERE clause
             }
             else {
                 const { fields } = await this.fetchTableSchema(tableName);
@@ -189,12 +225,26 @@ export class MssqlDriver extends NetworkSqlDriver {
 
         // Données — MSSQL nécessite ORDER BY pour OFFSET FETCH
         let orderClause = "";
-        if (orderBy) {
+        if (filterOrderClause) {
+            // Utiliser l'ORDER BY du filtre s'il existe (ajouter l'espace avant)
+            orderClause = ` ${filterOrderClause}`;
+        }
+        else if (orderBy) {
             const dir = orderDir === "DESC" ? "DESC" : "ASC";
             orderClause = ` ORDER BY ${this.escapeIdentifier(orderBy)} ${dir}`;
         }
+        else if (filterMode === "sql") {
+            // En mode SQL, trier par clé primaire par défaut pour une pagination stable
+            try {
+                const pk = await this.getPrimaryKeyColumn(tableName);
+                orderClause = ` ORDER BY ${this.escapeIdentifier(pk)} ASC`;
+            }
+            catch {
+                orderClause = " ORDER BY (SELECT NULL)";
+            }
+        }
         else {
-            // Fallback: ORDER BY la première colonne PK
+            // En mode full-text sans tri, une pagination stable demande un ORDER BY
             try {
                 const pk = await this.getPrimaryKeyColumn(tableName);
                 orderClause = ` ORDER BY ${this.escapeIdentifier(pk)} ASC`;
@@ -436,6 +486,142 @@ export class MssqlDriver extends NetworkSqlDriver {
         }
         await this.execute("BEGIN TRANSACTION");
         this._inTransaction = true;
+    }
+
+    /**
+     * Override pour optimiser le chargement du schéma sur MSSQL.
+     *
+     * Le driver de base (NetworkSqlDriver) exécute 4 requêtes par table (colonnes, PKs,
+     * FKs, COUNT), soit 4N requêtes séquentielles. Avec tedious (connexion unique),
+     * cela prend ~30 secondes sur une base avec 50+ tables.
+     *
+     * Cette implémentation réduit cela à 5 requêtes batch au total, indépendamment
+     * du nombre de tables.
+     */
+    public override async getSchema(): Promise<DatabaseSchema> {
+        this.ensureOpen();
+
+        const tables = await this.fetchTables();
+
+        if (tables.length === 0) {
+            return {
+                name: this.connectionParams!.database,
+                path: this.path!,
+                tables: [],
+                driverType: this.driverType,
+            };
+        }
+
+        // Requête 2 : toutes les colonnes de toutes les tables du schéma dbo
+        type ColRow = {
+            TABLE_NAME: string;
+            COLUMN_NAME: string;
+            DATA_TYPE: string;
+            IS_NULLABLE: string;
+            COLUMN_DEFAULT: string | null;
+        };
+
+        const allColumnsResult = await this.query(
+            `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+             FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = 'dbo'
+             ORDER BY TABLE_NAME, ORDINAL_POSITION`,
+        );
+
+        // Requête 3 : toutes les clés primaires
+        const allPkResult = await this.query(
+            `SELECT kcu.TABLE_NAME, kcu.COLUMN_NAME
+             FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+             JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+                ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA
+             WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+             AND tc.TABLE_SCHEMA = 'dbo'`,
+        );
+
+        // Requête 4 : toutes les clés étrangères
+        const allFkResult = await this.query(
+            `SELECT ccu.TABLE_NAME, ccu.COLUMN_NAME,
+                    kcu2.TABLE_NAME AS REFERENCED_TABLE_NAME,
+                    kcu2.COLUMN_NAME AS REFERENCED_COLUMN_NAME
+             FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+             JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ccu
+                ON rc.CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
+             JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu2
+                ON rc.UNIQUE_CONSTRAINT_NAME = kcu2.CONSTRAINT_NAME
+             WHERE ccu.TABLE_SCHEMA = 'dbo'`,
+        );
+
+        // Requête 5 : nombre de lignes par table via les statistiques de partition
+        // (quasi-instantané, contrairement à COUNT(*) par table)
+        let countMap: Map<string, number>;
+        try {
+            const countResult = await this.query(
+                `SELECT OBJECT_NAME(o.object_id) AS table_name, SUM(p.row_count) AS row_count
+                 FROM sys.objects o
+                 INNER JOIN sys.dm_db_partition_stats p ON o.object_id = p.object_id
+                 WHERE o.type = 'U' AND p.index_id < 2
+                 GROUP BY o.object_id`,
+            );
+            countMap = new Map(
+                countResult.rows.map(r => [String(r["table_name"]), Number(r["row_count"] ?? 0)]),
+            );
+        }
+        catch {
+            // Fallback si les DMV ne sont pas accessibles (droits insuffisants)
+            countMap = new Map(tables.map(t => [t, 0]));
+        }
+
+        // Répartition des résultats par table en mémoire
+        const columnsByTable = new Map<string, ColRow[]>();
+        for (const row of allColumnsResult.rows as ColRow[]) {
+            const list = columnsByTable.get(row.TABLE_NAME) ?? [];
+            list.push(row);
+            columnsByTable.set(row.TABLE_NAME, list);
+        }
+
+        const pksByTable = new Map<string, Set<string>>();
+        for (const row of allPkResult.rows as { TABLE_NAME: string; COLUMN_NAME: string }[]) {
+            const set = pksByTable.get(row.TABLE_NAME) ?? new Set<string>();
+            set.add(row.COLUMN_NAME);
+            pksByTable.set(row.TABLE_NAME, set);
+        }
+
+        const fksByTable = new Map<string, Map<string, ForeignKeyDef>>();
+        for (const row of allFkResult.rows as {
+            TABLE_NAME: string;
+            COLUMN_NAME: string;
+            REFERENCED_TABLE_NAME: string;
+            REFERENCED_COLUMN_NAME: string;
+        }[]) {
+            const map = fksByTable.get(row.TABLE_NAME) ?? new Map<string, ForeignKeyDef>();
+            map.set(row.COLUMN_NAME, { table: row.REFERENCED_TABLE_NAME, column: row.REFERENCED_COLUMN_NAME });
+            fksByTable.set(row.TABLE_NAME, map);
+        }
+
+        const tableSchemas: TableSchema[] = tables.map(tableName => {
+            const cols = columnsByTable.get(tableName) ?? [];
+            const pks = pksByTable.get(tableName) ?? new Set<string>();
+            const fks = fksByTable.get(tableName) ?? new Map<string, ForeignKeyDef>();
+
+            const fields: FieldDef[] = cols.map(col => ({
+                name: col.COLUMN_NAME,
+                type: col.DATA_TYPE.toUpperCase(),
+                notnull: col.IS_NULLABLE === "NO",
+                dflt_value: col.COLUMN_DEFAULT ?? null,
+                pk: pks.has(col.COLUMN_NAME),
+                fk: fks.get(col.COLUMN_NAME) ?? null,
+            }));
+
+            return { name: tableName, fields, weight: 0, recordCount: countMap.get(tableName) ?? 0 };
+        });
+
+        return {
+            name: this.connectionParams!.database,
+            path: this.path!,
+            tables: tableSchemas,
+            driverType: this.driverType,
+        };
     }
 
     /**

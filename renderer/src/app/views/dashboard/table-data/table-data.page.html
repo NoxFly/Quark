@@ -19,21 +19,23 @@
     <div class="filter-bar">
         <input
             type="text"
-            [placeholder]="sqliteFilterMode() ? i18n.t('table.filterPlaceholder') : i18n.t('table.searchPlaceholder')"
+            [placeholder]="sqlFilterMode() ? filterSqlPlaceholder() : i18n.t('table.searchPlaceholder')"
             [ngModel]="filterInput()"
             (ngModelChange)="onFilterInput($event)"
             class="filter-input"
         />
-        <button
-            class="btn-filter-mode"
-            [class.active]="sqliteFilterMode()"
-            (click)="toggleSqliteFilterMode()"
-            [tooltip]="sqliteFilterMode() ? i18n.t('table.switchToSearch') : i18n.t('table.switchToSqlite')"
-        >
-            SQL
-        </button>
+        @if (true) {
+            <button
+                class="btn-filter-mode"
+                [class.active]="sqlFilterMode()"
+                (click)="toggleSqlFilterMode()"
+                [tooltip]="sqlFilterMode() ? i18n.t('table.switchToSearch') : (isNoSql() ? i18n.t('table.switchToNosql') : i18n.t('table.switchToSql'))"
+            >
+                {{ isNoSql() ? 'noSQL' : 'SQL' }}
+            </button>
+        }
     </div>
-    <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [tooltip]="i18n.t('table.newRecord')">
+    <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [tooltip]="i18n.t(isNoSql() ? 'table.newRecord.nosql' : 'table.newRecord')">
         <span class="btn-icon">{{ i18n.t("short.new") }}</span>
     </ui-button>
 </div>

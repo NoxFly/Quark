@@ -24,8 +24,8 @@ const defaultWindowOptions: BrowserWindowConstructorOptions = {
     transparent: false,
     frame: false,
     icon: join(environment.publicDir, "favicon.ico"),
-    minHeight: 750,
-    minWidth: 1250,
+    minHeight: 400,
+    minWidth: 600,
     resizable: true,
     backgroundColor: "#000",
     accentColor: "#000000",
@@ -176,8 +176,8 @@ export class Window {
        const win = await this.windowManager.create({
             ...defaultWindowOptions,
             show: false,
-            width: defaultWindowOptions.minWidth,
-            height: defaultWindowOptions.minHeight,
+            width: 1250,
+            height: 750,
             maxWidth: width,
             maxHeight: height,
         }, true);

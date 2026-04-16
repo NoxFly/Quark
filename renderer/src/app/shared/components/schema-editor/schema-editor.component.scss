@@ -29,6 +29,7 @@
     @include flex(flex, column, nowrap, stretch, stretch, 0);
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
 }
 
 .section {

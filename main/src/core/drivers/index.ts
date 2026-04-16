@@ -8,7 +8,6 @@ export type { DatabaseDriver } from "src/core/drivers/driver.interface";
 export { SqliteDriver } from "src/core/drivers/sqlite.driver";
 export { NetworkSqlDriver } from "src/core/drivers/network-sql.driver";
 export { MysqlDriver } from "src/core/drivers/mysql.driver";
-export { MariadbDriver } from "src/core/drivers/mariadb.driver";
 export { PostgresqlDriver } from "src/core/drivers/postgresql.driver";
 export { OracleDriver } from "src/core/drivers/oracle.driver";
 export { MssqlDriver } from "src/core/drivers/mssql.driver";

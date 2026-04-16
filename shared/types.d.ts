@@ -57,6 +57,14 @@ export type R_OpenFileResponse = {
     database: DatabaseSchema | null;
 };
 
+/**
+ * Réponse minimale après établissement d'une connexion réseau (sans schéma).
+ * Le schéma est chargé séparément via `getSchema()`.
+ */
+export type R_ConnectNetworkResponse = {
+    connected: boolean;
+};
+
 export type R_PasswordBody = {
     password: string;
 };
@@ -76,7 +84,7 @@ export type R_TableDataBody = {
     orderBy?: string;
     orderDir?: "ASC" | "DESC";
     filter?: string;
-    filterMode?: "sqlite" | "fulltext";
+    filterMode?: "sql" | "fulltext";
 };
 
 export type R_TableDataResponse = {
@@ -241,5 +249,16 @@ export type R_BatchUpdateBody = {
     rowids: number[];
     column: string;
     value: unknown;
+};
+
+// --- Network connection ---
+
+export type R_NetworkConnectBody = {
+    driverType: import("./driver").DatabaseDriverType;
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    database: string;
 };
 

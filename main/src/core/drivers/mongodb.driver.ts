@@ -75,6 +75,18 @@ export class MongodbDriver implements DatabaseDriver {
 
         this.client = new MongoClient(mongoUri);
         await this.client.connect();
+
+        // client.db() est lazy : il ne vérifie jamais l'existence de la base.
+        // On passe par listDatabases pour s'assurer qu'elle existe réellement.
+        const { databases } = await this.client.db().admin().listDatabases({ nameOnly: true });
+        const dbExists = (databases as { name: string }[]).some(d => d.name === database);
+
+        if (!dbExists) {
+            await this.client.close();
+            this.client = null;
+            throw new Error(`Database "${database}" does not exist`);
+        }
+
         this.db = this.client.db(database);
         this._path = connectionUri;
         this._isOpen = true;
@@ -143,6 +155,73 @@ export class MongodbDriver implements DatabaseDriver {
 
     // --- Données ---
 
+    /**
+     * Extrait la clause ORDER BY du filtre MongoDB s'il existe.
+     * Retourne { queryString, orderClause } où orderClause est vide ou commence par " ORDER BY".
+     */
+    private extractOrderByFromFilter(filter: string): { queryString: string; orderClause: string } {
+        const trimmed = filter.trim();
+
+        // Vérifier si le filtre commence par ORDER BY
+        if (trimmed.match(/^\s*ORDER\s+BY\s+/i)) {
+            return { queryString: "{}", orderClause: trimmed };
+        }
+
+        // Chercher "ORDER BY" dans le filtre
+        const orderByMatch = trimmed.match(/^([\s\S]*?)\s+(ORDER\s+BY\s+[\s\S]+)$/i);
+
+        if (!orderByMatch) {
+            return { queryString: trimmed, orderClause: "" };
+        }
+
+        const queryString = orderByMatch[1].trim();
+        const orderByPart = orderByMatch[2];
+
+        return {
+            queryString,
+            orderClause: orderByPart // Trimmed, sans espace avant
+        };
+    }
+
+    /**
+     * Parse une clause ORDER BY SQL et la convertit en sort object MongoDB.
+     * Ex: "name ASC, age DESC" -> { name: 1, age: -1 }
+     */
+    private parseOrderByToMongoSort(orderByClause: string): Record<string, 1 | -1> {
+        const sort: Record<string, 1 | -1> = {};
+
+        if (!orderByClause || orderByClause.trim().length === 0) {
+            return sort;
+        }
+
+        // Enlever "ORDER BY" du début
+        let clause = orderByClause.replace(/^\s*ORDER\s+BY\s+/i, "").trim();
+
+        // Splitter par les virgules
+        const parts = clause.split(",").map(p => p.trim());
+
+        for (const part of parts) {
+            if (!part) continue;
+
+            // Chercher "ASC" ou "DESC"
+            const ascDescMatch = part.match(/^(\w+)\s+(ASC|DESC)$/i);
+            if (ascDescMatch) {
+                const fieldName = ascDescMatch[1];
+                const direction = ascDescMatch[2].toUpperCase();
+                sort[fieldName] = direction === "DESC" ? -1 : 1;
+            }
+            else {
+                // Si pas d'ASC/DESC spécifié, par défaut ASC
+                const fieldMatch = part.match(/^(\w+)$/);
+                if (fieldMatch) {
+                    sort[fieldMatch[1]] = 1;
+                }
+            }
+        }
+
+        return sort;
+    }
+
     public async getTableData(
         tableName: string,
         offset: number,
@@ -150,32 +229,133 @@ export class MongodbDriver implements DatabaseDriver {
         orderBy?: string,
         orderDir?: "ASC" | "DESC",
         filter?: string,
-        _filterMode?: "sqlite" | "fulltext",
+        filterMode?: "sql" | "fulltext",
     ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }> {
         this.ensureOpen();
 
         const collection = this.db!.collection(tableName);
 
         let query: Record<string, unknown> = {};
+        let filterOrderClause = "";
         if (filter && filter.trim().length > 0) {
-            query = { $text: { $search: filter.trim() } };
+            if (filterMode === "sql") {
+                // Extraire l'ORDER BY du filtre s'il existe
+                const { queryString, orderClause } = this.extractOrderByFromFilter(filter);
+                filterOrderClause = orderClause;
+
+                // Mode filtre SQL/NoSQL : parser la requête JSON MongoDB
+                try {
+                    query = JSON.parse(queryString.trim());
+                    console.log("[MongoDB] JSON query parsed:", JSON.stringify(query));
+                }
+                catch (parseErr) {
+                    // Essayer de convertir le format MongoDB (sans quotes autour des clés) en JSON strict
+                    try {
+                        const strictJson = queryString.trim().replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+                        query = JSON.parse(strictJson);
+                        console.log("[MongoDB] JSON query parsed (after conversion):", JSON.stringify(query));
+                    }
+                    catch (fallbackErr) {
+                        // Si le parse échoue aussi, log et traiter comme requête vide
+                        console.error("[MongoDB] Failed to parse JSON query:", queryString.trim(), fallbackErr);
+                        query = {};
+                    }
+                }
+            }
+            else {
+                // Mode recherche full-text : essayer $text d'abord
+                query = { $text: { $search: filter.trim() } };
+            }
         }
 
-        const totalCount = await collection.countDocuments(query);
+        let totalCount = 0;
+        let docs: Record<string, unknown>[] = [];
 
-        const sort: Record<string, 1 | -1> = {};
-        if (orderBy) {
-            sort[orderBy] = orderDir === "DESC" ? -1 : 1;
+        try {
+            totalCount = await collection.countDocuments(query);
+            console.log("[MongoDB] Query results - total count:", totalCount, "query:", JSON.stringify(query));
+
+            const sort: Record<string, 1 | -1> = {};
+            if (filterOrderClause) {
+                // Utiliser l'ORDER BY du filtre converti en format MongoDB
+                Object.assign(sort, this.parseOrderByToMongoSort(filterOrderClause));
+            }
+            else if (orderBy) {
+                sort[orderBy] = orderDir === "DESC" ? -1 : 1;
+            }
+            else if (filterMode === "sql") {
+                // En mode SQL, trier par _id par défaut pour une pagination stable
+                sort["_id"] = 1;
+            }
+
+            docs = await collection
+                .find(query)
+                .sort(sort)
+                .skip(offset)
+                .limit(limit)
+                .toArray();
+        }
+        catch (err) {
+            // Si la requête $text échoue (pas d'index texte), fallback à regex
+            if (
+                filterMode !== "sql"
+                && filter
+                && (err as any)?.codeName === "IndexNotFound"
+            ) {
+                try {
+                    // Récupérer un document d'exemple pour voir la structure
+                    const sample = await collection.findOne({});
+                    const fields = sample ? Object.keys(sample).filter(f => f !== "_id") : [];
+
+                    if (fields.length > 0) {
+                        // Créer une requête $or sur tous les champs avec regex case-insensitive
+                        const conditions = fields.map(f => ({
+                            [f]: { $regex: filter.trim(), $options: "i" }
+                        }));
+                        query = { $or: conditions };
+
+                        totalCount = await collection.countDocuments(query);
+
+                        const sort: Record<string, 1 | -1> = {};
+                        if (filterOrderClause) {
+                            // Utiliser l'ORDER BY du filtre converti en format MongoDB
+                            Object.assign(sort, this.parseOrderByToMongoSort(filterOrderClause));
+                        }
+                        else if (orderBy) {
+                            sort[orderBy] = orderDir === "DESC" ? -1 : 1;
+                        }
+                        else {
+                            // Fallback de recherche : trier par _id par défaut pour une pagination stable
+                            sort["_id"] = 1;
+                        }
+
+                        docs = await collection
+                            .find(query)
+                            .sort(sort)
+                            .skip(offset)
+                            .limit(limit)
+                            .toArray();
+                    }
+                    else {
+                        // Pas de champs, pas de résultats
+                        totalCount = 0;
+                        docs = [];
+                    }
+                }
+                catch (fallbackErr) {
+                    // Si le fallback échoue aussi, log l'erreur et retourner vide
+                    console.error("Fallback search failed:", fallbackErr);
+                    totalCount = 0;
+                    docs = [];
+                }
+            }
+            else {
+                // Si ce n'est pas une erreur d'index texte, relancer l'erreur
+                throw err;
+            }
         }
 
-        const docs = await collection
-            .find(query)
-            .sort(sort)
-            .skip(offset)
-            .limit(limit)
-            .toArray();
-
-        const records = docs.map(doc => this.docToRecord(doc));
+        const records = docs.map(doc => this.docToRecord(doc as DbRecord));
 
         return { records, totalCount, tableSize: 0 };
     }

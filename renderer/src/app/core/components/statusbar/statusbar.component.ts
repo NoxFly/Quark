@@ -33,7 +33,10 @@ export class StatusbarComponent {
             return "";
         }
 
-        return this.i18n.t("statusbar.rows", { loaded, total });
+        return this.i18n.t(
+            this.state.isNoSqlDatabase() ? "statusbar.documents" : "statusbar.rows",
+            { loaded, total },
+        );
     });
 
     protected readonly tableSizeInfo = computed(() => {

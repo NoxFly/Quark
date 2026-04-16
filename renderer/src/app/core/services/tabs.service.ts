@@ -15,7 +15,7 @@ export interface TableTab {
     /** Filtre actuel de la table. */
     filter: string;
     /** Mode du filtre (SQLite ou full-text). */
-    sqliteFilterMode: boolean;
+    sqlFilterMode: boolean;
     /** Colonne de tri. */
     orderBy: string | null;
     /** Sens de tri. */
@@ -73,7 +73,7 @@ export class TabsService {
         const newTab: TableTab = {
             tableName,
             filter: "",
-            sqliteFilterMode: false,
+            sqlFilterMode: false,
             orderBy: null,
             orderDir: "ASC",
         };

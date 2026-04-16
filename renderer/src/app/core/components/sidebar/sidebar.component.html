@@ -4,13 +4,23 @@
             <ui-button class="header-btn refresh-btn" icon="e72c" (click)="refreshDatabase()" [tooltip]="i18n.t('sidebar.refresh.tooltip')">
                 {{ i18n.t("sidebar.refresh") }}
             </ui-button>
-            <ui-button class="header-btn close-btn" icon="e8bb" (click)="closeFile()" [tooltip]="i18n.t('sidebar.close.tooltip')">
-                {{ i18n.t("sidebar.close") }}
+            <ui-button
+                class="header-btn close-btn"
+                icon="e8bb"
+                (click)="closeFile()"
+                [tooltip]="i18n.t(state.capabilities()?.networkConnection ? 'sidebar.disconnect.tooltip' : 'sidebar.close.tooltip')">
+                {{ i18n.t(state.capabilities()?.networkConnection ? "sidebar.disconnect" : "sidebar.close") }}
             </ui-button>
         </div>
     </div>
 
     <nav class="tables-list">
+        @if (state.schemaLoading() && tables().length === 0) {
+            <div class="schema-loading-indicator">
+                <span class="spin-icon">&#xE895;</span>
+                {{ i18n.t("sidebar.schemaLoading") }}
+            </div>
+        }
         <ul>
             @for (table of tables(); track table.name) {
                 <li
@@ -18,7 +28,7 @@
                     [class.expanded]="isExpanded(table.name)"
                     (click)="selectTable(table.name)"
                     (contextmenu)="onTableContextMenu($event, table.name)"
-                    [tooltip]="table.name + ' (' + i18n.t('sidebar.rows', { count: table.recordCount }) + ')'"
+                    [tooltip]="table.name + ' (' + i18n.t(state.isNoSqlDatabase() ? 'sidebar.documents' : 'sidebar.rows', { count: table.recordCount }) + ')'"
                 >
                     <div class="table-row">
                         <button class="expand-toggle" (click)="toggleExpand($event, table.name)">
@@ -47,9 +57,9 @@
             class="footer-btn"
             icon="e710"
             (click)="dispatchCreateTable()"
-            [tooltip]="i18n.t('sidebar.createTable.tooltip')"
+            [tooltip]="i18n.t(state.isNoSqlDatabase() ? 'sidebar.createCollection.tooltip' : 'sidebar.createTable.tooltip')"
         >
-            {{ i18n.t("sidebar.createTable") }}
+            {{ i18n.t(state.isNoSqlDatabase() ? "sidebar.createCollection" : "sidebar.createTable") }}
         </ui-button>
     </div>
 

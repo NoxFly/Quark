@@ -4,12 +4,13 @@
     @include flex;
     width: 100%;
     height: 100%;
+    overflow-y: auto;
 }
 
 .open-database {
     @include flex;
     width: 100%;
-    height: 100%;
+    min-height: 100%;
     position: relative;
 
     &.dragging {
@@ -25,15 +26,25 @@
     }
 }
 
+// ---- Écran principal ----
+
+.main-screen {
+    @include flex($dir: column, $gap: 24px);
+    padding: 40px 20px;
+    width: 100%;
+    max-width: 600px;
+}
+
 .drop-zone {
     @include flex($dir: column, $gap: 12px);
     cursor: pointer;
-    padding: 60px 80px;
+    padding: 36px 60px;
     border: 2px dashed rgba(127, 127, 127, 0.3);
     border-radius: 16px;
     transition: all 0.2s ease;
     user-select: none;
     text-align: center;
+    width: 100%;
 
     &:hover {
         border-color: rgba(127, 127, 127, 0.5);
@@ -42,14 +53,14 @@
 
     .drop-icon {
         font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 48px;
+        font-size: 40px;
         color: rgba(127, 127, 127, 0.6);
         transition: all 0.2s ease;
     }
 
     h2 {
         margin: 0;
-        font-size: 1.2em;
+        font-size: 1.1em;
         font-weight: 600;
         color: var(--text-color);
     }
@@ -69,6 +80,90 @@
         font-family: monospace;
     }
 }
+
+// ---- Séparateur OU ----
+
+.separator {
+    @include flex($dir: row, $gap: 12px);
+    width: 100%;
+    color: rgba(127, 127, 127, 0.5);
+    font-size: 0.8em;
+    font-weight: 600;
+    letter-spacing: 1px;
+    user-select: none;
+
+    &::before,
+    &::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: rgba(127, 127, 127, 0.2);
+    }
+}
+
+// ---- Grille des drivers ----
+
+.drivers-section {
+    @include flex($dir: column, $gap: 16px);
+    width: 100%;
+}
+
+.drivers-hint {
+    margin: 0;
+    font-size: 0.85em;
+    color: rgba(127, 127, 127, 0.7);
+    text-align: center;
+    user-select: none;
+}
+
+.drivers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+    width: 100%;
+}
+
+.driver-card {
+    @include flex($dir: column, $gap: 8px);
+    --btn-min-width: 0;
+    --btn-width: 100%;
+    --btn-padding: 20px 15px;
+    border: 1px solid rgba(127, 127, 127, 0.2);
+    border-radius: 10px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    aspect-ratio: 1;
+    // min-height: 0 est nécessaire pour que aspect-ratio soit respecté même
+    // quand le contenu (texte long) dépasserait la hauteur calculée par le ratio.
+    min-height: 0;
+    overflow: hidden;
+
+    &:hover {
+        border-color: var(--accent, rgba(127, 127, 127, 0.5));
+        background: color-mix(in srgb, var(--accent, rgba(127, 127, 127, 0.3)) 10%, transparent);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--accent, rgba(0, 0, 0, 0.2)) 20%, transparent);
+    }
+
+    .driver-card-logo {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
+    .driver-card-name {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-align: center;
+        line-height: 1.3;
+    }
+}
+
+// ---- Formulaire mot de passe ----
 
 .password-prompt {
     @include flex($dir: column, $gap: 16px);
@@ -139,5 +234,147 @@
     .error-message {
         color: var(--color-danger);
         font-size: 0.8em;
+    }
+}
+
+// ---- Formulaire de connexion réseau ----
+
+.network-form {
+    @include flex($dir: column, $gap: 0);
+    width: 100%;
+    max-width: 440px;
+    border: 1px solid rgba(127, 127, 127, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface-alt);
+}
+
+.network-form-header {
+    @include flex($dir: row, $gap: 12px);
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+
+    h2 {
+        margin: 0;
+        font-size: 1.1em;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+}
+
+.driver-logo-large {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.network-form-body {
+    @include flex($dir: column, $gap: 0);
+    padding: 16px 24px;
+}
+
+.form-row {
+    @include flex($dir: row, $hor: flex-start, $ver: center, $gap: 0);
+    padding: 8px 0;
+
+    label {
+        font-size: 13px;
+        color: var(--text);
+        width: 110px;
+        flex-shrink: 0;
+    }
+
+    input {
+        flex: 1;
+        padding: 7px 10px;
+        border: 1px solid rgba(127, 127, 127, 0.25);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text-color);
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--color-primary);
+        }
+    }
+}
+
+.network-error {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
+    border-radius: 6px;
+    color: var(--color-danger);
+    font-size: 12px;
+    font-family: "Consolas", monospace;
+}
+
+.network-form-actions {
+    @include flex($dir: row, $hor: flex-end, $gap: 8px);
+    padding: 12px 24px 20px;
+
+    button {
+        padding: 8px 20px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: opacity 0.15s, background 0.15s;
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    .btn-cancel {
+        background: transparent;
+
+        &:hover:not(:disabled) {
+            background: rgba(127, 127, 127, 0.1);
+        }
+    }
+
+    .btn-connect {
+        border: none;
+        background: var(--accent, var(--color-primary));
+        color: #fff;
+
+        &:hover:not(:disabled) {
+            opacity: 0.88;
+        }
+    }
+}
+
+@media screen and (max-height: 450px) {
+    .main-screen {
+        .drivers-grid {
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        }
+
+        .driver-card {
+            --btn-padding: 10px 10px;
+
+            .driver-card-icon {
+                font-size: 20px;
+            }
+        }
+    }
+}
+
+@media screen and (max-height: 560px) {
+    .main-screen {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}
+
+@media screen and (max-height: 450px) {
+    .drop-zone {
+        padding-top: 10px;
+        padding-bottom: 10px;
     }
 }

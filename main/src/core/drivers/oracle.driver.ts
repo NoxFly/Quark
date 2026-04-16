@@ -289,6 +289,33 @@ export class OracleDriver extends NetworkSqlDriver {
     /**
      * Override pour utiliser la pagination Oracle (OFFSET ROWS FETCH).
      */
+    private extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
+        const trimmed = filter.trim();
+
+        // Vérifier si le filtre commence par ORDER BY
+        if (trimmed.match(/^\s*ORDER\s+BY\s+/i)) {
+            return { whereClause: "", orderClause: trimmed };
+        }
+
+        // Chercher "ORDER BY" de manière case-insensitive
+        const orderByMatch = trimmed.match(/^([\s\S]*?)\s+(ORDER\s+BY\s+[\s\S]+)$/i);
+
+        if (!orderByMatch) {
+            return { whereClause: trimmed, orderClause: "" };
+        }
+
+        const whereClause = orderByMatch[1].trim();
+        const orderByPart = orderByMatch[2];
+
+        return {
+            whereClause,
+            orderClause: orderByPart // Trimmed, sans espace avant
+        };
+    }
+
+    /**
+     * Override pour utiliser la pagination Oracle (OFFSET ROWS FETCH).
+     */
     public override async getTableData(
         tableName: string,
         offset: number,
@@ -296,17 +323,26 @@ export class OracleDriver extends NetworkSqlDriver {
         orderBy?: string,
         orderDir?: "ASC" | "DESC",
         filter?: string,
-        filterMode: "sqlite" | "fulltext" = "fulltext",
+        filterMode: "sql" | "fulltext" = "fulltext",
     ): Promise<{ records: import("@shared/types").DbRecord[]; totalCount: number; tableSize: number }> {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
         let whereClause = "";
+        let filterOrderClause = "";
         const whereParams: unknown[] = [];
 
         if (filter && filter.trim().length > 0) {
-            if (filterMode === "sqlite") {
-                whereClause = ` WHERE ${filter}`;
+            if (filterMode === "sql") {
+                // Extraire l'ORDER BY du filtre s'il existe
+                const { whereClause: sqlWhere, orderClause: sqlOrder } = this.extractOrderByFromFilter(filter);
+                filterOrderClause = sqlOrder;
+
+                // Ne construire whereClause que s'il y a une condition WHERE
+                if (sqlWhere.trim().length > 0) {
+                    whereClause = ` WHERE ${sqlWhere}`;
+                }
+                // Si sqlWhere est vide (juste ORDER BY), pas de WHERE clause
             }
             else {
                 const { fields } = await this.fetchTableSchema(tableName);
@@ -326,9 +362,23 @@ export class OracleDriver extends NetworkSqlDriver {
         const totalCount = Number(countResult.rows[0]?.["CNT"] ?? 0);
 
         let orderClause = "";
-        if (orderBy) {
+        if (filterOrderClause) {
+            // Utiliser l'ORDER BY du filtre s'il existe (ajouter l'espace avant)
+            orderClause = ` ${filterOrderClause}`;
+        }
+        else if (orderBy) {
             const dir = orderDir === "DESC" ? "DESC" : "ASC";
             orderClause = ` ORDER BY ${this.escapeIdentifier(orderBy)} ${dir}`;
+        }
+        else if (filterMode === "sql") {
+            // En mode SQL, trier par clé primaire par défaut pour une pagination stable
+            try {
+                const pk = await this.getPrimaryKeyColumn(tableName);
+                orderClause = ` ORDER BY ${this.escapeIdentifier(pk)} ASC`;
+            }
+            catch {
+                // Si pas de clé primaire trouvée, pas de tri par défaut
+            }
         }
 
         const dataResult = await this.query(

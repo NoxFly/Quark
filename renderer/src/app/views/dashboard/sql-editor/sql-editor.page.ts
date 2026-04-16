@@ -10,8 +10,8 @@ import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
 import type { R_SqlExecResponse } from "@shared/types";
-import { ButtonComponent } from "@ui/button/button.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 
 /** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
 declare const monaco: typeof import("monaco-editor");
@@ -30,7 +30,7 @@ declare const monaco: typeof import("monaco-editor");
     templateUrl: "./sql-editor.page.html",
     styleUrl: "./sql-editor.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ButtonComponent, TooltipDirective],
+    imports: [TooltipDirective],
 })
 export class SqlEditorPage {
     protected readonly dbService = inject(DatabaseService);
@@ -53,23 +53,17 @@ export class SqlEditorPage {
     /** Indique si le panneau d'historique est visible. */
     protected readonly historyVisible = signal<boolean>(false);
 
-    /** Limite d'affichage des lignes pour éviter le rendu de milliers de lignes. */
-    private readonly MAX_DISPLAY_ROWS = 500;
-
     private editor: import("monaco-editor").editor.IStandaloneCodeEditor | null = null;
     private completionDisposable: import("monaco-editor").IDisposable | null = null;
 
     /** Nombre de colonnes du résultat. */
     protected readonly resultColumns = computed(() => this.result()?.columns ?? []);
 
-    /** Lignes du résultat (limitées à MAX_DISPLAY_ROWS). */
-    protected readonly resultRows = computed(() => (this.result()?.rows ?? []).slice(0, this.MAX_DISPLAY_ROWS));
+    /** Lignes du résultat (toutes, scroll infini via overflow: auto sur le wrapper). */
+    protected readonly resultRows = computed(() => this.result()?.rows ?? []);
 
-    /** Nombre total de lignes du résultat (avant limitation). */
+    /** Nombre total de lignes du résultat. */
     protected readonly totalResultRows = computed(() => this.result()?.rows.length ?? 0);
-
-    /** Retourne true si toutes les lignes sont affichées. */
-    protected readonly resultTruncated = computed(() => this.totalResultRows() > this.MAX_DISPLAY_ROWS);
 
     /** Retourne true si le résultat est un SELECT. */
     protected readonly isSelectResult = computed(() => this.result()?.isSelect === true);
@@ -118,7 +112,7 @@ export class SqlEditorPage {
             this.addToHistory(sql);
         }
         catch (err) {
-            this.errorMessage.set(err instanceof Error ? err.message : String(err));
+            this.errorMessage.set(extractIpcErrorMessage(err instanceof Error ? err.message : String(err)));
         }
         finally {
             this.isExecuting.set(false);
@@ -244,14 +238,20 @@ export class SqlEditorPage {
             void this.execute();
         });
 
-        // Ctrl+ArrowUp → historique précédent
-        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.UpArrow, () => {
-            this.navigateHistory(-1);
-        });
-
-        // Ctrl+ArrowDown → historique suivant
-        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.DownArrow, () => {
-            this.navigateHistory(1);
+        // Ctrl+ArrowUp/Down → navigation historique
+        // Utilise onKeyDown car addCommand peut être intercepté par Monaco (scrollLineUp/Down)
+        this.editor.onKeyDown((e) => {
+            if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+                if (e.keyCode === monaco.KeyCode.UpArrow) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.navigateHistory(-1);
+                } else if (e.keyCode === monaco.KeyCode.DownArrow) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.navigateHistory(1);
+                }
+            }
         });
 
         // Mettre à jour hasInput quand le contenu change

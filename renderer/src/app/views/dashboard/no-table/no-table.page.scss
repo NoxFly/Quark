@@ -1,5 +1,10 @@
 @use "src/theme/mixins.scss" as *;
 
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 :host {
     @include flex;
     width: 100%;
@@ -15,6 +20,10 @@
         font-family: "Segoe Fluent Icons", sans-serif;
         font-size: 48px;
         color: rgba(127, 127, 127, 0.4);
+
+        &.spin {
+            animation: spin 1.2s linear infinite;
+        }
     }
 
     h2 {

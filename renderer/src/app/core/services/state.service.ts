@@ -31,4 +31,7 @@ export class StateService {
 
     /** Capacités du driver actif (null si pas connecté). */
     public readonly capabilities = computed<DriverCapabilities | null>(() => this.driverInfo()?.capabilities ?? null);
+
+    /** Indique si le schéma est en cours de chargement en arrière-plan (post-connexion réseau). */
+    public readonly schemaLoading = signal<boolean>(false);
 }

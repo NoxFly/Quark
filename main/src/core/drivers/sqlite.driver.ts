@@ -246,7 +246,7 @@ export class SqliteDriver implements DatabaseDriver {
         orderBy?: string,
         orderDir?: "ASC" | "DESC",
         filter?: string,
-        filterMode: "sqlite" | "fulltext" = "fulltext",
+        filterMode: "sql" | "fulltext" = "fulltext",
     ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }> {
         this.ensureOpen();
 
@@ -254,18 +254,27 @@ export class SqliteDriver implements DatabaseDriver {
 
         // Construire la clause WHERE à partir du filtre
         let whereClause = "";
+        let filterOrderClause = "";
         const whereParams: unknown[] = [];
 
         if (filter && filter.trim().length > 0) {
-            if (filterMode === "sqlite") {
-                try {
-                    const clause = this.parseFilter(filter, tableName);
-                    this.db!.prepare(`SELECT 1 FROM ${safeTable} WHERE ${clause} LIMIT 1`);
-                    whereClause = ` WHERE ${clause}`;
+            if (filterMode === "sql") {
+                // Extraire l'ORDER BY du filtre s'il existe
+                const { whereClause: sqlWhere, orderClause: sqlOrder } = this.extractOrderByFromFilter(filter);
+                filterOrderClause = sqlOrder;
+
+                // Ne parser le filtre que s'il y a une clause WHERE
+                if (sqlWhere.trim().length > 0) {
+                    try {
+                        const clause = this.parseFilter(sqlWhere, tableName);
+                        this.db!.prepare(`SELECT 1 FROM ${safeTable} WHERE ${clause} LIMIT 1`);
+                        whereClause = ` WHERE ${clause}`;
+                    }
+                    catch {
+                        return { records: [], totalCount: 0, tableSize: 0 };
+                    }
                 }
-                catch {
-                    return { records: [], totalCount: 0, tableSize: 0 };
-                }
+                // Si sqlWhere est vide (juste ORDER BY), pas de WHERE clause
             }
             else {
                 const columns = this.db!.prepare(`PRAGMA table_info(${safeTable})`).all() as { name: string }[];
@@ -280,10 +289,18 @@ export class SqliteDriver implements DatabaseDriver {
         const countResult = this.db!.prepare(countSql).get(...whereParams) as { cnt: number };
 
         let orderClause = "";
-        if (orderBy) {
+        if (filterOrderClause) {
+            // Utiliser l'ORDER BY du filtre s'il existe (déjà trimmed)
+            orderClause = ` ${filterOrderClause}`;
+        }
+        else if (orderBy) {
             const safeOrderCol = this.escapeIdentifier(orderBy);
             const dir = orderDir === "DESC" ? "DESC" : "ASC";
             orderClause = ` ORDER BY ${safeOrderCol} ${dir}`;
+        }
+        else if (filterMode === "sql") {
+            // En mode SQL, trier par rowid par défaut pour une pagination stable
+            orderClause = ` ORDER BY rowid ASC`;
         }
 
         const dataSql = `SELECT rowid, * FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
@@ -873,6 +890,34 @@ export class SqliteDriver implements DatabaseDriver {
             return `"${field.replace(/"/g, '""')}"`;
         }
         return field;
+    }
+
+    /**
+     * Extrait la clause ORDER BY du filtre SQL s'il existe.
+     * Retourne { whereClause, orderClause } où orderClause est vide ou commence par " ORDER BY".
+     */
+    private extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
+        const trimmed = filter.trim();
+
+        // Vérifier si le filtre commence par ORDER BY
+        if (trimmed.match(/^\s*ORDER\s+BY\s+/i)) {
+            return { whereClause: "", orderClause: trimmed };
+        }
+
+        // Chercher "ORDER BY" dans le filtre
+        const orderByMatch = trimmed.match(/^([\s\S]*?)\s+(ORDER\s+BY\s+[\s\S]+)$/i);
+
+        if (!orderByMatch) {
+            return { whereClause: trimmed, orderClause: "" };
+        }
+
+        const whereClause = orderByMatch[1].trim();
+        const orderByPart = orderByMatch[2];
+
+        return {
+            whereClause,
+            orderClause: orderByPart // Trimmed, sans espace avant
+        };
     }
 
     /**

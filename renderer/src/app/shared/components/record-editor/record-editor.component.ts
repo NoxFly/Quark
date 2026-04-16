@@ -15,6 +15,7 @@ import {
 import { FormsModule } from "@angular/forms";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
+import { StateService } from "src/app/core/services/state.service";
 import type { DbRecord, FieldDef } from "@shared/types";
 
 /**
@@ -44,6 +45,7 @@ interface FormField {
 })
 export class RecordEditorComponent implements OnInit {
     private readonly dbService = inject(DatabaseService);
+    private readonly state = inject(StateService);
     protected readonly i18n = inject(I18nService);
 
     public readonly mode = input.required<RecordEditorMode>();
@@ -93,15 +95,17 @@ export class RecordEditorComponent implements OnInit {
 
     /**
      * Retourne le titre du modal selon le mode.
+     * En mode NoSQL, les termes "record" sont remplacés par "document".
      */
     protected getTitle(): string {
+        const nosql = this.state.isNoSqlDatabase();
         switch (this.mode()) {
             case "create":
-                return this.i18n.t("editor.createTitle");
+                return this.i18n.t(nosql ? "editor.createTitle.nosql" : "editor.createTitle");
             case "edit":
-                return this.i18n.t("editor.editTitle");
+                return this.i18n.t(nosql ? "editor.editTitle.nosql" : "editor.editTitle");
             case "duplicate":
-                return this.i18n.t("editor.duplicateTitle");
+                return this.i18n.t(nosql ? "editor.duplicateTitle.nosql" : "editor.duplicateTitle");
         }
     }
 
