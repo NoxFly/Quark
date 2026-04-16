@@ -14,6 +14,7 @@ import { TitlebarComponent } from "./core/components/titlebar/titlebar.component
 import { LoadingScreenComponent } from "./shared/components/loading-screen/loading-screen.component";
 import { ThemePickerComponent } from "./shared/components/theme-picker/theme-picker.component";
 import { RecentDatabasesComponent } from "./shared/components/recent-databases/recent-databases.component";
+import { PasswordPromptComponent } from "./shared/components/password-prompt/password-prompt.component";
 import { ChangePasswordComponent } from "./shared/components/change-password/change-password.component";
 import { CreateTableComponent } from "./shared/components/create-table/create-table.component";
 import { IndexViewerComponent } from "./shared/components/index-viewer/index-viewer.component";
@@ -38,6 +39,7 @@ import type { UIDismissData } from "src/app/shared/ui/ui.types";
         TabsBarComponent,
         ThemePickerComponent,
         RecentDatabasesComponent,
+        PasswordPromptComponent,
     ],
     host: {
         "(window:beforeunload)": "handleBeforeUnload()",

@@ -6,13 +6,13 @@
                 @if (entries().length === 0) {
                     <div class="recent-empty">{{ i18n.t('recentDb.empty') }}</div>
                 }
-                @for (entry of entries(); track entry.filePath; let i = $index) {
+                @for (entry of entries(); track entry.lastOpened; let i = $index) {
                     <button
                         class="recent-option"
                         [class.selected]="selectedIndex() === i"
                         (click)="selectEntry($event, i)">
-                        <span class="recent-filename">{{ entry.fileName }}</span>
-                        <span class="recent-directory">{{ entry.directory }}</span>
+                        <span class="recent-filename">{{ entry.displayName }}</span>
+                        <span class="recent-directory">{{ entry.displaySubtitle }}</span>
                     </button>
                 }
             </div>

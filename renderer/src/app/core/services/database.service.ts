@@ -68,10 +68,16 @@ export class DatabaseService {
 
     /**
      * Ouvre un fichier de base de données.
+     * @param driverType - Driver à activer avant l'ouverture. Les appelants qui
+     * connaissent le driver (ex: historique) doivent le fournir explicitement.
+     * Les ouvertures via dialog ou drag-and-drop sont toujours SQLite.
      */
-    public async openFile(filePath: string): Promise<void> {
+    public async openFile(filePath: string, driverType: import("@shared/driver").DatabaseDriverType = "sqlite"): Promise<void> {
         try {
             this.loading.set(true);
+            // Réinitialise le driver avant d'ouvrir le fichier pour éviter qu'un
+            // driver réseau précédemment actif parse le chemin comme une URI réseau.
+            await this.noxus.ipc.setDriverType(driverType);
             const response = await this.noxus.ipc.openFile(filePath);
 
             if (response.needsPassword) {
@@ -86,6 +92,32 @@ export class DatabaseService {
         }
         catch (err) {
             console.error("Failed to open file:", err);
+        }
+        finally {
+            this.loading.set(false);
+        }
+    }
+
+    /**
+     * Ouvre un fichier chiffré et le déverrouille en une seule opération.
+     * Utilisé lors d'une reconnexion depuis l'historique.
+     * @throws Si le fichier ne peut pas être ouvert ou si le mot de passe est incorrect.
+     */
+    public async openFileWithPassword(filePath: string, password: string, driverType: import("@shared/driver").DatabaseDriverType = "sqlite"): Promise<void> {
+        this.loading.set(true);
+        try {
+            await this.noxus.ipc.setDriverType(driverType);
+            const openResponse = await this.noxus.ipc.openFile(filePath);
+
+            if (!openResponse.needsPassword) {
+                if (openResponse.database) {
+                    this.onDatabaseOpened(openResponse.database);
+                }
+                return;
+            }
+
+            const unlockResponse = await this.noxus.ipc.submitPassword(password);
+            this.onDatabaseOpened(unlockResponse.database);
         }
         finally {
             this.loading.set(false);

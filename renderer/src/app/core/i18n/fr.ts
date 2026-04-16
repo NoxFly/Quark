@@ -298,6 +298,11 @@ export const fr: Record<string, string> = {
     // --- Recent databases ---
     "recentDb.title": "Bases de données récentes",
     "recentDb.empty": "Aucune base récente.",
+    "recentDb.requiresPassword": "Nécessite un mot de passe",
+
+    // --- Password prompt ---
+    "passwordPrompt.title": "Mot de passe requis",
+    "passwordPrompt.placeholder": "Entrez le mot de passe...",
 
     // --- Shortcuts ---
     "shortcuts.title": "Raccourcis clavier",

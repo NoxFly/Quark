@@ -254,9 +254,8 @@ export class Application implements IApp {
 
             const needsPassword = await window.openDatabase(filePath);
 
-            if (!needsPassword) {
-                this.recentDatabases.add(filePath);
-            }
+            // Toujours enregistrer dans l'historique — encrypted=true si mot de passe requis
+            this.recentDatabases.addFile(filePath, needsPassword);
 
             return {
                 needsPassword,
@@ -272,7 +271,7 @@ export class Application implements IApp {
 
             await window.unlockDatabase(password);
 
-            this.recentDatabases.add(window.database.path!);
+            // L'entrée est déjà dans l'historique depuis db-open-file (requiresPassword: true)
 
             return {
                 database: await window.getDatabaseSchema(),
@@ -526,6 +525,15 @@ export class Application implements IApp {
             const uri = `${body.username}:${body.password}@${body.host}:${body.port}/${body.database}`;
             await window.setDriverType(body.driverType);
             await window.openDatabase(uri);
+
+            // Enregistrer dans l'historique sans le mot de passe
+            this.recentDatabases.addNetwork({
+                driverType: body.driverType,
+                host: body.host,
+                port: body.port,
+                username: body.username,
+                database: body.database,
+            });
 
             return { connected: true };
         });

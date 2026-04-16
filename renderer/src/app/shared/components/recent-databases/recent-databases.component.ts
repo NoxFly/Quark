@@ -21,6 +21,8 @@ import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
  * Action sheet pour sélectionner une base de données récemment ouverte.
  * S'ouvre via l'événement personnalisé `open-recent-databases` sur le document.
  * Navigation clavier : flèches haut/bas, Enter pour confirmer, Escape pour annuler.
+ * Les connexions chiffrées ou réseau déclenchent une demande de mot de passe
+ * via l'événement `open-password-prompt`.
  */
 @Component({
     selector: "app-recent-databases",
@@ -70,7 +72,8 @@ export class RecentDatabasesComponent implements OnInit, OnDestroy {
     }
 
     /**
-     * Confirme la sélection courante et ouvre la base.
+     * Confirme la sélection courante et ouvre la connexion.
+     * Délègue au panneau de saisie de mot de passe si nécessaire.
      */
     protected confirm(): void {
         const entry = this.entries()[this.selectedIndex()];
@@ -78,8 +81,15 @@ export class RecentDatabasesComponent implements OnInit, OnDestroy {
             this.close();
             return;
         }
+
         this.isOpen.set(false);
-        void this.dbService.openFile(entry.filePath);
+
+        if (entry.requiresPassword) {
+            document.dispatchEvent(new CustomEvent("open-password-prompt", { detail: entry }));
+            return;
+        }
+
+        void this.dbService.openFile(entry.filePath ?? "", entry.driverType);
     }
 
     /**
@@ -118,4 +128,5 @@ export class RecentDatabasesComponent implements OnInit, OnDestroy {
                 break;
         }
     }
+
 }

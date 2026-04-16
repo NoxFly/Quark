@@ -72,10 +72,25 @@ export interface ErrorDialogPayload {
 }
 
 export interface RecentDatabaseEntry {
-    filePath: string;
-    fileName: string;
-    directory: string;
+    /** Type de connexion : fichier local ou connexion réseau. */
+    connectionType: "file" | "network";
+    /** Driver utilisé pour cette connexion. */
+    driverType: import("./driver").DatabaseDriverType;
+    /** Nom affiché dans la liste (nom de fichier ou nom de base de données). */
+    displayName: string;
+    /** Sous-titre affiché (chemin du dossier ou adresse du serveur). */
+    displaySubtitle: string;
+    /** Timestamp de la dernière ouverture. */
     lastOpened: number;
+    /** Indique si la connexion nécessite un mot de passe (fichier chiffré ou connexion réseau). */
+    requiresPassword: boolean;
+    // Connexion fichier
+    filePath?: string;
+    // Connexion réseau (aucun mot de passe stocké)
+    host?: string;
+    port?: number;
+    username?: string;
+    database?: string;
 }
 
 declare global {

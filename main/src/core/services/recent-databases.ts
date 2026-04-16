@@ -7,13 +7,23 @@
 import { app } from "electron/main";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { DatabaseDriverType } from "@shared/driver";
 
 /** Entrée dans l'historique des bases récentes. */
 export interface RecentDatabaseEntry {
-    filePath: string;
-    fileName: string;
-    directory: string;
+    connectionType: "file" | "network";
+    driverType: DatabaseDriverType;
+    displayName: string;
+    displaySubtitle: string;
     lastOpened: number;
+    requiresPassword: boolean;
+    // Connexion fichier
+    filePath?: string;
+    // Connexion réseau (aucun mot de passe stocké)
+    host?: string;
+    port?: number;
+    username?: string;
+    database?: string;
 }
 
 const MAX_RECENT = 20;
@@ -21,6 +31,7 @@ const MAX_RECENT = 20;
 /**
  * Gère la persistance de l'historique des bases de données récemment ouvertes.
  * Stocke dans un fichier JSON dans le dossier userData d'Electron.
+ * Supporte les connexions fichier (SQLite, chiffrées ou non) et réseau.
  */
 export class RecentDatabases {
     private readonly filePath: string;
@@ -39,30 +50,87 @@ export class RecentDatabases {
     }
 
     /**
-     * Ajoute ou met à jour une entrée dans l'historique.
+     * Ajoute ou met à jour une connexion fichier dans l'historique.
+     * @param dbFilePath - Chemin absolu vers le fichier de base de données.
+     * @param encrypted - Indique si la base est chiffrée et nécessite un mot de passe.
      */
-    public add(dbFilePath: string): void {
+    public addFile(dbFilePath: string, encrypted: boolean): void {
         const parts = dbFilePath.replace(/\\/g, "/").split("/");
-        const fileName = parts.pop() ?? dbFilePath;
-        const directory = parts.join("/");
+        const displayName = parts[parts.length - 1] ?? dbFilePath;
+        const displaySubtitle = parts.slice(0, -1).join("/");
 
-        // Supprimer l'entrée existante si présente
-        this.entries = this.entries.filter(e => e.filePath !== dbFilePath);
-
-        // Ajouter en tête
-        this.entries.unshift({
-            filePath: dbFilePath,
-            fileName,
-            directory,
+        this.upsert({
+            connectionType: "file",
+            driverType: "sqlite",
+            displayName,
+            displaySubtitle,
             lastOpened: Date.now(),
+            requiresPassword: encrypted,
+            filePath: dbFilePath,
         });
+    }
 
-        // Garder seulement les N dernières
+    /**
+     * Ajoute ou met à jour une connexion réseau dans l'historique.
+     * Le mot de passe n'est jamais stocké.
+     * @param params - Paramètres de connexion réseau (sans mot de passe).
+     */
+    public addNetwork(params: {
+        driverType: DatabaseDriverType;
+        host: string;
+        port: number;
+        username: string;
+        database: string;
+    }): void {
+        this.upsert({
+            connectionType: "network",
+            driverType: params.driverType,
+            displayName: params.database,
+            displaySubtitle: `${params.username}@${params.host}:${params.port}`,
+            lastOpened: Date.now(),
+            requiresPassword: true,
+            host: params.host,
+            port: params.port,
+            username: params.username,
+            database: params.database,
+        });
+    }
+
+    /**
+     * Insère ou met à jour une entrée en tête de liste, dans la limite de MAX_RECENT.
+     */
+    private upsert(entry: RecentDatabaseEntry): void {
+        // Dédupliquer : même fichier ou même connexion réseau
+        this.entries = this.entries.filter(e => !this.isSameEntry(e, entry));
+
+        this.entries.unshift(entry);
+
         if (this.entries.length > MAX_RECENT) {
             this.entries = this.entries.slice(0, MAX_RECENT);
         }
 
         this.save();
+    }
+
+    /**
+     * Détermine si deux entrées représentent la même connexion.
+     */
+    private isSameEntry(a: RecentDatabaseEntry, b: RecentDatabaseEntry): boolean {
+        if (a.connectionType !== b.connectionType) {
+            return false;
+        }
+
+        if (a.connectionType === "file") {
+            return a.filePath === b.filePath;
+        }
+
+        return (
+            a.driverType === b.driverType
+            && a.host === b.host
+            && a.port === b.port
+            && a.database === b.database
+            && a.username === b.username
+        );
     }
 
     /**

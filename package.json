@@ -2,10 +2,10 @@
     "private": true,
     "main": "./dist/main.js",
     "license": "MIT",
-    "name": "sqlite-editor",
-    "productName": "SQLiteEditor",
-    "description": "A simple SQLite database editor.",
-    "productDescription": "A simple SQLite database editor.",
+    "name": "knova",
+    "productName": "Knova",
+    "description": "A simple database visualization and management tool",
+    "productDescription": "A simple database visualization and management tool",
     "version": "0.0.1",
     "author": {
         "name": "NoxFly"
