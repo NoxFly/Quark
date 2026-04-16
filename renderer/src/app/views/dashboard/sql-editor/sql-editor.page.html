@@ -8,6 +8,14 @@
                 (click)="execute()">
                 {{ isExecuting() ? i18n.t('sqlEditor.executing') : i18n.t('sqlEditor.execute') }}
             </ui-button>
+            <button
+                class="history-toggle-btn"
+                [class.active]="historyVisible()"
+                (click)="toggleHistory()"
+                [tooltip]="i18n.t('sqlEditor.history')">
+                <span class="segoe-icon">&#xE81C;</span>
+                <span>{{ i18n.t('sqlEditor.history') }}</span>
+            </button>
             <ui-button
                 color="secondary"
                 (click)="clearResult()">
@@ -84,7 +92,7 @@
         }
     </div>
 
-    @if (queryHistory().length > 0) {
+    @if (historyVisible() && queryHistory().length > 0) {
         <div class="history-panel">
             <div class="history-title">{{ i18n.t('sqlEditor.history') }}</div>
             @for (query of queryHistory(); track query) {

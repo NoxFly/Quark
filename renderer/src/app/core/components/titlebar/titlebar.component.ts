@@ -60,12 +60,115 @@ export class TitlebarComponent {
     protected readonly menus = computed<Menu[]>(() => {
         const connected = this.state.connected();
         const hasSelection = this.dbService.selectedCount() > 0;
+        const capabilities = this.state.capabilities();
         // Track locale changes to re-compute menu labels
         const t = (key: string): string => this.i18n.t(key);
 
         const activeTableName = this.dbService.tabs.activeTab()?.tableName ?? this.dbService.selectedTable();
         const hasTable = !!activeTableName;
         const fields = this.dbService.tableSchema()?.fields ?? [];
+
+        // --- Edit menu items ---
+        const editItems: MenuItem[] = [
+            { label: t("menu.undo"), shortcut: "Ctrl+Z", action: () => this.dbService.undoLastMutation(), disabled: !this.dbService.mutationHistory.canUndo() },
+            { label: t("menu.redo"), shortcut: "Ctrl+Y", action: () => this.dbService.redoLastMutation(), disabled: !this.dbService.mutationHistory.canRedo() },
+            { label: "", separator: true },
+            { label: t("menu.toggleEditMode"), shortcut: "Ctrl+E", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
+        ];
+
+        if (!capabilities || capabilities.transactions) {
+            editItems.push(
+                { label: "", separator: true },
+                { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
+                { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: !this.dbService.inTransaction() },
+                { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: !this.dbService.inTransaction() },
+                { label: t("menu.transactionDiff"), action: () => this.openTransactionDiff(), disabled: !this.dbService.inTransaction() },
+            );
+        }
+
+        editItems.push(
+            { label: "", separator: true },
+            { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: !hasSelection },
+        );
+
+        if (!capabilities || capabilities.importExport) {
+            editItems.push(
+                { label: t("menu.importData"), action: () => this.openImportData(), disabled: !connected || !hasTable },
+                { label: "", separator: true },
+                {
+                    label: t("menu.export"),
+                    disabled: !hasSelection,
+                    children: [
+                        { label: t("menu.exportJson"), action: () => this.dbService.exportData("json", true), disabled: !hasSelection },
+                        { label: t("menu.exportCsv"), action: () => this.dbService.exportData("csv", true), disabled: !hasSelection },
+                        { label: t("menu.exportXlsx"), action: () => this.dbService.exportData("xlsx", true), disabled: !hasSelection },
+                    ],
+                },
+            );
+        }
+
+        // --- View menu items ---
+        const viewItems: MenuItem[] = [];
+
+        if (!capabilities || capabilities.sqlQueries) {
+            viewItems.push(
+                { label: t("menu.sqlEditor"), shortcut: "Ctrl+Shift+Q", action: () => this.openSqlEditorTab(), disabled: !connected },
+            );
+        }
+
+        if (!capabilities || capabilities.erDiagram) {
+            viewItems.push(
+                { label: t("menu.erDiagram"), action: () => this.router.navigate(["/dashboard/er-diagram"]), disabled: !connected },
+            );
+        }
+
+        if (viewItems.length > 0) {
+            viewItems.push({ label: "", separator: true });
+        }
+
+        viewItems.push(
+            { label: t("menu.fullscreen"), shortcut: "F11", action: () => this.noxus.ipc.toggleFullscreen() },
+            { label: "", separator: true },
+            { label: t("menu.changeTheme"), shortcut: "Ctrl+K Ctrl+T", action: () => this.openThemePicker() },
+            { label: "", separator: true },
+            {
+                label: t("menu.language"),
+                children: this.i18n.availableLocales.map(locale => ({
+                    label: this.i18n.localeLabels[locale],
+                    action: () => this.i18n.setLocale(locale),
+                    disabled: this.i18n.locale() === locale,
+                })),
+            },
+        );
+
+        // --- Database menu items ---
+        const databaseItems: MenuItem[] = [];
+
+        if (!capabilities || capabilities.schemaEditing) {
+            databaseItems.push(
+                { label: t("menu.schemaEditor"), action: () => this.openSchemaEditor(fields), disabled: !connected || !hasTable },
+                { label: t("menu.createTable"), action: () => this.openCreateTable(), disabled: !connected },
+            );
+        }
+
+        if (!capabilities || capabilities.indexes) {
+            databaseItems.push(
+                { label: t("menu.indexViewer"), action: () => this.openIndexViewer(fields), disabled: !connected || !hasTable },
+            );
+        }
+
+        databaseItems.push(
+            { label: t("menu.viewSchema"), action: () => this.openDatabaseSchema(), disabled: !connected },
+        );
+
+        if (!capabilities || capabilities.encryption) {
+            if (databaseItems.length > 0) {
+                databaseItems.push({ label: "", separator: true });
+            }
+            databaseItems.push(
+                { label: t("menu.changePassword"), action: () => this.openChangePassword(), disabled: !connected },
+            );
+        }
 
         return [
             {
@@ -82,61 +185,15 @@ export class TitlebarComponent {
             },
             {
                 label: t("menu.edit"),
-                items: [
-                    { label: t("menu.undo"), shortcut: "Ctrl+Z", action: () => this.dbService.undoLastMutation(), disabled: !this.dbService.mutationHistory.canUndo() },
-                    { label: t("menu.redo"), shortcut: "Ctrl+Y", action: () => this.dbService.redoLastMutation(), disabled: !this.dbService.mutationHistory.canRedo() },
-                    { label: "", separator: true },
-                    { label: t("menu.toggleEditMode"), shortcut: "Ctrl+E", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
-                    { label: "", separator: true },
-                    { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
-                    { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: !this.dbService.inTransaction() },
-                    { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: !this.dbService.inTransaction() },
-                    { label: t("menu.transactionDiff"), action: () => this.openTransactionDiff(), disabled: !this.dbService.inTransaction() },
-                    { label: "", separator: true },
-                    { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: !hasSelection },
-                    { label: t("menu.importData"), action: () => this.openImportData(), disabled: !connected || !hasTable },
-                    { label: "", separator: true },
-                    {
-                        label: t("menu.export"),
-                        disabled: !hasSelection,
-                        children: [
-                            { label: t("menu.exportJson"), action: () => this.dbService.exportData("json", true), disabled: !hasSelection },
-                            { label: t("menu.exportCsv"), action: () => this.dbService.exportData("csv", true), disabled: !hasSelection },
-                            { label: t("menu.exportXlsx"), action: () => this.dbService.exportData("xlsx", true), disabled: !hasSelection },
-                        ],
-                    },
-                ],
+                items: editItems,
             },
             {
                 label: t("menu.view"),
-                items: [
-                    { label: t("menu.sqlEditor"), shortcut: "Ctrl+Shift+Q", action: () => this.openSqlEditorTab(), disabled: !connected },
-                    { label: t("menu.erDiagram"), action: () => this.router.navigate(["/dashboard/er-diagram"]), disabled: !connected },
-                    { label: "", separator: true },
-                    { label: t("menu.fullscreen"), shortcut: "F11", action: () => this.noxus.ipc.toggleFullscreen() },
-                    { label: "", separator: true },
-                    { label: t("menu.changeTheme"), shortcut: "Ctrl+K Ctrl+T", action: () => this.openThemePicker() },
-                    { label: "", separator: true },
-                    {
-                        label: t("menu.language"),
-                        children: this.i18n.availableLocales.map(locale => ({
-                            label: this.i18n.localeLabels[locale],
-                            action: () => this.i18n.setLocale(locale),
-                            disabled: this.i18n.locale() === locale,
-                        })),
-                    },
-                ],
+                items: viewItems,
             },
             {
                 label: t("menu.database"),
-                items: [
-                    { label: t("menu.schemaEditor"), action: () => this.openSchemaEditor(fields), disabled: !connected || !hasTable },
-                    { label: t("menu.createTable"), action: () => this.openCreateTable(), disabled: !connected },
-                    { label: t("menu.indexViewer"), action: () => this.openIndexViewer(fields), disabled: !connected || !hasTable },
-                    { label: t("menu.viewSchema"), action: () => this.openDatabaseSchema(), disabled: !connected },
-                    { label: "", separator: true },
-                    { label: t("menu.changePassword"), action: () => this.openChangePassword(), disabled: !connected },
-                ],
+                items: databaseItems,
             },
             {
                 label: t("menu.help"),

@@ -18,15 +18,17 @@
             @if (transactionInfo()) {
                 <span class="transaction-badge">{{ transactionInfo() }}</span>
             }
-            <button
-                class="sql-editor-btn"
-                [class.active]="isInSqlEditor()"
-                (click)="toggleSqlEditor()"
-                [tooltip]="isInSqlEditor() ? i18n.t('statusbar.sqlEditorClose') : i18n.t('statusbar.sqlEditorOpen')"
-            >
-                <span class="segoe-icon">&#xE943;</span>
-                <span class="edit-mode-label">{{ i18n.t('statusbar.sqlEditor') }}</span>
-            </button>
+            @if (!state.capabilities() || state.capabilities()?.sqlQueries) {
+                <button
+                    class="sql-editor-btn"
+                    [class.active]="isInSqlEditor()"
+                    (click)="toggleSqlEditor()"
+                    [tooltip]="isInSqlEditor() ? i18n.t('statusbar.sqlEditorClose') : i18n.t('statusbar.sqlEditorOpen')"
+                >
+                    <span class="segoe-icon">&#xE943;</span>
+                    <span class="edit-mode-label">{{ i18n.t('statusbar.sqlEditor') }}</span>
+                </button>
+            }
             <button
                 class="edit-mode-btn"
                 [class.active]="!readOnly()"
@@ -36,7 +38,7 @@
                 <span class="segoe-icon">{{ readOnly() ? '&#xE736;' : '&#xE70F;' }}</span>
                 <span class="edit-mode-label">{{ editModeLabel() }}</span>
             </button>
-            <span class="db-type-badge">{{ i18n.t('statusbar.dbType') }}</span>
+            <span class="db-type-badge">{{ state.driverDisplayName() ?? i18n.t('statusbar.dbType') }}</span>
         </div>
     </div>
 }

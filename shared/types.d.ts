@@ -1,13 +1,18 @@
+import type { DatabaseDriverType, DriverInfo } from "./driver";
+
 export type AppState = {
     connected: boolean;
     database: DatabaseSchema | null;
     filePath: string | null;
+    driverType: DatabaseDriverType | null;
+    driverInfo: DriverInfo | null;
 };
 
 export type DatabaseSchema = {
     name: string;
     path: string;
     tables: TableSchema[];
+    driverType: DatabaseDriverType;
 };
 
 export type TableSchema = {
@@ -130,6 +135,8 @@ export type R_WindowStateResponse = {
     selectedTable: string | null;
     database: DatabaseSchema | null;
     filePath: string | null;
+    driverType: DatabaseDriverType | null;
+    driverInfo: DriverInfo | null;
 };
 
 // --- Mutation history (undo/redo) ---

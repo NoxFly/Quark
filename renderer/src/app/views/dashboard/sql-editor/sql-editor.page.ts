@@ -8,8 +8,10 @@ import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyR
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
+import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
 import type { R_SqlExecResponse } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
 /** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
 declare const monaco: typeof import("monaco-editor");
@@ -28,12 +30,13 @@ declare const monaco: typeof import("monaco-editor");
     templateUrl: "./sql-editor.page.html",
     styleUrl: "./sql-editor.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ButtonComponent],
+    imports: [ButtonComponent, TooltipDirective],
 })
 export class SqlEditorPage {
     protected readonly dbService = inject(DatabaseService);
     protected readonly i18n = inject(I18nService);
     private readonly state = inject(StateService);
+    private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly destroyRef = inject(DestroyRef);
 
     private readonly editorContainerRef = viewChild<ElementRef<HTMLDivElement>>("monacoContainer");
@@ -46,6 +49,9 @@ export class SqlEditorPage {
     /** Historique des requêtes exécutées (les 20 dernières). */
     protected readonly queryHistory = signal<string[]>([]);
     private historyIndex = -1;
+
+    /** Indique si le panneau d'historique est visible. */
+    protected readonly historyVisible = signal<boolean>(false);
 
     /** Limite d'affichage des lignes pour éviter le rendu de milliers de lignes. */
     private readonly MAX_DISPLAY_ROWS = 500;
@@ -128,6 +134,13 @@ export class SqlEditorPage {
     }
 
     /**
+     * Bascule la visibilité du panneau d'historique.
+     */
+    protected toggleHistory(): void {
+        this.historyVisible.update(v => !v);
+    }
+
+    /**
      * Charge une requête depuis l'historique dans l'éditeur.
      */
     protected loadFromHistory(query: string): void {
@@ -189,30 +202,16 @@ export class SqlEditorPage {
     }
 
     /**
-     * Charge Monaco Editor dynamiquement via le AMD loader puis crée l'éditeur.
+     * Attend que Monaco soit chargé (via le service de préchargement) puis crée l'éditeur.
      */
-    private initMonaco(): void {
+    private async initMonaco(): Promise<void> {
         const container = this.editorContainerRef()?.nativeElement;
         if (!container) {
             return;
         }
 
-        // Si Monaco est déjà chargé globalement, réutiliser
-        if (typeof monaco !== "undefined") {
-            this.createEditor(container);
-            return;
-        }
-
-        // Charger le loader AMD de Monaco
-        const loaderScript = document.createElement("script");
-        loaderScript.src = "vs/loader.js";
-        loaderScript.onload = () => {
-            (window as any).require.config({ paths: { vs: "vs" } });
-            (window as any).require(["vs/editor/editor.main"], () => {
-                this.createEditor(container);
-            });
-        };
-        document.head.appendChild(loaderScript);
+        await this.monacoPreload.whenReady();
+        this.createEditor(container);
     }
 
     /**

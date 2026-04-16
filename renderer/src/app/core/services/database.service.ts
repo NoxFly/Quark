@@ -117,6 +117,8 @@ export class DatabaseService {
             this.state.connected.set(false);
             this.state.database.set(null);
             this.state.filePath.set(null);
+            this.state.driverType.set(null);
+            this.state.driverInfo.set(null);
             this.state.title.set("SQLite Editor");
             this.state.fileName.set("");
             this.selectedTable.set(null);
@@ -675,6 +677,7 @@ export class DatabaseService {
         this.state.connected.set(true);
         this.state.database.set(database);
         this.state.filePath.set(database.path);
+        this.state.driverType.set(database.driverType);
         this.state.title.set(database.name);
         this.state.fileName.set(database.name);
         this.router.navigate(["/dashboard/no-table"]);

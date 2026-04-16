@@ -212,7 +212,7 @@ export class Application implements IApp {
         ipcMain.handle("get-window-state", (_event) => {
             const window = this.getWindowBySenderId(_event.sender.id);
             if (!window) {
-                return { inTransaction: false, selectedTable: null, database: null, filePath: null };
+                return { inTransaction: false, selectedTable: null, database: null, filePath: null, driverType: null, driverInfo: null };
             }
 
             const db = window.database;
@@ -221,6 +221,8 @@ export class Application implements IApp {
                 selectedTable: null, // La table sélectionnée est un état renderer uniquement
                 database: db.isOpen ? db.getSchema() : null,
                 filePath: db.path,
+                driverType: db.driverType,
+                driverInfo: db.info,
             };
         });
 

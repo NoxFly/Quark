@@ -3,7 +3,9 @@ import { shell } from "electron/common";
 import { BrowserWindow, BrowserWindowConstructorOptions, screen } from "electron/main";
 import { join, basename } from "node:path";
 import { environment } from "src/core/environment";
-import { Database } from "src/core/services/database";
+import type { DatabaseDriver } from "src/core/drivers/driver.interface";
+import { createDriver } from "src/core/drivers/driver-registry";
+import type { DatabaseDriverType } from "@shared/driver";
 import type { DatabaseSchema } from "@shared/types";
 import { AppEnv } from "src/core/env.dto";
 
@@ -31,11 +33,29 @@ const defaultWindowOptions: BrowserWindowConstructorOptions = {
 
 /**
  * 1 instance par fenêtre (renderer).
- * Chaque fenêtre gère une seule connexion DB.
+ * Chaque fenêtre gère une seule connexion DB via un driver interchangeable.
  */
 export class Window {
     private win: BrowserWindow | null = null;
-    public readonly database = new Database();
+    private _database: DatabaseDriver = createDriver("sqlite");
+
+    /**
+     * Retourne le driver de base de données actif.
+     */
+    public get database(): DatabaseDriver {
+        return this._database;
+    }
+
+    /**
+     * Change le type de driver (pour ouvrir un autre type de base).
+     * Ferme le driver actuel si une connexion est ouverte.
+     */
+    public setDriverType(type: DatabaseDriverType): void {
+        if (this._database.isOpen) {
+            this._database.close();
+        }
+        this._database = createDriver(type);
+    }
 
     /**
      *

@@ -1,19 +1,54 @@
+/**
+ * @copyright Dorian Thivolle
+ * @license MIT
+ * @see https://github.com/NoxFly
+ */
+
 import { Logger } from "@noxfly/noxus/main";
-import type { CreateTableColumnDef, DatabaseSchema, DbRecord, FieldDef, ForeignKeyDef, IndexDef, R_AlterTableAction, R_SqlExecResponse, TableSchema } from "@shared/types";
+import type {
+    CreateTableColumnDef,
+    DatabaseSchema,
+    DbRecord,
+    FieldDef,
+    ForeignKeyDef,
+    IndexDef,
+    R_AlterTableAction,
+    R_SqlExecResponse,
+    TableSchema,
+} from "@shared/types";
+import type { DatabaseCategory, DatabaseDriverType, DriverCapabilities, DriverInfo } from "@shared/driver";
+import type { DatabaseDriver } from "src/core/drivers/driver.interface";
+import { getDriverInfo } from "src/core/drivers/driver-registry";
 import DatabaseConstructor from "better-sqlite3-multiple-ciphers";
 import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { statSync } from "node:fs";
 import { basename } from "node:path";
 
 /**
- * Gère une connexion à une base de données SQLite.
- * 1 instance par fenêtre (renderer).
+ * Driver SQLite utilisant better-sqlite3-multiple-ciphers.
+ * Supporte les fichiers locaux, le chiffrement SQLCipher,
+ * les transactions, et toutes les opérations DDL/DML.
  */
-export class Database {
+export class SqliteDriver implements DatabaseDriver {
     private db: BetterSqlite3.Database | null = null;
     private filePath: string | null = null;
     private encrypted = false;
-    private inTransaction = false;
+    private _inTransaction = false;
+
+    // --- Identité du driver ---
+
+    public readonly driverType: DatabaseDriverType = "sqlite";
+    public readonly category: DatabaseCategory = "sql";
+
+    public get info(): DriverInfo {
+        return getDriverInfo("sqlite");
+    }
+
+    public get capabilities(): DriverCapabilities {
+        return this.info.capabilities;
+    }
+
+    // --- Cycle de vie ---
 
     /**
      * Ouvre une base de données SQLite.
@@ -77,7 +112,7 @@ export class Database {
      * Ferme la connexion à la base de données.
      */
     public close(): void {
-        if (this.inTransaction) {
+        if (this._inTransaction) {
             try {
                 this.rollback();
             }
@@ -90,7 +125,7 @@ export class Database {
         this.db = null;
         this.filePath = null;
         this.encrypted = false;
-        this.inTransaction = false;
+        this._inTransaction = false;
     }
 
     public get isOpen(): boolean {
@@ -98,12 +133,14 @@ export class Database {
     }
 
     public get isInTransaction(): boolean {
-        return this.inTransaction;
+        return this._inTransaction;
     }
 
     public get path(): string | null {
         return this.filePath;
     }
+
+    // --- Schéma ---
 
     /**
      * Récupère le schéma complet de la base de données.
@@ -123,6 +160,7 @@ export class Database {
             name,
             path: this.filePath!,
             tables: tableSchemas,
+            driverType: "sqlite",
         };
     }
 
@@ -185,7 +223,6 @@ export class Database {
 
     /**
      * Récupère le SQL de création de chaque table depuis sqlite_master.
-     * @returns Tableau d'objets { name, sql } triés par nom.
      */
     public getTablesSql(): { name: string; sql: string }[] {
         this.ensureOpen();
@@ -197,9 +234,10 @@ export class Database {
         return rows;
     }
 
+    // --- Données ---
+
     /**
      * Récupère les données paginées d'une table, avec tri et filtre optionnels.
-     * @param filterMode - "sqlite" pour un filtre WHERE brut, "fulltext" pour une recherche texte sur toutes les colonnes.
      */
     public getTableData(
         tableName: string,
@@ -222,17 +260,14 @@ export class Database {
             if (filterMode === "sqlite") {
                 try {
                     const clause = this.parseFilter(filter, tableName);
-                    // Vérifier que la requête est syntaxiquement valide avant de l'utiliser
                     this.db!.prepare(`SELECT 1 FROM ${safeTable} WHERE ${clause} LIMIT 1`);
                     whereClause = ` WHERE ${clause}`;
                 }
                 catch {
-                    // Filtre invalide (saisie incomplète) : retourner un résultat vide
                     return { records: [], totalCount: 0, tableSize: 0 };
                 }
             }
             else {
-                // Full-text : chercher dans toutes les colonnes textuelles
                 const columns = this.db!.prepare(`PRAGMA table_info(${safeTable})`).all() as { name: string }[];
                 const conditions = columns.map(c => `CAST(${this.escapeIdentifier(c.name)} AS TEXT) LIKE ?`);
                 whereClause = ` WHERE (${conditions.join(" OR ")})`;
@@ -241,11 +276,9 @@ export class Database {
             }
         }
 
-        // Count total
         const countSql = `SELECT count(*) as cnt FROM ${safeTable}${whereClause}`;
         const countResult = this.db!.prepare(countSql).get(...whereParams) as { cnt: number };
 
-        // Construire le ORDER BY
         let orderClause = "";
         if (orderBy) {
             const safeOrderCol = this.escapeIdentifier(orderBy);
@@ -256,7 +289,6 @@ export class Database {
         const dataSql = `SELECT rowid, * FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
         const records = this.db!.prepare(dataSql).all(...whereParams, limit, offset) as DbRecord[];
 
-        // Taille de la table via dbstat (virtual table SQLite)
         let tableSize = 0;
         try {
             const sizeResult = this.db!.prepare(
@@ -317,7 +349,6 @@ export class Database {
 
     /**
      * Insère une nouvelle ligne dans une table.
-     * @returns Le rowid de la ligne insérée.
      */
     public insertRow(tableName: string, values: Record<string, unknown>): number {
         this.ensureOpen();
@@ -336,17 +367,38 @@ export class Database {
     }
 
     /**
+     * Met à jour le même champ sur plusieurs lignes.
+     */
+    public batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): void {
+        this.ensureOpen();
+
+        if (rowids.length === 0) {
+            return;
+        }
+
+        const safeTable = this.escapeIdentifier(tableName);
+        const safeColumn = this.escapeIdentifier(column);
+        const placeholders = rowids.map(() => "?").join(",");
+
+        this.db!.prepare(
+            `UPDATE ${safeTable} SET ${safeColumn} = ? WHERE rowid IN (${placeholders})`
+        ).run(value, ...rowids);
+    }
+
+    // --- Transactions ---
+
+    /**
      * Démarre une transaction.
      */
     public beginTransaction(): void {
         this.ensureOpen();
 
-        if (this.inTransaction) {
+        if (this._inTransaction) {
             throw new Error("A transaction is already active");
         }
 
         this.db!.prepare("BEGIN TRANSACTION").run();
-        this.inTransaction = true;
+        this._inTransaction = true;
     }
 
     /**
@@ -355,12 +407,12 @@ export class Database {
     public commit(): void {
         this.ensureOpen();
 
-        if (!this.inTransaction) {
+        if (!this._inTransaction) {
             throw new Error("No active transaction");
         }
 
         this.db!.prepare("COMMIT").run();
-        this.inTransaction = false;
+        this._inTransaction = false;
     }
 
     /**
@@ -369,13 +421,15 @@ export class Database {
     public rollback(): void {
         this.ensureOpen();
 
-        if (!this.inTransaction) {
+        if (!this._inTransaction) {
             throw new Error("No active transaction");
         }
 
         this.db!.prepare("ROLLBACK").run();
-        this.inTransaction = false;
+        this._inTransaction = false;
     }
+
+    // --- Export / Import ---
 
     /**
      * Exporte les données d'une table au format JSON, CSV ou XLSX.
@@ -437,15 +491,84 @@ export class Database {
     }
 
     /**
+     * Importe des données dans une table depuis du CSV ou JSON.
+     */
+    public importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): void {
+        this.ensureOpen();
+
+        const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
+
+        if (records.length === 0) {
+            return;
+        }
+
+        const safeTable = this.escapeIdentifier(tableName);
+        const columns = Object.keys(records[0]);
+        const safeColumns = columns.map(c => this.escapeIdentifier(c)).join(", ");
+        const placeholders = columns.map(() => "?").join(", ");
+
+        const orClause = mode === "upsert" ? " OR REPLACE" : "";
+        const sql = `INSERT${orClause} INTO ${safeTable} (${safeColumns}) VALUES (${placeholders})`;
+        const stmt = this.db!.prepare(sql);
+
+        const runAll = this.db!.transaction((rows: Record<string, unknown>[]) => {
+            for (const row of rows) {
+                stmt.run(...columns.map(c => row[c] ?? null));
+            }
+        });
+
+        runAll(records);
+    }
+
+    /**
+     * Parse et retourne un aperçu des données importées sans les insérer.
+     */
+    public previewImport(
+        tableName: string,
+        format: "csv" | "json",
+        data: string,
+    ): { preview: DbRecord[]; totalRows: number; errors: string[] } {
+        this.ensureOpen();
+
+        const errors: string[] = [];
+
+        try {
+            const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
+
+            const schema = this.db!.prepare(`PRAGMA table_info(${this.escapeIdentifier(tableName)})`).all() as { name: string }[];
+            const validColumns = new Set(schema.map(c => c.name));
+
+            for (const col of records.length > 0 ? Object.keys(records[0]) : []) {
+                if (!validColumns.has(col)) {
+                    errors.push(`Column "${col}" does not exist in table "${tableName}"`);
+                }
+            }
+
+            return {
+                preview: records.slice(0, 20),
+                totalRows: records.length,
+                errors,
+            };
+        }
+        catch (err) {
+            return {
+                preview: [],
+                totalRows: 0,
+                errors: [`Parse error: ${err instanceof Error ? err.message : String(err)}`],
+            };
+        }
+    }
+
+    // --- SQL ---
+
+    /**
      * Exécute une requête SQL arbitraire et retourne les résultats.
-     * Pour SELECT : retourne les colonnes + lignes.
-     * Pour les autres : retourne le nombre de lignes affectées.
      */
     public execSql(sql: string): R_SqlExecResponse {
         this.ensureOpen();
 
         let trimmed = sql.trim();
-        trimmed = trimmed.endsWith(';') ? trimmed : trimmed + ';';
+        trimmed = trimmed.endsWith(";") ? trimmed : `${trimmed};`;
         const isSelect = /^SELECT\b/i.test(trimmed);
 
         const t0 = performance.now();
@@ -483,71 +606,7 @@ export class Database {
         }
     }
 
-    /**
-     * Importe des données dans une table depuis du CSV ou JSON.
-     */
-    public importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): void {
-        this.ensureOpen();
-
-        const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
-
-        if (records.length === 0) {
-            return;
-        }
-
-        const safeTable = this.escapeIdentifier(tableName);
-        const columns = Object.keys(records[0]);
-        const safeColumns = columns.map(c => this.escapeIdentifier(c)).join(", ");
-        const placeholders = columns.map(() => "?").join(", ");
-
-        const orClause = mode === "upsert" ? " OR REPLACE" : "";
-        const sql = `INSERT${orClause} INTO ${safeTable} (${safeColumns}) VALUES (${placeholders})`;
-        const stmt = this.db!.prepare(sql);
-
-        const runAll = this.db!.transaction((rows: Record<string, unknown>[]) => {
-            for (const row of rows) {
-                stmt.run(...columns.map(c => row[c] ?? null));
-            }
-        });
-
-        runAll(records);
-    }
-
-    /**
-     * Parse et retourne un aperçu des données importées sans les insérer.
-     */
-    public previewImport(tableName: string, format: "csv" | "json", data: string): { preview: DbRecord[]; totalRows: number; errors: string[] } {
-        this.ensureOpen();
-
-        const errors: string[] = [];
-
-        try {
-            const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
-
-            // Valider les colonnes contre le schéma
-            const schema = this.db!.prepare(`PRAGMA table_info(${this.escapeIdentifier(tableName)})`).all() as { name: string }[];
-            const validColumns = new Set(schema.map(c => c.name));
-
-            for (const col of records.length > 0 ? Object.keys(records[0]) : []) {
-                if (!validColumns.has(col)) {
-                    errors.push(`Column "${col}" does not exist in table "${tableName}"`);
-                }
-            }
-
-            return {
-                preview: records.slice(0, 20),
-                totalRows: records.length,
-                errors,
-            };
-        }
-        catch (err) {
-            return {
-                preview: [],
-                totalRows: 0,
-                errors: [`Parse error: ${err instanceof Error ? err.message : String(err)}`],
-            };
-        }
-    }
+    // --- Index ---
 
     /**
      * Récupère les index d'une table.
@@ -600,6 +659,8 @@ export class Database {
         this.db!.prepare(`DROP INDEX IF EXISTS ${safeIndex}`).run();
     }
 
+    // --- Schéma ---
+
     /**
      * Crée une nouvelle table.
      */
@@ -641,7 +702,7 @@ export class Database {
     }
 
     /**
-     * Modifie le schéma d'une table (rename table, add/rename/drop column).
+     * Modifie le schéma d'une table.
      */
     public alterTable(action: R_AlterTableAction): void {
         this.ensureOpen();
@@ -684,16 +745,24 @@ export class Database {
     }
 
     /**
+     * Supprime une table.
+     */
+    public dropTable(tableName: string): void {
+        this.ensureOpen();
+
+        const safeTable = this.escapeIdentifier(tableName);
+        this.db!.prepare(`DROP TABLE IF EXISTS ${safeTable}`).run();
+    }
+
+    // --- Chiffrement ---
+
+    /**
      * Change ou supprime le mot de passe de la base SQLCipher.
-     * - Pour chiffrer une base non chiffrée : newPassword = 'nouveau mot de passe'
-     * - Pour déchiffrer (supprimer le chiffrement) : newPassword = null
-     * - Pour changer le mot de passe : newPassword = 'nouveau mot de passe'
      */
     public changePassword(newPassword: string | null): void {
         this.ensureOpen();
 
         if (newPassword === null) {
-            // Supprimer le chiffrement (rekey avec chaîne vide)
             this.db!.pragma("rekey=''");
         }
         else {
@@ -704,40 +773,8 @@ export class Database {
         Logger.info("Database password changed");
     }
 
-    /**
-     * Supprime une table de la base de données.
-     */
-    public dropTable(tableName: string): void {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(tableName);
-        this.db!.prepare(`DROP TABLE IF EXISTS ${safeTable}`).run();
-    }
-
-    /**
-     * Met à jour le même champ sur plusieurs lignes.
-     */
-    public batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): void {
-        this.ensureOpen();
-
-        if (rowids.length === 0) {
-            return;
-        }
-
-        const safeTable = this.escapeIdentifier(tableName);
-        const safeColumn = this.escapeIdentifier(column);
-        const placeholders = rowids.map(() => "?").join(",");
-
-        this.db!.prepare(
-            `UPDATE ${safeTable} SET ${safeColumn} = ? WHERE rowid IN (${placeholders})`
-        ).run(value, ...rowids);
-    }
-
     // --- Helpers d'import ---
 
-    /**
-     * Parse un JSON pour l'import (tableau d'objets).
-     */
     private parseJsonImport(data: string): Record<string, unknown>[] {
         const parsed = JSON.parse(data);
         if (!Array.isArray(parsed)) {
@@ -746,9 +783,6 @@ export class Database {
         return parsed as Record<string, unknown>[];
     }
 
-    /**
-     * Parse un CSV simple pour l'import.
-     */
     private parseCsvImport(data: string): Record<string, unknown>[] {
         const lines = data.split(/\r?\n/).filter(l => l.trim().length > 0);
         if (lines.length < 2) {
@@ -773,9 +807,6 @@ export class Database {
         return records;
     }
 
-    /**
-     * Parse une ligne CSV en tenant compte des guillemets.
-     */
     private parseCsvLine(line: string): string[] {
         const fields: string[] = [];
         let current = "";
@@ -805,9 +836,6 @@ export class Database {
         return fields;
     }
 
-    /**
-     * Convertit une valeur CSV brute en type JS approprié.
-     */
     private parseCsvValue(value: string): unknown {
         if (value === "" || value.toLowerCase() === "null") {
             return null;
@@ -827,29 +855,19 @@ export class Database {
 
     // --- Helpers privés ---
 
-    /**
-     * Vérifie que la base est ouverte.
-     */
     private ensureOpen(): void {
         if (!this.db) {
             throw new Error("Database is not open");
         }
     }
 
-    /**
-     * Échappe un identifiant SQL pour éviter les injections.
-     */
     private escapeIdentifier(name: string): string {
-        // Retire tout caractère non alphanumérique/underscore pour la sécurité
         if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
             return `"${name.replace(/"/g, '""')}"`;
         }
         return `"${name}"`;
     }
 
-    /**
-     * Échappe un champ CSV.
-     */
     private escapeCsvField(field: string): string {
         if (field.includes(",") || field.includes('"') || field.includes("\n")) {
             return `"${field.replace(/"/g, '""')}"`;
@@ -859,26 +877,13 @@ export class Database {
 
     /**
      * Parse le filtre personnalisé en SQL WHERE sécurisé.
-     * Syntaxe supportée :
-     * - Comparaisons : =, !=, <>, <, >, <=, >=
-     * - LIKE/NOT LIKE avec wildcards %
-     * - IN (...) avec listes de valeurs
-     * - NOT IN (...)
-     * - IS NULL / IS NOT NULL
-     * - BETWEEN x AND y
-     * - Opérateurs logiques : AND, OR, NOT
-     * - Parenthèses de groupement
-     * - Fonctions d'agrégat : COUNT, SUM, AVG, MIN, MAX
-     * - GLOB, REGEXP (si extension chargée)
      */
     private parseFilter(filter: string, tableName: string): string {
-        // Récupérer les colonnes valides de cette table
         const validColumns = new Set(
             (this.db!.prepare(`PRAGMA table_info("${tableName.replace(/"/g, '""')}")`).all() as { name: string }[])
                 .map(c => c.name.toLowerCase())
         );
 
-        // Mots-clés et fonctions autorisés
         const allowedKeywords = new Set([
             "and", "or", "not", "like", "in", "is", "null",
             "between", "glob", "escape", "exists",
@@ -895,53 +900,44 @@ export class Database {
             "hex", "quote", "zeroblob",
         ]);
 
-        // Tokeniser le filtre
         const tokens = this.tokenize(filter);
 
-        // Valider et reconstruire le SQL sécurisé
         const safeParts: string[] = [];
 
         for (let i = 0; i < tokens.length; i++) {
             const token = tokens[i];
             const lower = token.toLowerCase();
 
-            // Opérateurs
             if (["=", "!=", "<>", "<", ">", "<=", ">=", "(", ")", ",", "+", "-", "*", "/", "%"].includes(token)) {
                 safeParts.push(token);
                 continue;
             }
 
-            // Mots-clés SQL autorisés
             if (allowedKeywords.has(lower)) {
                 safeParts.push(token.toUpperCase());
                 continue;
             }
 
-            // Fonctions autorisées
             if (allowedFunctions.has(lower) && i + 1 < tokens.length && tokens[i + 1] === "(") {
                 safeParts.push(lower.toUpperCase());
                 continue;
             }
 
-            // Littéraux string (entre quotes simples)
             if (/^'.*'$/.test(token)) {
                 safeParts.push(token);
                 continue;
             }
 
-            // Littéraux numériques
             if (/^-?\d+(\.\d+)?$/.test(token)) {
                 safeParts.push(token);
                 continue;
             }
 
-            // Noms de colonne
             if (validColumns.has(lower)) {
                 safeParts.push(this.escapeIdentifier(token));
                 continue;
             }
 
-            // Identifiant entre guillemets doubles
             if (/^".*"$/.test(token)) {
                 const unquoted = token.slice(1, -1).replace(/""/g, '"');
                 if (validColumns.has(unquoted.toLowerCase())) {
@@ -969,19 +965,17 @@ export class Database {
         let i = 0;
 
         while (i < input.length) {
-            // Espaces
             if (/\s/.test(input[i])) {
                 i++;
                 continue;
             }
 
-            // String littérale entre quotes simples
             if (input[i] === "'") {
                 let j = i + 1;
                 while (j < input.length) {
                     if (input[j] === "'") {
                         if (j + 1 < input.length && input[j + 1] === "'") {
-                            j += 2; // quote échappée
+                            j += 2;
                         }
                         else {
                             break;
@@ -996,7 +990,6 @@ export class Database {
                 continue;
             }
 
-            // Identifiant entre guillemets doubles
             if (input[i] === '"') {
                 let j = i + 1;
                 while (j < input.length) {
@@ -1017,7 +1010,6 @@ export class Database {
                 continue;
             }
 
-            // Opérateurs multi-caractères
             if (i + 1 < input.length) {
                 const twoChar = input.slice(i, i + 2);
                 if (["!=", "<>", "<=", ">="].includes(twoChar)) {
@@ -1027,14 +1019,12 @@ export class Database {
                 }
             }
 
-            // Opérateurs simples et ponctuation
             if ("=<>(),+-*/%".includes(input[i])) {
                 tokens.push(input[i]);
                 i++;
                 continue;
             }
 
-            // Nombre
             if (/\d/.test(input[i]) || (input[i] === "-" && i + 1 < input.length && /\d/.test(input[i + 1]))) {
                 let j = i;
                 if (input[j] === "-") {
@@ -1048,7 +1038,6 @@ export class Database {
                 continue;
             }
 
-            // Mot (identifiant ou mot-clé)
             if (/[a-zA-Z_]/.test(input[i])) {
                 let j = i;
                 while (j < input.length && /[a-zA-Z0-9_]/.test(input[j])) {

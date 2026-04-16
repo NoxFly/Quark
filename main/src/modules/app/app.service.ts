@@ -17,6 +17,8 @@ export class AppService {
                 connected: false,
                 database: null,
                 filePath: null,
+                driverType: null,
+                driverInfo: null,
             };
         }
 
@@ -26,6 +28,8 @@ export class AppService {
             connected: isOpen,
             database: isOpen ? window.getDatabaseSchema() : null,
             filePath: window.database.path,
+            driverType: window.database.driverType,
+            driverInfo: window.database.info,
         };
     }
 }

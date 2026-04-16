@@ -73,31 +73,43 @@ export class SidebarComponent {
      * Ouvre le menu contextuel pour une table.
      */
     protected onTableContextMenu(event: MouseEvent, tableName: string): void {
-        this.contextMenu().open(event, [
-            {
+        const capabilities = this.state.capabilities();
+        const items: { label: string; icon?: string; action: () => void; separator?: boolean; danger?: boolean }[] = [];
+
+        if (!capabilities || capabilities.schemaEditing) {
+            items.push({
                 label: this.i18n.t("sidebar.table.schemaEditor"),
                 icon: "\uE70F",
                 action: () => {
                     this.dbService.selectTable(tableName);
                     document.dispatchEvent(new CustomEvent("open-schema-editor"));
                 },
-            },
-            {
+            });
+        }
+
+        if (!capabilities || capabilities.indexes) {
+            items.push({
                 label: this.i18n.t("sidebar.table.indexViewer"),
                 icon: "\uE773",
                 action: () => {
                     this.dbService.selectTable(tableName);
                     document.dispatchEvent(new CustomEvent("open-index-viewer"));
                 },
-            },
-            { label: "", action: () => {}, separator: true },
-            {
-                label: this.i18n.t("sidebar.table.deleteTable"),
-                icon: "\uE74D",
-                danger: true,
-                action: () => void this.dbService.deleteTable(tableName),
-            },
-        ]);
+            });
+        }
+
+        if (items.length > 0) {
+            items.push({ label: "", action: () => {}, separator: true });
+        }
+
+        items.push({
+            label: this.i18n.t("sidebar.table.deleteTable"),
+            icon: "\uE74D",
+            danger: true,
+            action: () => void this.dbService.deleteTable(tableName),
+        });
+
+        this.contextMenu().open(event, items);
     }
 
     /**

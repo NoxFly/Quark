@@ -6,6 +6,7 @@ import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
 import { ThemeService } from "src/app/core/services/theme.service";
+import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
 import { SidebarComponent } from "./core/components/sidebar/sidebar.component";
 import { StatusbarComponent } from "./core/components/statusbar/statusbar.component";
 import { TabsBarComponent } from "./core/components/tabs-bar/tabs-bar.component";
@@ -78,6 +79,7 @@ export class AppComponent {
     private readonly themeService = inject(ThemeService);
     private readonly alertCtrl = inject(AlertController);
     private readonly modalCtrl = inject(ModalController);
+    private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly destroyRef = inject(DestroyRef);
 
     /**
@@ -161,6 +163,9 @@ export class AppComponent {
 
         this.isReady.set(true);
 
+        // Précharger Monaco Editor en arrière-plan pour un affichage instantané
+        this.monacoPreload.preload();
+
         if (this.pendingNavigationRequest) {
             this.router.navigateByUrl(this.pendingNavigationRequest);
             this.pendingNavigationRequest = null;
@@ -169,6 +174,8 @@ export class AppComponent {
             this.state.connected.set(true);
             this.state.database.set(appState.database);
             this.state.filePath.set(appState.filePath);
+            this.state.driverType.set(appState.driverType);
+            this.state.driverInfo.set(appState.driverInfo);
             this.state.title.set(appState.database.name);
             this.state.fileName.set(appState.database.name);
             this.router.navigate(["/dashboard/no-table"]);
@@ -305,7 +312,8 @@ export class AppComponent {
         // Ctrl+Shift+Q : ouvrir l'éditeur SQL
         if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "Q") {
             event.preventDefault();
-            if (this.state.connected()) {
+            const capabilities = this.state.capabilities();
+            if (this.state.connected() && (!capabilities || capabilities.sqlQueries)) {
                 this.tabsService.openTab(SQL_EDITOR_TAB_ID);
                 this.dbService.selectedTable.set(null);
                 this.router.navigate(["/dashboard/sql-editor"]);
