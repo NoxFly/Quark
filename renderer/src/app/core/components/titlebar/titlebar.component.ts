@@ -61,6 +61,7 @@ export class TitlebarComponent {
         const connected = this.state.connected();
         const hasSelection = this.dbService.selectedCount() > 0;
         const capabilities = this.state.capabilities();
+        const isReadOnly = this.dbService.readOnly();
         // Track locale changes to re-compute menu labels
         const t = (key: string): string => this.i18n.t(key);
 
@@ -70,8 +71,8 @@ export class TitlebarComponent {
 
         // --- Edit menu items ---
         const editItems: MenuItem[] = [
-            { label: t("menu.undo"), shortcut: "Ctrl+Z", action: () => this.dbService.undoLastMutation(), disabled: !this.dbService.mutationHistory.canUndo() },
-            { label: t("menu.redo"), shortcut: "Ctrl+Y", action: () => this.dbService.redoLastMutation(), disabled: !this.dbService.mutationHistory.canRedo() },
+            { label: t("menu.undo"), shortcut: "Ctrl+Z", action: () => this.dbService.undoLastMutation(), disabled: isReadOnly || !this.dbService.mutationHistory.canUndo() },
+            { label: t("menu.redo"), shortcut: "Ctrl+Y", action: () => this.dbService.redoLastMutation(), disabled: isReadOnly || !this.dbService.mutationHistory.canRedo() },
             { label: "", separator: true },
             { label: t("menu.toggleEditMode"), shortcut: "Ctrl+E", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
         ];
@@ -79,21 +80,21 @@ export class TitlebarComponent {
         if (!capabilities || capabilities.transactions) {
             editItems.push(
                 { label: "", separator: true },
-                { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: !connected || this.dbService.inTransaction() },
-                { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: !this.dbService.inTransaction() },
-                { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: !this.dbService.inTransaction() },
+                { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: isReadOnly || !connected || this.dbService.inTransaction() },
+                { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: isReadOnly || !this.dbService.inTransaction() },
+                { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: isReadOnly || !this.dbService.inTransaction() },
                 { label: t("menu.transactionDiff"), action: () => this.openTransactionDiff(), disabled: !this.dbService.inTransaction() },
             );
         }
 
         editItems.push(
             { label: "", separator: true },
-            { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: !hasSelection },
+            { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: isReadOnly || !hasSelection },
         );
 
         if (!capabilities || capabilities.importExport) {
             editItems.push(
-                { label: t("menu.importData"), action: () => this.openImportData(), disabled: !connected || !hasTable },
+                { label: t("menu.importData"), action: () => this.openImportData(), disabled: isReadOnly || !connected || !hasTable },
                 { label: "", separator: true },
                 {
                     label: t("menu.export"),
@@ -146,8 +147,8 @@ export class TitlebarComponent {
 
         if (!capabilities || capabilities.schemaEditing) {
             databaseItems.push(
-                { label: t("menu.schemaEditor"), action: () => this.openSchemaEditor(fields), disabled: !connected || !hasTable },
-                { label: t("menu.createTable"), action: () => this.openCreateTable(), disabled: !connected },
+                { label: t("menu.schemaEditor"), action: () => this.openSchemaEditor(fields), disabled: isReadOnly || !connected || !hasTable },
+                { label: t("menu.createTable"), action: () => this.openCreateTable(), disabled: isReadOnly || !connected },
             );
         }
 

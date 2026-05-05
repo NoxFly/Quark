@@ -300,10 +300,13 @@ export class SqliteDriver implements DatabaseDriver {
         }
         else if (filterMode === "sql") {
             // En mode SQL, trier par rowid par défaut pour une pagination stable
-            orderClause = ` ORDER BY rowid ASC`;
+            orderClause = ` ORDER BY _rowid_ ASC`;
         }
 
-        const dataSql = `SELECT rowid, * FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
+        // '_rowid_ AS rowid' force SQLite à créer une nouvelle colonne nommée 'rowid',
+        // distincte de toute colonne user (y compris INTEGER PRIMARY KEY qui aliase le rowid).
+        // Avec 'SELECT *, rowid', SQLite déduplique 'rowid' si 'id' est INTEGER PRIMARY KEY.
+        const dataSql = `SELECT *, _rowid_ AS rowid FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
         const records = this.db!.prepare(dataSql).all(...whereParams, limit, offset) as DbRecord[];
 
         let tableSize = 0;
@@ -333,7 +336,7 @@ export class SqliteDriver implements DatabaseDriver {
         const safeTable = this.escapeIdentifier(tableName);
         const safeColumn = this.escapeIdentifier(column);
 
-        this.db!.prepare(`UPDATE ${safeTable} SET ${safeColumn} = ? WHERE rowid = ?`).run(value, rowid);
+        this.db!.prepare(`UPDATE ${safeTable} SET ${safeColumn} = ? WHERE _rowid_ = ?`).run(value, rowid);
     }
 
     /**
@@ -349,7 +352,7 @@ export class SqliteDriver implements DatabaseDriver {
         const safeTable = this.escapeIdentifier(tableName);
         const placeholders = rowids.map(() => "?").join(",");
 
-        this.db!.prepare(`DELETE FROM ${safeTable} WHERE rowid IN (${placeholders})`).run(...rowids);
+        this.db!.prepare(`DELETE FROM ${safeTable} WHERE _rowid_ IN (${placeholders})`).run(...rowids);
     }
 
     /**
@@ -359,7 +362,8 @@ export class SqliteDriver implements DatabaseDriver {
         this.ensureOpen();
 
         const safeTable = this.escapeIdentifier(tableName);
-        const row = this.db!.prepare(`SELECT rowid, * FROM ${safeTable} WHERE rowid = ?`).get(rowid) as DbRecord | undefined;
+        // Idem : _rowid_ AS rowid pour garantir la clé 'rowid' même sur INTEGER PRIMARY KEY
+        const row = this.db!.prepare(`SELECT *, _rowid_ AS rowid FROM ${safeTable} WHERE _rowid_ = ?`).get(rowid) as DbRecord | undefined;
 
         return row ?? null;
     }
@@ -398,7 +402,7 @@ export class SqliteDriver implements DatabaseDriver {
         const placeholders = rowids.map(() => "?").join(",");
 
         this.db!.prepare(
-            `UPDATE ${safeTable} SET ${safeColumn} = ? WHERE rowid IN (${placeholders})`
+            `UPDATE ${safeTable} SET ${safeColumn} = ? WHERE _rowid_ IN (${placeholders})`
         ).run(value, ...rowids);
     }
 
@@ -464,7 +468,7 @@ export class SqliteDriver implements DatabaseDriver {
 
         if (rowids && rowids.length > 0) {
             const placeholders = rowids.map(() => "?").join(",");
-            sql = `SELECT * FROM ${safeTable} WHERE rowid IN (${placeholders})`;
+            sql = `SELECT * FROM ${safeTable} WHERE _rowid_ IN (${placeholders})`;
         }
         else if (filter && filter.trim().length > 0) {
             const whereClause = this.parseFilter(filter, tableName);

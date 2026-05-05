@@ -168,6 +168,7 @@ export const en: Record<string, string> = {
     "sqlEditor.rowsAffected": "{count} rows affected",
     "sqlEditor.lastInsertId": "Last insert ID: {id}",
     "sqlEditor.emptyHint": "Execute a query to see results",
+    "sqlEditor.readonlyMutation": "Mutation queries are not allowed in read-only mode. Switch to edit mode (Ctrl+E) to execute this query.",
     "sqlEditor.history": "history",
 
     // --- ER Diagram ---

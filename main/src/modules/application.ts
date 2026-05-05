@@ -533,6 +533,7 @@ export class Application implements IApp {
                 port: body.port,
                 username: body.username,
                 database: body.database,
+                hasEmptyPassword: body.password.length === 0,
             });
 
             return { connected: true };

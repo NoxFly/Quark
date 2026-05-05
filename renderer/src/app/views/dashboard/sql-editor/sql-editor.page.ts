@@ -95,10 +95,17 @@ export class SqlEditorPage {
 
     /**
      * Exécute la requête SQL courante.
+     * En mode readonly, seules les requêtes SELECT sont autorisées.
      */
     protected async execute(): Promise<void> {
         const sql = this.getSql();
         if (!sql) {
+            return;
+        }
+
+        // Bloquer les requêtes de mutation en mode readonly
+        if (this.dbService.readOnly() && this.isMutationQuery(sql)) {
+            this.errorMessage.set(this.i18n.t("sqlEditor.readonlyMutation"));
             return;
         }
 
@@ -174,6 +181,15 @@ export class SqlEditorPage {
             return [sql, ...filtered].slice(0, 20);
         });
         this.historyIndex = -1;
+    }
+
+    /**
+     * Détecte si une requête SQL est une mutation (INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE).
+     * Ignore les commentaires et les espaces en début de requête.
+     */
+    private isMutationQuery(sql: string): boolean {
+        const stripped = sql.replace(/^(\s*--[^\n]*\n|\s*\/\*[\s\S]*?\*\/\s*)*/g, "").trim();
+        return /^(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|REPLACE|MERGE)\b/i.test(stripped);
     }
 
     /**

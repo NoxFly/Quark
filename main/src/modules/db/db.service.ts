@@ -80,6 +80,7 @@ export class DbService {
             body.orderBy,
             body.orderDir,
             body.filter,
+            body.filterMode,
         );
     }
 

@@ -291,7 +291,12 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
             }
         }
 
-        const dataSql = `SELECT * FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
+        const pkColumn = await this.getPrimaryKeyColumn(tableName).catch(() => null);
+        const selectClause = pkColumn
+            ? `${this.escapeIdentifier(pkColumn)} AS rowid, *`
+            : "*";
+
+        const dataSql = `SELECT ${selectClause} FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
         const dataResult = await this.query(dataSql, [...whereParams, limit, offset]);
 
         return {
@@ -324,7 +329,8 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
         this.ensureOpen();
         const safeTable = this.escapeIdentifier(tableName);
         const pkColumn = await this.getPrimaryKeyColumn(tableName);
-        const result = await this.query(`SELECT * FROM ${safeTable} WHERE ${this.escapeIdentifier(pkColumn)} = ?`, [rowid]);
+        const safePk = this.escapeIdentifier(pkColumn);
+        const result = await this.query(`SELECT ${safePk} AS rowid, * FROM ${safeTable} WHERE ${safePk} = ?`, [rowid]);
         return (result.rows[0] as DbRecord) ?? null;
     }
 

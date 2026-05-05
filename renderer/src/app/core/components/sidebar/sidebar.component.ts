@@ -75,9 +75,10 @@ export class SidebarComponent {
      */
     protected onTableContextMenu(event: MouseEvent, tableName: string): void {
         const capabilities = this.state.capabilities();
+        const isReadOnly = this.dbService.readOnly();
         const items: { label: string; icon?: string; action: () => void; separator?: boolean; danger?: boolean }[] = [];
 
-        if (!capabilities || capabilities.schemaEditing) {
+        if (!isReadOnly && (!capabilities || capabilities.schemaEditing)) {
             items.push({
                 label: this.i18n.t("sidebar.table.schemaEditor"),
                 icon: "\uE70F",
@@ -99,16 +100,18 @@ export class SidebarComponent {
             });
         }
 
-        if (items.length > 0) {
-            items.push({ label: "", action: () => {}, separator: true });
-        }
+        if (!isReadOnly) {
+            if (items.length > 0) {
+                items.push({ label: "", action: () => {}, separator: true });
+            }
 
-        items.push({
-            label: this.i18n.t(this.isNoSql() ? "sidebar.table.deleteTable.nosql" : "sidebar.table.deleteTable"),
-            icon: "\uE74D",
-            danger: true,
-            action: () => void this.dbService.deleteTable(tableName),
-        });
+            items.push({
+                label: this.i18n.t(this.isNoSql() ? "sidebar.table.deleteTable.nosql" : "sidebar.table.deleteTable"),
+                icon: "\uE74D",
+                danger: true,
+                action: () => void this.dbService.deleteTable(tableName),
+            });
+        }
 
         this.contextMenu().open(event, items);
     }

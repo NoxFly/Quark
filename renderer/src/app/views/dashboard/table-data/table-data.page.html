@@ -35,9 +35,11 @@
             </button>
         }
     </div>
-    <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [tooltip]="i18n.t(isNoSql() ? 'table.newRecord.nosql' : 'table.newRecord')">
-        <span class="btn-icon">{{ i18n.t("short.new") }}</span>
-    </ui-button>
+    @if (!dbService.readOnly()) {
+        <ui-button class="btn-new-entry" icon="e710" (click)="openRecordEditor('create')" [tooltip]="i18n.t(isNoSql() ? 'table.newRecord.nosql' : 'table.newRecord')">
+            <span class="btn-icon">{{ i18n.t("short.new") }}</span>
+        </ui-button>
+    }
 </div>
 
 <!-- Table -->
@@ -87,7 +89,7 @@
             </tr>
         </thead>
         <tbody>
-            @for (record of records(); track record["rowid"]) {
+            @for (record of records(); track trackRecord($index, record)) {
                 <tr
                     [class.selected]="isRowSelected($any(record['rowid']))"
                     [class.cursor]="isCursorRow($any(record['rowid']))"

@@ -142,7 +142,7 @@ export class Window {
         }
 
         const dbPath = this.database.path;
-        const title = dbPath ? basename(dbPath) : "SQLite Editor";
+        const title = dbPath ? basename(dbPath) : "";
         this.win.setTitle(title);
         this.win.webContents.send("title-changed", title);
     }

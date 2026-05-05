@@ -169,6 +169,7 @@ export const fr: Record<string, string> = {
     "sqlEditor.rowsAffected": "{count} ligne(s) affectée(s)",
     "sqlEditor.lastInsertId": "Dernier ID inséré : {id}",
     "sqlEditor.emptyHint": "Exécutez une requête pour voir les résultats",
+    "sqlEditor.readonlyMutation": "Les requêtes de mutation ne sont pas autorisées en mode lecture seule. Passez en mode édition (Ctrl+E) pour exécuter cette requête.",
     "sqlEditor.history": "Historique",
     "sqlEditor.truncated": "(affichage des {shown} premiers)",
 

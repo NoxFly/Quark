@@ -660,6 +660,10 @@ export class MongodbDriver implements DatabaseDriver {
         for (const [key, value] of Object.entries(doc)) {
             record[key] = value instanceof ObjectId ? value.toString() : value;
         }
+        // Mapper _id comme rowid pour le renderer (tracking Angular + sélection)
+        if (record["_id"] !== undefined) {
+            record["rowid"] = record["_id"];
+        }
         return record;
     }
 

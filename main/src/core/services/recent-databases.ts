@@ -81,14 +81,16 @@ export class RecentDatabases {
         port: number;
         username: string;
         database: string;
+        hasEmptyPassword?: boolean;
     }): void {
+        const requiresPassword = !params.hasEmptyPassword;
         this.upsert({
             connectionType: "network",
             driverType: params.driverType,
             displayName: params.database,
             displaySubtitle: `${params.username}@${params.host}:${params.port}`,
             lastOpened: Date.now(),
-            requiresPassword: true,
+            requiresPassword,
             host: params.host,
             port: params.port,
             username: params.username,

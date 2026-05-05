@@ -73,6 +73,18 @@ export class TableDataPage {
 
     protected readonly records = computed(() => this.dbService.tableData());
     protected readonly totalCount = computed(() => this.dbService.totalCount());
+
+    /**
+     * Fonction de tracking pour le @for des lignes.
+     * Utilise le rowid si disponible et non-vide, sinon l'index comme fallback.
+     * Evite les doublons de clé Angular (NG0955) quand le rowid n'est pas défini.
+     */
+    protected trackRecord(index: number, record: DbRecord): unknown {
+        const rowid = record["rowid"];
+        const track = (rowid !== undefined && rowid !== null && rowid !== "") ? rowid : index;
+        return track;
+    }
+
     protected readonly selectedRowIds = computed(() => this.dbService.selectedRowIds());
     protected readonly loading = computed(() => this.dbService.loading());
     protected readonly orderBy = computed(() => this.dbService.orderBy());
@@ -272,7 +284,9 @@ export class TableDataPage {
     }
 
     protected startEdit(rowid: number, column: string, currentValue: unknown): void {
+        console.log(rowid, column, currentValue);
         const current = this.editingCell();
+        console.log(current);
         if (current && current.rowid === rowid && current.column === column) {
             return;
         }
@@ -471,37 +485,69 @@ export class TableDataPage {
         const rowid = record["rowid"] as number;
         const selCount = this.dbService.selectedCount();
         const hasMultipleSelection = selCount > 1 || this.allRowsSelected();
+        const isReadOnly = this.dbService.readOnly();
 
-        const items: ContextMenuItem[] = [
-            {
-                label: this.i18n.t(this.isNoSql() ? "contextMenu.edit.nosql" : "contextMenu.edit"),
-                icon: "\uE70F",
-                action: () => this.openRecordEditor("edit", record),
-            },
-            {
-                label: this.i18n.t(this.isNoSql() ? "contextMenu.duplicate.nosql" : "contextMenu.duplicate"),
-                icon: "\uE8C8",
-                action: () => this.openRecordEditor("duplicate", record),
-            },
-            {
-                label: this.i18n.t(this.isNoSql() ? "contextMenu.new.nosql" : "contextMenu.new"),
-                icon: "\uE710",
-                action: () => this.openRecordEditor("create"),
-            },
-        ];
+        const items: ContextMenuItem[] = [];
 
-        if (hasMultipleSelection) {
+        if (!isReadOnly) {
+            items.push(
+                {
+                    label: this.i18n.t(this.isNoSql() ? "contextMenu.edit.nosql" : "contextMenu.edit"),
+                    icon: "\uE70F",
+                    action: () => this.openRecordEditor("edit", record),
+                },
+                {
+                    label: this.i18n.t(this.isNoSql() ? "contextMenu.duplicate.nosql" : "contextMenu.duplicate"),
+                    icon: "\uE8C8",
+                    action: () => this.openRecordEditor("duplicate", record),
+                },
+                {
+                    label: this.i18n.t(this.isNoSql() ? "contextMenu.new.nosql" : "contextMenu.new"),
+                    icon: "\uE710",
+                    action: () => this.openRecordEditor("create"),
+                },
+            );
+
+            if (hasMultipleSelection) {
+                items.push({
+                    label: "",
+                    icon: "",
+                    action: () => {},
+                    separator: true,
+                });
+                items.push({
+                    label: this.i18n.t("contextMenu.batchEdit"),
+                    icon: "\uE70F",
+                    action: () => this.openBatchEdit(),
+                });
+            }
+        }
+
+        if (items.length > 0) {
             items.push({
                 label: "",
                 icon: "",
                 action: () => {},
                 separator: true,
             });
-            items.push({
-                label: this.i18n.t("contextMenu.batchEdit"),
-                icon: "\uE70F",
-                action: () => this.openBatchEdit(),
-            });
+        }
+
+        items.push(
+            {
+                label: this.i18n.t("contextMenu.copyJson"),
+                icon: "\uE8C8",
+                action: () => this.copySelectionAsJson(record),
+            },
+        );
+
+        if (!isReadOnly) {
+            items.push(
+                {
+                    label: this.i18n.t("contextMenu.importData"),
+                    icon: "\uE8E5",
+                    action: () => this.openImportData(),
+                },
+            );
         }
 
         items.push(
@@ -511,49 +557,46 @@ export class TableDataPage {
                 action: () => {},
                 separator: true,
             },
-            {
-                label: this.i18n.t("contextMenu.copyJson"),
-                icon: "\uE8C8",
-                action: () => this.copySelectionAsJson(record),
-            },
-            {
-                label: this.i18n.t("contextMenu.importData"),
-                icon: "\uE8E5",
-                action: () => this.openImportData(),
-            },
-            {
-                label: "",
-                icon: "",
-                action: () => {},
-                separator: true,
-            },
-            {
-                label: this.i18n.t("contextMenu.schemaEditor"),
-                icon: "\uE70F",
-                action: () => this.openSchemaEditor(),
-            },
+        );
+
+        if (!isReadOnly) {
+            items.push(
+                {
+                    label: this.i18n.t("contextMenu.schemaEditor"),
+                    icon: "\uE70F",
+                    action: () => this.openSchemaEditor(),
+                },
+            );
+        }
+
+        items.push(
             {
                 label: this.i18n.t("contextMenu.indexViewer"),
                 icon: "\uE721",
                 action: () => this.openIndexViewer(),
             },
-            {
-                label: "",
-                icon: "",
-                action: () => {},
-                separator: true,
-            },
-            {
-                label: hasMultipleSelection
-                    ? this.i18n.t("contextMenu.deleteSelection")
-                    : this.i18n.t(this.isNoSql() ? "contextMenu.delete.nosql" : "contextMenu.delete"),
-                icon: "\uE74D",
-                action: () => hasMultipleSelection
-                    ? this.dbService.deleteSelectedRows()
-                    : this.dbService.deleteRow(rowid),
-                danger: true,
-            },
         );
+
+        if (!isReadOnly) {
+            items.push(
+                {
+                    label: "",
+                    icon: "",
+                    action: () => {},
+                    separator: true,
+                },
+                {
+                    label: hasMultipleSelection
+                        ? this.i18n.t("contextMenu.deleteSelection")
+                        : this.i18n.t(this.isNoSql() ? "contextMenu.delete.nosql" : "contextMenu.delete"),
+                    icon: "\uE74D",
+                    action: () => hasMultipleSelection
+                        ? this.dbService.deleteSelectedRows()
+                        : this.dbService.deleteRow(rowid),
+                    danger: true,
+                },
+            );
+        }
 
         this.contextMenu()?.open(event, items);
     }

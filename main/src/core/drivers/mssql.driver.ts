@@ -147,7 +147,7 @@ export class MssqlDriver extends NetworkSqlDriver {
     /**
      * Override pour convertir les ? en @p0, @p1, ... (paramètres nommés MSSQL).
      */
-    private extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
+    private override extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
         const trimmed = filter.trim();
 
         // Vérifier si le filtre commence par ORDER BY
@@ -254,8 +254,13 @@ export class MssqlDriver extends NetworkSqlDriver {
             }
         }
 
+        const pkColumn = await this.getPrimaryKeyColumn(tableName).catch(() => null);
+        const selectClause = pkColumn
+            ? `${this.escapeIdentifier(pkColumn)} AS rowid, *`
+            : "*";
+
         const paramCount = whereParams.length;
-        const dataSql = `SELECT * FROM ${safeTable}${whereClause}${orderClause} OFFSET @p${paramCount} ROWS FETCH NEXT @p${paramCount + 1} ROWS ONLY`;
+        const dataSql = `SELECT ${selectClause} FROM ${safeTable}${whereClause}${orderClause} OFFSET @p${paramCount} ROWS FETCH NEXT @p${paramCount + 1} ROWS ONLY`;
 
         const dataResult = await this.query(dataSql, [...whereParams, offset, limit]);
 

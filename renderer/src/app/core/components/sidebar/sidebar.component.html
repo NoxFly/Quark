@@ -52,16 +52,18 @@
         </ul>
     </nav>
 
-    <div class="sidebar-footer">
-        <ui-button
-            class="footer-btn"
-            icon="e710"
-            (click)="dispatchCreateTable()"
-            [tooltip]="i18n.t(state.isNoSqlDatabase() ? 'sidebar.createCollection.tooltip' : 'sidebar.createTable.tooltip')"
-        >
-            {{ i18n.t(state.isNoSqlDatabase() ? "sidebar.createCollection" : "sidebar.createTable") }}
-        </ui-button>
-    </div>
+    @if (!dbService.readOnly()) {
+        <div class="sidebar-footer">
+            <ui-button
+                class="footer-btn"
+                icon="e710"
+                (click)="dispatchCreateTable()"
+                [tooltip]="i18n.t(state.isNoSqlDatabase() ? 'sidebar.createCollection.tooltip' : 'sidebar.createTable.tooltip')"
+            >
+                {{ i18n.t(state.isNoSqlDatabase() ? "sidebar.createCollection" : "sidebar.createTable") }}
+            </ui-button>
+        </div>
+    }
 
     <div
         class="resize-handle"

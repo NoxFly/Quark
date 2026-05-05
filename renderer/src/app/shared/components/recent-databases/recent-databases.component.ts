@@ -89,7 +89,20 @@ export class RecentDatabasesComponent implements OnInit, OnDestroy {
             return;
         }
 
-        void this.dbService.openFile(entry.filePath ?? "", entry.driverType);
+        if (entry.connectionType === "network") {
+            // Connexion réseau sans mot de passe
+            void this.dbService.connectNetwork({
+                driverType: entry.driverType,
+                host: entry.host ?? "localhost",
+                port: entry.port ?? 0,
+                username: entry.username ?? "",
+                password: "",
+                database: entry.database ?? "",
+            });
+        }
+        else {
+            void this.dbService.openFile(entry.filePath ?? "", entry.driverType);
+        }
     }
 
     /**

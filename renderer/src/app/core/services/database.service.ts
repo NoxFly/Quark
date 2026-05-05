@@ -16,6 +16,7 @@ import { MutationHistoryService } from "src/app/core/services/mutation-history.s
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { TabsService } from "src/app/core/services/tabs.service";
+import * as pkg from "package.json";
 
 /**
  * Service gérant toute la logique d'interaction avec la base de données
@@ -155,7 +156,7 @@ export class DatabaseService {
             this.state.filePath.set(null);
             this.state.driverType.set(null);
             this.state.driverInfo.set(null);
-            this.state.title.set("SQLite Editor");
+            this.state.title.set(pkg.name);
             this.state.fileName.set("");
             this.selectedTable.set(null);
             this.tableData.set([]);
@@ -207,10 +208,18 @@ export class DatabaseService {
                 // driverType ne change pas lors d'un refresh, mais on s'assure que driverInfo est bien positionné
                 void this.resolveAndSetDriverInfo(response.database.driverType);
 
+                // Réinitialiser la sélection et l'historique
+                this.selectedRowIds.set(new Set());
+                this.allRowsSelected.set(false);
+                this.mutationHistory.clear();
+
                 if (wasOnTableData && tableStillExists) {
                     // Recharger les données de la table active en place
                     const schema = response.database.tables.find(t => t.name === previousTable) ?? null;
                     this.tableSchema.set(schema);
+                    // Forcer la réinitialisation complète des données
+                    this.tableData.set([]);
+                    this.totalCount.set(0);
                     await this.loadTableData(true);
                 }
                 else {
@@ -433,6 +442,7 @@ export class DatabaseService {
         );
         this.totalCount.update(c => c - rowids.length);
         this.selectedRowIds.set(new Set());
+        this.updateSchemaRecordCount(table, -rowids.length);
     }
 
     /**
@@ -466,6 +476,7 @@ export class DatabaseService {
             next.delete(rowid);
             return next;
         });
+        this.updateSchemaRecordCount(table, -1);
     }
 
     /**
@@ -489,9 +500,30 @@ export class DatabaseService {
             });
             this.tableData.update(records => [...records, response.record]);
             this.totalCount.update(c => c + 1);
+            this.updateSchemaRecordCount(table, 1);
         }
 
         return response.record;
+    }
+
+    /**
+     * Met à jour le recordCount d'une table dans le schéma stocké dans le state.
+     * Appelé après insert/delete pour que la sidebar reflète le nombre correct.
+     */
+    private updateSchemaRecordCount(tableName: string, delta: number): void {
+        const db = this.state.database();
+        if (!db) {
+            return;
+        }
+
+        const updatedTables = db.tables.map(t => {
+            if (t.name === tableName) {
+                return { ...t, recordCount: Math.max(0, t.recordCount + delta) };
+            }
+            return t;
+        });
+
+        this.state.database.set({ ...db, tables: updatedTables });
     }
 
     /**

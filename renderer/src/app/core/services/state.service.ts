@@ -9,8 +9,8 @@ export class StateService {
     public readonly filePath = signal<string | null>(null);
     public readonly needsPassword = signal<boolean>(false);
     public readonly pendingFilePath = signal<string | null>(null);
-    public readonly title = signal<string>("SQLite Editor");
-    public readonly appName = signal<string>("SQLite Editor");
+    public readonly title = signal<string>("");
+    public readonly appName = signal<string>("");
     public readonly appVersion = signal<string>("");
     public readonly fileName = signal<string>("");
 
