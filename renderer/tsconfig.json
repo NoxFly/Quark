@@ -4,7 +4,6 @@
     "compileOnSave": false,
     "compilerOptions": {
         "rootDir": "src",
-        "baseUrl": ".",
         "moduleResolution": "bundler",
         "target": "ES2022",
         "module": "ES2022",
@@ -24,9 +23,10 @@
         "skipLibCheck": true,
         "noImplicitAny": false,
         "paths": {
+            "*": ["./*"],
             "@shared/*": ["../shared/*"],
             "@models/*": ["../shared/models/*"],
-            "@ui/*": ["src/app/shared/ui/components/*"]
+            "@ui/*": ["./src/app/shared/ui/components/*"]
         }
     },
     "angularCompilerOptions": {

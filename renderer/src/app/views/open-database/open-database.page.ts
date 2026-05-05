@@ -15,12 +15,12 @@ import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 
 /** Chemins des logos PNG par type de driver. */
 const DRIVER_LOGOS: Record<DatabaseDriverType, string> = {
-    sqlite:     "/images/logo-sqlite.png",
-    mysql:      "/images/logo-mysql-mariadb.png",
-    postgresql: "/images/logo-postgresql.png",
-    oracle:     "/images/logo-oracle.png",
-    mssql:      "/images/logo-mssql.png",
-    mongodb:    "/images/logo-mongodb.png",
+    sqlite:     "images/logo-sqlite.png",
+    mysql:      "images/logo-mysql-mariadb.png",
+    postgresql: "images/logo-postgresql.png",
+    oracle:     "images/logo-oracle.png",
+    mssql:      "images/logo-mssql.png",
+    mongodb:    "images/logo-mongodb.png",
 };
 
 /** Couleurs accent par type de driver. */

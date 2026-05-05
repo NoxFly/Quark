@@ -58,7 +58,7 @@ const publisher = (pkg.author?.name || "").toLowerCase().replace(/\s+/g, "");
 
 /** @type {import("electron-builder").Configuration} */
 module.exports = {
-    electronVersion: (pkg.devDependencies?.electron || pkg.dependencies?.electron || "37.2.1").replace(/^[~^]/, ""),
+    electronVersion: (pkg.devDependencies?.electron || pkg.dependencies?.electron || "41.0.0").replace(/^[~^]/, ""),
     appId: `com.${publisher}.${appPackageName}`,
     productName: pkg.productName,
     npmRebuild: false,
@@ -78,8 +78,8 @@ module.exports = {
     fileAssociations: [
         {
             ext: ["db", "sqlite", "sqlite3", "s3db"],
-            name: "SQLite Database",
-            description: "SQLite Database file",
+            name: "Knova",
+            description: "Database file editor",
             mimeType: "application/x-sqlite3",
             icon: windowsIconPath,
             role: "Editor",
