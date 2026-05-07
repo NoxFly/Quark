@@ -21,6 +21,7 @@ import { IndexViewerComponent } from "./shared/components/index-viewer/index-vie
 import { SchemaEditorComponent } from "./shared/components/schema-editor/schema-editor.component";
 import { AlertController } from "@ui/alert/alert.controller";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
+import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 
 
@@ -82,6 +83,7 @@ export class AppComponent {
     private readonly alertCtrl = inject(AlertController);
     private readonly modalCtrl = inject(ModalController);
     private readonly monacoPreload = inject(MonacoPreloadService);
+    private readonly storedProcService = inject(StoredProceduresService);
     private readonly destroyRef = inject(DestroyRef);
 
     /**
@@ -181,6 +183,11 @@ export class AppComponent {
             this.state.title.set(appState.database.name);
             this.state.fileName.set(appState.database.name);
             this.router.navigate(["/dashboard/no-table"]);
+
+            // Recharger les procédures stockées si le driver les supporte (ex: après Ctrl+Alt+R)
+            if (appState.driverInfo?.capabilities?.storedProcedures) {
+                void this.storedProcService.loadProcedures();
+            }
         }
         else {
             this.router.navigate(["/open-database"]);

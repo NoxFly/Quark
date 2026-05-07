@@ -17,5 +17,9 @@ export const routes: Routes = [
         path: "er-diagram",
         loadComponent: () => import("./er-diagram/er-diagram.page").then((c) => c.ErDiagramPage),
     },
+    {
+        path: "stored-procedure",
+        loadComponent: () => import("./stored-procedure/stored-procedure.page").then((c) => c.StoredProcedurePage),
+    },
     { path: "", redirectTo: "no-table", pathMatch: "full" },
 ];

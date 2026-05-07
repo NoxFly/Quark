@@ -1,0 +1,336 @@
+/**
+ * @copyright Dorian Thivolle
+ * @license MIT
+ * @see https://github.com/NoxFly
+ */
+
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    ElementRef,
+    inject,
+    signal,
+    viewChild,
+} from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
+import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
+import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
+import { DatabaseService } from "src/app/core/services/database.service";
+import type { StoredProcedureDetail, StoredProcedureExecResult, StoredProcedureParam } from "@shared/types";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
+
+/** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
+declare const monaco: typeof import("monaco-editor");
+
+/**
+ * Page d'édition et d'exécution des procédures stockées.
+ * Affiche un éditeur Monaco avec la définition, un formulaire dynamique
+ * pour les paramètres, et les résultats d'exécution.
+ */
+@Component({
+    selector: "app-stored-procedure",
+    standalone: true,
+    templateUrl: "./stored-procedure.page.html",
+    styleUrl: "./stored-procedure.page.scss",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [TooltipDirective],
+})
+export class StoredProcedurePage {
+    protected readonly i18n = inject(I18nService);
+    protected readonly storedProcService = inject(StoredProceduresService);
+    protected readonly dbService = inject(DatabaseService);
+    private readonly monacoPreload = inject(MonacoPreloadService);
+    private readonly destroyRef = inject(DestroyRef);
+
+    private readonly editorContainerRef = viewChild<ElementRef<HTMLDivElement>>("monacoContainer");
+
+    protected readonly procedure = signal<StoredProcedureDetail | null>(null);
+    protected readonly result = signal<StoredProcedureExecResult | null>(null);
+    protected readonly errorMessage = signal<string | null>(null);
+    protected readonly isExecuting = signal<boolean>(false);
+    protected readonly isLoading = signal<boolean>(true);
+    protected readonly isSaving = signal<boolean>(false);
+
+    /** Valeurs du formulaire de paramètres. */
+    protected readonly paramValues = signal<Record<string, string>>({});
+
+    /** Paramètres d'entrée (non-output). */
+    protected readonly inputParams = computed(() => {
+        const proc = this.procedure();
+        if (!proc) {
+            return [];
+        }
+        return proc.params.filter(p => !p.isOutput);
+    });
+
+    /** Paramètres de sortie. */
+    protected readonly outputParams = computed(() => {
+        const proc = this.procedure();
+        if (!proc) {
+            return [];
+        }
+        return proc.params.filter(p => p.isOutput);
+    });
+
+    /** Colonnes du résultat. */
+    protected readonly resultColumns = computed(() => this.result()?.columns ?? []);
+
+    /** Lignes du résultat. */
+    protected readonly resultRows = computed(() => this.result()?.rows ?? []);
+
+    /** Temps d'exécution formaté. */
+    protected readonly executionTime = computed(() => {
+        const ms = this.result()?.executionTimeMs;
+        if (ms === undefined) {
+            return null;
+        }
+        return ms < 1 ? "< 1 ms" : ms < 1000 ? `${ms.toFixed(1)} ms` : `${(ms / 1000).toFixed(2)} s`;
+    });
+
+    private editor: import("monaco-editor").editor.IStandaloneCodeEditor | null = null;
+
+    public constructor() {
+        // Créer l'éditeur Monaco dès que le conteneur devient disponible dans le DOM.
+        // On utilise effect() plutôt que afterNextRender() car le conteneur n'existe
+        // que lorsqu'une procédure est sélectionnée (template conditionnel @else).
+        effect(() => {
+            const container = this.editorContainerRef()?.nativeElement;
+            if (!container || this.editor) {
+                return;
+            }
+            void this.initMonaco(container);
+        });
+
+        this.destroyRef.onDestroy(() => {
+            this.editor?.dispose();
+        });
+
+        // Écouter l'événement de sélection d'une procédure
+        const handler = (event: Event): void => {
+            const detail = (event as CustomEvent).detail as { name: string; schema: string };
+            void this.loadProcedure(detail.name, detail.schema);
+        };
+        document.addEventListener("open-stored-procedure", handler);
+        this.destroyRef.onDestroy(() => document.removeEventListener("open-stored-procedure", handler));
+    }
+
+    /**
+     * Charge une procédure stockée dans l'éditeur.
+     */
+    public async loadProcedure(name: string, schema: string): Promise<void> {
+        this.isLoading.set(true);
+        this.result.set(null);
+        this.errorMessage.set(null);
+
+        try {
+            const detail = await this.storedProcService.loadProcedureDetail(name, schema);
+            this.procedure.set(detail);
+
+            // Initialiser les valeurs du formulaire
+            const values: Record<string, string> = {};
+            for (const param of detail.params) {
+                if (!param.isOutput) {
+                    values[param.name] = param.hasDefault && param.defaultValue !== null
+                        ? String(param.defaultValue)
+                        : "";
+                }
+            }
+            this.paramValues.set(values);
+
+            // Mettre à jour l'éditeur Monaco
+            if (this.editor) {
+                this.editor.setValue(detail.definition);
+            }
+        }
+        catch (err) {
+            this.errorMessage.set(extractIpcErrorMessage(err instanceof Error ? err.message : String(err)));
+        }
+        finally {
+            this.isLoading.set(false);
+        }
+    }
+
+    /**
+     * Exécute la procédure stockée avec les paramètres du formulaire.
+     */
+    protected async execute(): Promise<void> {
+        const proc = this.procedure();
+        if (!proc) {
+            return;
+        }
+
+        this.isExecuting.set(true);
+        this.errorMessage.set(null);
+        this.result.set(null);
+
+        try {
+            const params = this.buildExecParams(proc.params);
+            const response = await this.storedProcService.execProcedure(proc.name, proc.schema, params);
+            this.result.set(response);
+        }
+        catch (err) {
+            this.errorMessage.set(extractIpcErrorMessage(err instanceof Error ? err.message : String(err)));
+        }
+        finally {
+            this.isExecuting.set(false);
+        }
+    }
+
+    /**
+     * Sauvegarde (ALTER) la procédure stockée modifiée dans l'éditeur.
+     */
+    protected async save(): Promise<void> {
+        const proc = this.procedure();
+        if (!proc || !this.editor) {
+            return;
+        }
+
+        const definition = this.editor.getValue().trim();
+        if (!definition) {
+            return;
+        }
+
+        this.isSaving.set(true);
+        this.errorMessage.set(null);
+
+        try {
+            await this.storedProcService.modifyProcedure(proc.name, proc.schema, definition);
+        }
+        catch (err) {
+            this.errorMessage.set(extractIpcErrorMessage(err instanceof Error ? err.message : String(err)));
+        }
+        finally {
+            this.isSaving.set(false);
+        }
+    }
+
+    /**
+     * Met à jour la valeur d'un paramètre.
+     */
+    protected updateParamValue(paramName: string, value: string): void {
+        this.paramValues.update(v => ({ ...v, [paramName]: value }));
+    }
+
+    /**
+     * Formate la valeur d'une cellule de résultat.
+     */
+    protected formatCell(value: unknown): string {
+        if (value === null || value === undefined) {
+            return "NULL";
+        }
+        if (typeof value === "object") {
+            return JSON.stringify(value);
+        }
+        return String(value);
+    }
+
+    /**
+     * Retourne la valeur d'un paramètre de sortie après exécution, ou null si non disponible.
+     */
+    protected getOutputParamValue(paramName: string): unknown {
+        const outputParams = this.result()?.outputParams;
+        if (!outputParams) {
+            return null;
+        }
+        const value = outputParams[paramName];
+        return value !== undefined ? value : null;
+    }
+
+    /**
+     * Retourne true si la valeur est NULL.
+     */
+    protected isNull(value: unknown): boolean {
+        return value === null || value === undefined;
+    }
+
+    /**
+     * Construit le dictionnaire de paramètres typés pour l'exécution.
+     */
+    private buildExecParams(paramsDef: StoredProcedureParam[]): Record<string, unknown> {
+        const values = this.paramValues();
+        const result: Record<string, unknown> = {};
+
+        for (const param of paramsDef) {
+            if (param.isOutput) {
+                continue;
+            }
+            const rawValue = values[param.name] ?? "";
+            result[param.name] = this.coerceParamValue(rawValue, param.type);
+        }
+
+        return result;
+    }
+
+    /**
+     * Convertit une valeur string du formulaire vers le type approprié.
+     */
+    private coerceParamValue(value: string, type: string): unknown {
+        if (value === "" || value.toLowerCase() === "null") {
+            return null;
+        }
+
+        const lowerType = type.toLowerCase();
+
+        if (["int", "bigint", "smallint", "tinyint"].includes(lowerType)) {
+            const num = Number(value);
+            return Number.isNaN(num) ? value : num;
+        }
+
+        if (["float", "real", "decimal", "numeric", "money", "smallmoney"].includes(lowerType)) {
+            const num = Number(value);
+            return Number.isNaN(num) ? value : num;
+        }
+
+        if (lowerType === "bit") {
+            return value === "1" || value.toLowerCase() === "true";
+        }
+
+        return value;
+    }
+
+    /**
+     * Attend que Monaco soit chargé puis crée l'éditeur.
+     */
+    private async initMonaco(container: HTMLElement): Promise<void> {
+        await this.monacoPreload.whenReady();
+        this.createEditor(container);
+    }
+
+    /**
+     * Crée l'instance Monaco Editor pour la procédure stockée.
+     */
+    private createEditor(container: HTMLElement): void {
+        const isDark = document.documentElement.getAttribute("data-theme") !== "light"
+            && document.documentElement.getAttribute("data-theme") !== "legacy";
+
+        this.editor = monaco.editor.create(container, {
+            value: this.procedure()?.definition ?? "",
+            language: "sql",
+            theme: isDark ? "vs-dark" : "vs",
+            minimap: { enabled: false },
+            fontSize: 13,
+            fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+            lineNumbers: "on",
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            wordWrap: "on",
+            tabSize: 4,
+            padding: { top: 8, bottom: 8 },
+            readOnly: this.dbService.readOnly(),
+        });
+
+        // Ctrl+S → sauvegarder
+        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+            void this.save();
+        });
+
+        // Ctrl+Enter → exécuter
+        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+            void this.execute();
+        });
+    }
+}

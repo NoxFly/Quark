@@ -262,3 +262,74 @@ export type R_NetworkConnectBody = {
     database: string;
 };
 
+// --- Stored Procedures (MSSQL) ---
+
+/**
+ * Paramètre d'une procédure stockée.
+ */
+export type StoredProcedureParam = {
+    name: string;
+    type: string;
+    maxLength: number | null;
+    isOutput: boolean;
+    hasDefault: boolean;
+    defaultValue: unknown;
+};
+
+/**
+ * Définition d'une procédure stockée (résumé pour la liste).
+ */
+export type StoredProcedureDef = {
+    name: string;
+    schema: string;
+};
+
+/**
+ * Définition complète d'une procédure stockée (détail).
+ */
+export type StoredProcedureDetail = {
+    name: string;
+    schema: string;
+    definition: string;
+    params: StoredProcedureParam[];
+    createdAt: string | null;
+    modifiedAt: string | null;
+};
+
+/**
+ * Résultat de l'exécution d'une procédure stockée.
+ */
+export type StoredProcedureExecResult = {
+    columns: string[];
+    rows: unknown[][];
+    rowsAffected: number;
+    outputParams: Record<string, unknown>;
+    executionTimeMs: number;
+};
+
+export type R_StoredProcListResponse = {
+    procedures: StoredProcedureDef[];
+};
+
+export type R_StoredProcDetailBody = {
+    name: string;
+    schema: string;
+};
+
+export type R_StoredProcExecBody = {
+    name: string;
+    schema: string;
+    params: Record<string, unknown>;
+};
+
+export type R_StoredProcModifyBody = {
+    name: string;
+    schema: string;
+    definition: string;
+};
+
+export type R_StoredProcDropBody = {
+    name: string;
+    schema: string;
+};
+

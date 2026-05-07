@@ -15,6 +15,7 @@ import type {
 import { MutationHistoryService } from "src/app/core/services/mutation-history.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
+import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import { TabsService } from "src/app/core/services/tabs.service";
 import * as pkg from "package.json";
 
@@ -27,6 +28,7 @@ export class DatabaseService {
     private readonly noxus = inject(NoxusService);
     private readonly state = inject(StateService);
     private readonly router = inject(Router);
+    private readonly storedProcService = inject(StoredProceduresService);
     public readonly mutationHistory = inject(MutationHistoryService);
     public readonly tabs = inject(TabsService);
 
@@ -167,6 +169,7 @@ export class DatabaseService {
             this.selectedRowIds.set(new Set());
             this.allRowsSelected.set(false);
             this.mutationHistory.clear();
+            this.storedProcService.reset();
             this.tabs.closeAll();
             this.router.navigate(["/open-database"]);
         }
@@ -798,6 +801,10 @@ export class DatabaseService {
             const schema = await this.noxus.ipc.getSchema();
             if (schema) {
                 this.state.database.set(schema);
+            }
+            // Charger les procédures stockées si le driver les supporte
+            if (this.storedProcService.isSupported) {
+                void this.storedProcService.loadProcedures();
             }
         }
         catch (err) {

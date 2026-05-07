@@ -32,6 +32,10 @@ Framework maison qui apporte une DI et un routage NestJS-like dans le main Elect
 
 `AppTab` et `Database` (dans `main/src/core/services/`) sont intentionnellement vides — ils seront l'unité d'état par onglet ouvert. `AppService.getState()` retourne un stub hardcodé pour l'instant.
 
+### Stored Procedures (MSSQL uniquement)
+
+Le driver MSSQL expose des méthodes pour lister, détailler, exécuter, modifier et supprimer les procédures stockées via `tedious`. Les routes sont exposées dans `DbController` (`db/stored-procedures`, `db/stored-procedure-detail`, `db/stored-procedure-exec`, `db/stored-procedure-modify`, `db/stored-procedure-drop`). Côté renderer, `StoredProceduresService` gère l'état et la communication ; la sidebar affiche une section « Stored Procedures » conditionnelle (basée sur `DriverCapabilities.storedProcedures`). La page dédiée (`views/dashboard/stored-procedure/`) intègre un éditeur Monaco pour la définition et un formulaire dynamique pour les paramètres d'entrée.
+
 ## Build & Dev
 
 ```bash

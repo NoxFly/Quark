@@ -5,7 +5,19 @@
  */
 
 import type { DatabaseDriverType } from "@shared/driver";
-import type { DbRecord, DatabaseSchema, FieldDef, ForeignKeyDef, IndexDef, TableSchema } from "@shared/types";
+import type {
+    DbRecord,
+    DatabaseSchema,
+    FieldDef,
+    ForeignKeyDef,
+    IndexDef,
+    StoredProcedureDef,
+    StoredProcedureDetail,
+    StoredProcedureExecResult,
+    StoredProcedureParam,
+    TableSchema,
+} from "@shared/types";
+import { Logger } from "@noxfly/noxus/main";
 import { NetworkSqlDriver, type RawQueryResult } from "src/core/drivers/network-sql.driver";
 import { Connection, Request as TdsRequest, TYPES } from "tedious";
 
@@ -40,6 +52,7 @@ export class MssqlDriver extends NetworkSqlDriver {
             };
 
             this.connection = new Connection(config);
+
             this.connection.on("connect", (err) => {
                 if (err) {
                     reject(err);
@@ -47,6 +60,16 @@ export class MssqlDriver extends NetworkSqlDriver {
                 else {
                     resolve();
                 }
+            });
+
+            // Mettre à jour _isOpen si le serveur ferme la connexion (timeout, redémarrage…)
+            this.connection.on("end", () => {
+                this._isOpen = false;
+                this.connection = null;
+            });
+
+            this.connection.on("error", (err: Error) => {
+                Logger.warn(`MSSQL connection error: ${err.message}`);
             });
 
             this.connection.connect();
@@ -646,5 +669,247 @@ export class MssqlDriver extends NetworkSqlDriver {
 
         const table = String(result.rows[0]["table_name"]);
         await this.execute(`DROP INDEX ${this.escapeIdentifier(indexName)} ON ${this.escapeIdentifier(table)}`);
+    }
+
+    // --- Stored Procedures ---
+
+    /**
+     * Liste toutes les procédures stockées de la base de données.
+     */
+    public async listStoredProcedures(): Promise<StoredProcedureDef[]> {
+        this.ensureOpen();
+
+        const result = await this.query(
+            `SELECT s.name AS schema_name, p.name AS proc_name
+             FROM sys.procedures p
+             JOIN sys.schemas s ON p.schema_id = s.schema_id
+             ORDER BY s.name, p.name`,
+        );
+
+        return result.rows.map(row => ({
+            name: String(row["proc_name"]),
+            schema: String(row["schema_name"]),
+        }));
+    }
+
+    /**
+     * Récupère le détail complet d'une procédure stockée.
+     */
+    public async getStoredProcedureDetail(name: string, schema: string): Promise<StoredProcedureDetail> {
+        this.ensureOpen();
+
+        const qualifiedName = `${this.escapeIdentifier(schema)}.${this.escapeIdentifier(name)}`;
+
+        // Définition (code source)
+        const defResult = await this.query(
+            `SELECT OBJECT_DEFINITION(OBJECT_ID(@p0)) AS definition`,
+            [`${schema}.${name}`],
+        );
+        const definition = defResult.rows[0]?.["definition"]
+            ? String(defResult.rows[0]["definition"])
+            : "";
+
+        // Paramètres
+        const paramsResult = await this.query(
+            `SELECT
+                p.name AS param_name,
+                TYPE_NAME(p.user_type_id) AS type_name,
+                p.max_length,
+                p.is_output,
+                p.has_default_value,
+                p.default_value
+             FROM sys.parameters p
+             WHERE p.object_id = OBJECT_ID(@p0)
+             ORDER BY p.parameter_id`,
+            [`${schema}.${name}`],
+        );
+
+        const params: StoredProcedureParam[] = paramsResult.rows.map(row => ({
+            name: String(row["param_name"]).replace(/^@/, ""),
+            type: String(row["type_name"]),
+            maxLength: row["max_length"] !== null ? Number(row["max_length"]) : null,
+            isOutput: Boolean(row["is_output"]),
+            hasDefault: Boolean(row["has_default_value"]),
+            defaultValue: row["default_value"] ?? null,
+        }));
+
+        // Dates de création/modification
+        const datesResult = await this.query(
+            `SELECT create_date, modify_date
+             FROM sys.procedures
+             WHERE object_id = OBJECT_ID(@p0)`,
+            [`${schema}.${name}`],
+        );
+
+        const createdAt = datesResult.rows[0]?.["create_date"]
+            ? String(datesResult.rows[0]["create_date"])
+            : null;
+        const modifiedAt = datesResult.rows[0]?.["modify_date"]
+            ? String(datesResult.rows[0]["modify_date"])
+            : null;
+
+        return { name, schema, definition, params, createdAt, modifiedAt };
+    }
+
+    /**
+     * Exécute une procédure stockée avec les paramètres fournis.
+     */
+    public async execStoredProcedure(
+        name: string,
+        schema: string,
+        params: Record<string, unknown>,
+    ): Promise<StoredProcedureExecResult> {
+        this.ensureOpen();
+
+        const qualifiedName = `${schema}.${name}`;
+
+        // Récupérer les métadonnées des paramètres pour typage
+        const metaResult = await this.query(
+            `SELECT p.name AS param_name, TYPE_NAME(p.user_type_id) AS type_name, p.is_output, p.max_length
+             FROM sys.parameters p
+             WHERE p.object_id = OBJECT_ID(@p0)
+             ORDER BY p.parameter_id`,
+            [qualifiedName],
+        );
+
+        const startTime = performance.now();
+
+        return new Promise<StoredProcedureExecResult>((resolve, reject) => {
+            const rows: unknown[][] = [];
+            const columns: string[] = [];
+            let columnsSet = false;
+            const outputParams: Record<string, unknown> = {};
+
+            const request = new TdsRequest(qualifiedName, (err, rowCount) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve({
+                        columns,
+                        rows,
+                        rowsAffected: rowCount ?? 0,
+                        outputParams,
+                        executionTimeMs: Math.round(performance.now() - startTime),
+                    });
+                }
+            });
+
+            // Ajouter les paramètres
+            for (const meta of metaResult.rows) {
+                const paramName = String(meta["param_name"]).replace(/^@/, "");
+                const typeName = String(meta["type_name"]).toLowerCase();
+                const isOutput = Boolean(meta["is_output"]);
+                const maxLength = Number(meta["max_length"] ?? 0);
+                const value = params[paramName] ?? null;
+                const tdsType = this.mapSqlTypeToTds(typeName, maxLength);
+
+                if (isOutput) {
+                    request.addOutputParameter(paramName, tdsType, value);
+                }
+                else {
+                    request.addParameter(paramName, tdsType, value);
+                }
+            }
+
+            request.on("row", (rowColumns: { metadata: { colName: string }; value: unknown }[]) => {
+                if (!columnsSet) {
+                    for (const col of rowColumns) {
+                        columns.push(col.metadata.colName);
+                    }
+                    columnsSet = true;
+                }
+                const row: unknown[] = [];
+                for (const col of rowColumns) {
+                    row.push(col.value);
+                }
+                rows.push(row);
+            });
+
+            request.on("returnValue", (parameterName: string, value: unknown) => {
+                // Normaliser les valeurs pour la sérialisation JSON
+                if (Buffer.isBuffer(value)) {
+                    outputParams[parameterName] = `0x${value.toString("hex")}`;
+                }
+                else if (typeof value === "bigint") {
+                    outputParams[parameterName] = value.toString();
+                }
+                else {
+                    outputParams[parameterName] = value;
+                }
+            });
+
+            this.connection!.callProcedure(request);
+        });
+    }
+
+    /**
+     * Modifie (ALTER) une procédure stockée avec la nouvelle définition.
+     */
+    public async modifyStoredProcedure(name: string, schema: string, definition: string): Promise<void> {
+        this.ensureOpen();
+        await this.execute(definition);
+    }
+
+    /**
+     * Supprime une procédure stockée.
+     */
+    public async dropStoredProcedure(name: string, schema: string): Promise<void> {
+        this.ensureOpen();
+        await this.execute(`DROP PROCEDURE ${this.escapeIdentifier(schema)}.${this.escapeIdentifier(name)}`);
+    }
+
+    /**
+     * Mappe un nom de type SQL Server vers un type tedious.
+     */
+    private mapSqlTypeToTds(typeName: string, maxLength: number): typeof TYPES[keyof typeof TYPES] {
+        switch (typeName) {
+            case "int":
+                return TYPES.Int;
+            case "bigint":
+                return TYPES.BigInt;
+            case "smallint":
+                return TYPES.SmallInt;
+            case "tinyint":
+                return TYPES.TinyInt;
+            case "bit":
+                return TYPES.Bit;
+            case "float":
+            case "real":
+                return TYPES.Float;
+            case "decimal":
+            case "numeric":
+            case "money":
+            case "smallmoney":
+                return TYPES.Decimal;
+            case "date":
+                return TYPES.Date;
+            case "datetime":
+            case "datetime2":
+            case "smalldatetime":
+                return TYPES.DateTime;
+            case "time":
+                return TYPES.Time;
+            case "uniqueidentifier":
+                return TYPES.UniqueIdentifier;
+            case "varchar":
+                return TYPES.VarChar;
+            case "nvarchar":
+                return TYPES.NVarChar;
+            case "char":
+            case "nchar":
+                return TYPES.NChar;
+            case "text":
+            case "ntext":
+                return TYPES.NVarChar;
+            case "varbinary":
+            case "binary":
+            case "image":
+                return TYPES.VarBinary;
+            case "xml":
+                return TYPES.NVarChar;
+            default:
+                return TYPES.NVarChar;
+        }
     }
 }

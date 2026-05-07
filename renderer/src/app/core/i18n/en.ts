@@ -333,4 +333,27 @@ export const en: Record<string, string> = {
 
     // --- DB connection ---
     "statusbar.dbType": "SQLite",
+
+    // --- Sidebar sections ---
+    "sidebar.section.tables": "Tables",
+    "sidebar.section.collections": "Collections",
+    "sidebar.section.storedProcedures": "Stored Procedures",
+    "sidebar.storedProcs.empty": "No stored procedures",
+    "sidebar.storedProcs.open": "Open",
+    "sidebar.storedProcs.delete": "Delete procedure",
+
+    // --- Stored Procedures ---
+    "storedProc.loading": "Loading procedure...",
+    "storedProc.emptyHint": "Select a stored procedure from the sidebar",
+    "storedProc.definition": "Definition",
+    "storedProc.parameters": "Parameters",
+    "storedProc.outputParams": "Output parameters",
+    "storedProc.execute": "Execute",
+    "storedProc.save": "Save",
+    "storedProc.editorHint": "Ctrl+S to save · Ctrl+Enter to execute",
+    "storedProc.noInputParams": "No input parameters",
+    "storedProc.noOutputParams": "No output parameters",
+    "storedProc.rowsAffected": "{count} rows affected",
+    "storedProc.execSuccess": "Procedure executed successfully",
+    "storedProc.resultsHint": "Execute the procedure to see results",
 };

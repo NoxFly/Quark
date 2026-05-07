@@ -44,6 +44,7 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             erDiagram: true,
             collections: false,
             networkConnection: false,
+            storedProcedures: false,
         },
     },
     mysql: {
@@ -62,6 +63,7 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             erDiagram: true,
             collections: false,
             networkConnection: true,
+            storedProcedures: false,
         },
     },
     postgresql: {
@@ -80,6 +82,7 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             erDiagram: true,
             collections: false,
             networkConnection: true,
+            storedProcedures: false,
         },
     },
     oracle: {
@@ -98,6 +101,7 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             erDiagram: true,
             collections: false,
             networkConnection: true,
+            storedProcedures: false,
         },
     },
     mssql: {
@@ -116,6 +120,7 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             erDiagram: true,
             collections: false,
             networkConnection: true,
+            storedProcedures: true,
         },
     },
     mongodb: {
@@ -134,6 +139,7 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             erDiagram: false,
             collections: true,
             networkConnection: true,
+            storedProcedures: false,
         },
     },
 };

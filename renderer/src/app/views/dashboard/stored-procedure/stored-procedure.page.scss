@@ -1,0 +1,373 @@
+@use "src/theme/mixins.scss" as *;
+
+:host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.stored-procedure-page {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    height: 100%;
+    overflow: hidden;
+}
+
+// --- Header ---
+
+.proc-header {
+    @include flex(flex, row, nowrap, space-between, center, 12px);
+    padding: 8px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.proc-identity {
+    @include flex(flex, row, nowrap, flex-start, baseline, 0);
+    font-size: 14px;
+    font-weight: 600;
+
+    .proc-schema {
+        color: var(--text-muted);
+        font-weight: 400;
+    }
+
+    .proc-name {
+        color: var(--text-color);
+    }
+}
+
+.proc-actions {
+    @include flex(flex, row, nowrap, flex-end, center, 8px);
+}
+
+.action-btn {
+    @include flex(flex, row, nowrap, center, center, 5px);
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    .action-icon {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 13px;
+        pointer-events: none;
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+}
+
+.save-btn {
+    background: transparent;
+    color: var(--text-muted);
+
+    &:hover:not(:disabled) {
+        background: rgba(127, 127, 127, 0.1);
+        color: var(--text-color);
+    }
+}
+
+.exec-btn {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+
+    &:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+    }
+}
+
+// --- Editor + Params layout ---
+
+.editor-params-container {
+    @include flex(flex, row, nowrap, stretch, stretch, 0);
+    flex: 1;
+    min-height: 0;
+}
+
+.editor-section {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.section-label {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.monaco-container {
+    flex: 1;
+    min-height: 150px;
+    overflow: hidden;
+}
+
+.editor-hint {
+    padding: 4px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+    user-select: none;
+    flex-shrink: 0;
+}
+
+// --- Params section ---
+
+.params-section {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    width: 280px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border-color);
+    overflow-y: auto;
+}
+
+.params-form {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    padding: 8px 12px;
+    gap: 10px;
+}
+
+.param-field {
+    @include flex(flex, column, nowrap, stretch, stretch, 4px);
+}
+
+.param-label {
+    @include flex(flex, row, nowrap, flex-start, baseline, 6px);
+    font-size: 12px;
+
+    .param-name {
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .param-type {
+        font-size: 10px;
+        color: var(--text-muted);
+        font-family: "Consolas", monospace;
+    }
+}
+
+.param-input {
+    padding: 5px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--surface-alt);
+    color: var(--text-color);
+    font-size: 12px;
+    font-family: "Consolas", monospace;
+    outline: none;
+    transition: border-color 0.15s;
+
+    &:focus {
+        --border-color: var(--color-primary);
+    }
+
+    &::placeholder {
+        --text-color: var(--text-muted);
+        opacity: 0.6;
+    }
+}
+
+// --- Output params ---
+
+.params-empty-hint {
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    user-select: none;
+
+    &.output-params-hint {
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+    }
+}
+
+// --- Separator between editor/params and results ---
+
+.section-divider {
+    height: 4px;
+    background: var(--surface);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    width: 100%;
+}
+
+// --- Output params ---
+
+.output-params {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.output-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.output-param-entry {
+    @include flex(flex, row, nowrap, flex-start, baseline, 6px);
+    padding: 3px 0;
+    font-size: 12px;
+    user-select: none;
+
+    .param-name {
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .param-type {
+        font-size: 10px;
+        color: var(--text-muted);
+        font-family: "Consolas", monospace;
+    }
+
+    .param-value {
+        color: var(--color-primary);
+        font-family: "Consolas", monospace;
+    }
+}
+
+// --- Results ---
+
+.results-panel {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    flex: 1;
+    overflow: hidden;
+    min-height: 100px;
+}
+
+.error-banner {
+    @include flex(flex, row, nowrap, flex-start, center, 8px);
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+    color: var(--color-danger);
+    font-size: 13px;
+
+    .error-icon {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 14px;
+    }
+
+    .error-text {
+        font-family: "Consolas", monospace;
+        font-size: 12px;
+    }
+}
+
+.success-banner {
+    @include flex(flex, row, nowrap, flex-start, center, 12px);
+    padding: 10px 14px;
+    background: color-mix(in srgb, var(--color-success) 12%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+    color: var(--color-success);
+    font-size: 13px;
+
+    .success-icon {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 16px;
+    }
+}
+
+.results-meta-bar {
+    @include flex(flex, row, nowrap, flex-start, center, 12px);
+    padding: 5px 14px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.meta-timing {
+    margin-left: auto;
+    font-family: "Consolas", monospace;
+    color: var(--color-primary);
+    opacity: 0.8;
+    @include flex(flex, row, nowrap, flex-start, center, 4px);
+
+    &::before {
+        content: '\E916';
+        font-family: "Segoe Fluent Icons", sans-serif;
+        font-size: 11px;
+    }
+}
+
+.results-table-wrapper {
+    flex: 1;
+    overflow: auto;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+
+    th, td {
+        padding: 6px 10px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    th {
+        background: var(--surface);
+        font-weight: 600;
+        color: var(--text-muted);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        user-select: none;
+    }
+
+    td {
+        background: var(--surface-alt);
+        color: var(--text-color);
+
+        &.null-cell {
+            color: var(--text-color);
+            opacity: 0.5;
+            font-style: italic;
+        }
+    }
+
+    tr:hover td {
+        background: color-mix(in srgb, var(--color-primary) 8%, var(--surface-alt));
+    }
+}
+
+.results-empty-hint,
+.empty-hint,
+.loading-hint {
+    @include flex(flex, column, nowrap, center, center, 0);
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+    padding: 32px;
+    user-select: none;
+}

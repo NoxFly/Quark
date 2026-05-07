@@ -6,12 +6,20 @@ import type {
     R_ExportResponse,
     R_OpenFileResponse,
     R_PasswordResponse,
+    R_StoredProcDetailBody,
+    R_StoredProcDropBody,
+    R_StoredProcExecBody,
+    R_StoredProcListResponse,
+    R_StoredProcModifyBody,
     R_TableDataBody,
     R_TableDataResponse,
     R_TransactionAction,
     R_UpdateCellBody,
+    StoredProcedureDetail,
+    StoredProcedureExecResult,
 } from "@shared/types";
 import { Application } from "src/modules/application";
+import { MssqlDriver } from "src/core/drivers/mssql.driver";
 
 @Injectable()
 export class DbService {
@@ -140,5 +148,62 @@ export class DbService {
         }
 
         return await window.database.exportData(body.table, body.format, body.rowids, body.filter);
+    }
+
+    // --- Stored Procedures ---
+
+    /**
+     * Récupère le driver MSSQL ou lève une erreur si ce n'est pas le bon type.
+     */
+    private getMssqlDriver(senderId: number): MssqlDriver {
+        const window = this.application.getWindowBySenderId(senderId);
+        if (!window) {
+            throw new NotFoundException("Window not found");
+        }
+        if (!(window.database instanceof MssqlDriver)) {
+            throw new Error("Stored procedures are only supported with MSSQL driver");
+        }
+        return window.database;
+    }
+
+    /**
+     * Liste les procédures stockées.
+     */
+    public async listStoredProcedures(senderId: number): Promise<R_StoredProcListResponse> {
+        const driver = this.getMssqlDriver(senderId);
+        const procedures = await driver.listStoredProcedures();
+        return { procedures };
+    }
+
+    /**
+     * Récupère le détail d'une procédure stockée.
+     */
+    public async getStoredProcedureDetail(senderId: number, body: R_StoredProcDetailBody): Promise<StoredProcedureDetail> {
+        const driver = this.getMssqlDriver(senderId);
+        return await driver.getStoredProcedureDetail(body.name, body.schema);
+    }
+
+    /**
+     * Exécute une procédure stockée.
+     */
+    public async execStoredProcedure(senderId: number, body: R_StoredProcExecBody): Promise<StoredProcedureExecResult> {
+        const driver = this.getMssqlDriver(senderId);
+        return await driver.execStoredProcedure(body.name, body.schema, body.params);
+    }
+
+    /**
+     * Modifie une procédure stockée.
+     */
+    public async modifyStoredProcedure(senderId: number, body: R_StoredProcModifyBody): Promise<void> {
+        const driver = this.getMssqlDriver(senderId);
+        await driver.modifyStoredProcedure(body.name, body.schema, body.definition);
+    }
+
+    /**
+     * Supprime une procédure stockée.
+     */
+    public async dropStoredProcedure(senderId: number, body: R_StoredProcDropBody): Promise<void> {
+        const driver = this.getMssqlDriver(senderId);
+        await driver.dropStoredProcedure(body.name, body.schema);
     }
 }

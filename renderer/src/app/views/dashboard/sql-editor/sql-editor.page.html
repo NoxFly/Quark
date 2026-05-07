@@ -20,7 +20,8 @@
                 [disabled]="isExecuting() || !hasInput()"
                 (click)="execute()"
                 [tooltip]="isExecuting() ? i18n.t('sqlEditor.executing') : i18n.t('sqlEditor.execute')">
-                <span class="execute-icon">&#xE768;</span>
+                <span class="segoe-icon">&#xE768;</span>
+                <span>{{ i18n.t('sqlEditor.execute') }}</span>
             </button>
         </div>
 

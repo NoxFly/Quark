@@ -52,6 +52,8 @@ export interface DriverCapabilities {
     collections: boolean;
     /** Le driver nécessite une connexion réseau (pas un fichier local). */
     networkConnection: boolean;
+    /** Le driver supporte les procédures stockées. */
+    storedProcedures: boolean;
 }
 
 /**

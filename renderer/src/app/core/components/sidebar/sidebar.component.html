@@ -21,35 +21,76 @@
                 {{ i18n.t("sidebar.schemaLoading") }}
             </div>
         }
-        <ul>
-            @for (table of tables(); track table.name) {
-                <li
-                    [class.active]="(dbService.tabs.activeTab()?.tableName ?? dbService.selectedTable()) === table.name"
-                    [class.expanded]="isExpanded(table.name)"
-                    (click)="selectTable(table.name)"
-                    (contextmenu)="onTableContextMenu($event, table.name)"
-                    [tooltip]="table.name + ' (' + i18n.t(state.isNoSqlDatabase() ? 'sidebar.documents' : 'sidebar.rows', { count: table.recordCount }) + ')'"
-                >
-                    <div class="table-row">
-                        <button class="expand-toggle" (click)="toggleExpand($event, table.name)">
-                            <span class="expand-icon" [class.open]="isExpanded(table.name)">&#xE76C;</span>
-                        </button>
-                        <span class="table-name">{{ table.name }}</span>
-                        <span class="table-count">{{ table.recordCount }}</span>
-                    </div>
-                    @if (isExpanded(table.name)) {
-                        <div class="table-fields" (click)="$event.stopPropagation()">
-                            @for (field of table.fields; track field.name) {
-                                <div class="field-entry" [class.pk]="field.pk" [class.fk]="!!field.fk">
-                                    <span class="field-name">{{ field.name }}</span>
-                                    <span class="field-type">{{ field.type }}</span>
-                                </div>
-                            }
+
+        <!-- Section Tables -->
+        <div class="section-header" (click)="toggleTablesSection()">
+            <span class="section-icon" [class.collapsed]="tablesCollapsed()">&#xE76C;</span>
+            <span class="section-title">{{ i18n.t(isNoSql() ? "sidebar.section.collections" : "sidebar.section.tables") }}</span>
+            <span class="section-count">{{ tables().length }}</span>
+        </div>
+
+        @if (!tablesCollapsed()) {
+            <ul class="section-list">
+                @for (table of tables(); track table.name) {
+                    <li
+                        [class.active]="(dbService.tabs.activeTab()?.tableName ?? dbService.selectedTable()) === table.name"
+                        [class.expanded]="isExpanded(table.name)"
+                        (click)="selectTable(table.name)"
+                        (contextmenu)="onTableContextMenu($event, table.name)"
+                        [tooltip]="table.name + ' (' + i18n.t(state.isNoSqlDatabase() ? 'sidebar.documents' : 'sidebar.rows', { count: table.recordCount }) + ')'"
+                    >
+                        <div class="table-row">
+                            <button class="expand-toggle" (click)="toggleExpand($event, table.name)">
+                                <span class="expand-icon" [class.open]="isExpanded(table.name)">&#xE76C;</span>
+                            </button>
+                            <span class="table-name">{{ table.name }}</span>
+                            <span class="table-count">{{ table.recordCount }}</span>
                         </div>
+                        @if (isExpanded(table.name)) {
+                            <div class="table-fields" (click)="$event.stopPropagation()">
+                                @for (field of table.fields; track field.name) {
+                                    <div class="field-entry" [class.pk]="field.pk" [class.fk]="!!field.fk">
+                                        <span class="field-name">{{ field.name }}</span>
+                                        <span class="field-type">{{ field.type }}</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+
+        <!-- Section Stored Procedures (MSSQL only) -->
+        @if (hasStoredProcedures()) {
+            <div class="section-header" (click)="toggleProcsSection()">
+                <span class="section-icon" [class.collapsed]="procsCollapsed()">&#xE76C;</span>
+                <span class="section-title">{{ i18n.t("sidebar.section.storedProcedures") }}</span>
+                <span class="section-count">{{ storedProcService.procedures().length }}</span>
+            </div>
+
+            @if (!procsCollapsed()) {
+                <ul class="section-list procs-list">
+                    @for (proc of storedProcService.procedures(); track proc.schema + '.' + proc.name) {
+                        <li
+                            [class.active]="storedProcService.selectedProcedure()?.name === proc.name && storedProcService.selectedProcedure()?.schema === proc.schema"
+                            (click)="selectProcedure(proc.name, proc.schema)"
+                            (contextmenu)="onProcContextMenu($event, proc.name, proc.schema)"
+                            [tooltip]="proc.schema + '.' + proc.name"
+                        >
+                            <div class="table-row">
+                                <span class="proc-icon">&#xE943;</span>
+                                <span class="table-name">{{ proc.name }}</span>
+                                <span class="proc-schema">{{ proc.schema }}</span>
+                            </div>
+                        </li>
                     }
-                </li>
+                    @if (storedProcService.procedures().length === 0 && !storedProcService.loading()) {
+                        <li class="empty-hint">{{ i18n.t("sidebar.storedProcs.empty") }}</li>
+                    }
+                </ul>
             }
-        </ul>
+        }
     </nav>
 
     @if (!dbService.readOnly()) {

@@ -64,8 +64,10 @@
 }
 
 .execute-btn {
+    @include flex(flex, row, nowrap, center, center, 5px);
+
     padding: 0;
-    width: 28px;
+    width: 85px;
     height: 28px;
     border: none;
     border-radius: 4px;
@@ -73,11 +75,11 @@
     color: var(--color-primary);
     cursor: pointer;
     transition: color 0.15s, background 0.15s;
-    @include flex(flex, row, nowrap, center, center, 0);
+    font-size: 12px;
 
-    .execute-icon {
+    .segoe-icon {
         font-family: "Segoe MDL2 Assets", sans-serif;
-        font-size: 14px;
+        font-size: 13px;
         pointer-events: none;
     }
 
@@ -156,6 +158,7 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
+    user-select: none;
 }
 
 .meta-rows {

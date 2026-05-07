@@ -1,0 +1,148 @@
+<div class="stored-procedure-page">
+    @if (isLoading()) {
+        <div class="loading-hint">{{ i18n.t("storedProc.loading") }}</div>
+    }
+    @else if (!procedure()) {
+        <div class="empty-hint">{{ i18n.t("storedProc.emptyHint") }}</div>
+    }
+    @else {
+        <!-- Header -->
+        <div class="proc-header">
+            <div class="proc-identity">
+                <span class="proc-schema">{{ procedure()!.schema }}.</span>
+                <span class="proc-name">{{ procedure()!.name }}</span>
+            </div>
+            <div class="proc-actions">
+                <button
+                    class="action-btn save-btn"
+                    [disabled]="isSaving() || dbService.readOnly()"
+                    (click)="save()"
+                    [tooltip]="i18n.t('storedProc.save')">
+                    <span class="action-icon">&#xE74E;</span>
+                    <span>{{ i18n.t("storedProc.save") }}</span>
+                </button>
+                <button
+                    class="action-btn exec-btn"
+                    [disabled]="isExecuting()"
+                    (click)="execute()"
+                    [tooltip]="i18n.t('storedProc.execute')">
+                    <span class="action-icon">&#xE768;</span>
+                    <span>{{ i18n.t("storedProc.execute") }}</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Éditeur et Formulaire côte à côte -->
+        <div class="editor-params-container">
+            <!-- Monaco Editor -->
+            <div class="editor-section">
+                <div class="section-label">{{ i18n.t("storedProc.definition") }}</div>
+                <div class="monaco-container" #monacoContainer></div>
+                <div class="editor-hint">{{ i18n.t("storedProc.editorHint") }}</div>
+            </div>
+
+            <!-- Formulaire de paramètres (toujours visible) -->
+            <div class="params-section">
+                <div class="section-label">{{ i18n.t("storedProc.parameters") }}</div>
+
+                @if (inputParams().length > 0) {
+                    <div class="params-form">
+                        @for (param of inputParams(); track param.name) {
+                            <div class="param-field">
+                                <label class="param-label" [attr.for]="'param-' + param.name">
+                                    <span class="param-name">&#64;{{ param.name }}</span>
+                                    <span class="param-type">{{ param.type }}</span>
+                                </label>
+                                <input
+                                    class="param-input"
+                                    [id]="'param-' + param.name"
+                                    type="text"
+                                    [placeholder]="param.hasDefault ? 'DEFAULT' : 'NULL'"
+                                    [value]="paramValues()[param.name] ?? ''"
+                                    (input)="updateParamValue(param.name, $any($event.target).value)"
+                                />
+                            </div>
+                        }
+                    </div>
+                }
+                @else {
+                    <div class="params-empty-hint">{{ i18n.t("storedProc.noInputParams") }}</div>
+                }
+
+                @if (outputParams().length > 0) {
+                    <div class="output-params">
+                        <div class="output-label">{{ i18n.t("storedProc.outputParams") }}</div>
+                        @for (param of outputParams(); track param.name) {
+                            <div class="output-param-entry">
+                                <span class="param-name">&#64;{{ param.name }}</span>
+                                <span class="param-type">{{ param.type }}</span>
+                                <!-- @if (getOutputParamValue(param.name) !== null) {
+                                    <span class="param-value">= {{ formatCell(getOutputParamValue(param.name)) }}</span>
+                                } -->
+                            </div>
+                        }
+                    </div>
+                }
+                @else {
+                    <div class="params-empty-hint output-params-hint">{{ i18n.t("storedProc.noOutputParams") }}</div>
+                }
+            </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- Résultats -->
+        <div class="results-panel">
+            @if (errorMessage()) {
+                <div class="error-banner">
+                    <span class="error-icon">&#xE783;</span>
+                    <span class="error-text">{{ errorMessage() }}</span>
+                </div>
+            }
+
+            @if (result()) {
+                <div class="results-meta-bar">
+                    <span class="meta-rows">
+                        {{ i18n.t("storedProc.rowsAffected", { count: result()!.rowsAffected }) }}
+                    </span>
+                    @if (executionTime()) {
+                        <span class="meta-timing">{{ executionTime() }}</span>
+                    }
+                </div>
+
+                @if (resultColumns().length > 0) {
+                    <div class="results-table-wrapper">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    @for (col of resultColumns(); track col) {
+                                        <th>{{ col }}</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (row of resultRows(); track $index) {
+                                    <tr>
+                                        @for (cell of row; track $index) {
+                                            <td [class.null-cell]="isNull(cell)">{{ formatCell(cell) }}</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @else {
+                    <div class="success-banner">
+                        <span class="success-icon">&#xE73E;</span>
+                        <span>{{ i18n.t("storedProc.execSuccess") }}</span>
+                    </div>
+                }
+            }
+
+            @if (!result() && !errorMessage()) {
+                <div class="results-empty-hint">{{ i18n.t("storedProc.resultsHint") }}</div>
+            }
+        </div>
+    }
+</div>
