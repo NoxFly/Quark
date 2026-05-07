@@ -67,9 +67,10 @@
 
 .toolbar {
     @include flex($hor: stretch, $gap: 8px);
-    padding: 0 12px;
+    padding: 10px 12px;
     border-bottom: 1px solid rgba(127, 127, 127, 0.15);
     flex-shrink: 0;
+    background: var(--surface-alt);
 
     .filter-bar {
         @include flex($gap: 0px);
@@ -142,6 +143,7 @@
     flex: 1;
     overflow: auto;
     position: relative;
+    background: var(--surface-alt);
 }
 
 table {

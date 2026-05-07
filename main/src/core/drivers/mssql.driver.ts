@@ -29,6 +29,12 @@ export class MssqlDriver extends NetworkSqlDriver {
     public readonly driverType: DatabaseDriverType = "mssql";
     private connection: Connection | null = null;
 
+    /**
+     * File d'attente des requêtes. Tedious ne supporte qu'une seule requête
+     * à la fois par connexion. Ce mutex sérialise tous les appels.
+     */
+    private requestQueue: Promise<unknown> = Promise.resolve();
+
     protected connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             const p = this.connectionParams!;
@@ -90,6 +96,27 @@ export class MssqlDriver extends NetworkSqlDriver {
     }
 
     protected query(sql: string, params: unknown[] = []): Promise<RawQueryResult> {
+        return this.enqueue(() => this.execQuery(sql, params));
+    }
+
+    protected execute(sql: string, params: unknown[] = []): Promise<{ affectedRows: number; insertId?: number }> {
+        return this.enqueue(() => this.execExecute(sql, params));
+    }
+
+    /**
+     * Sérialise l'exécution d'une opération dans la file d'attente.
+     * Garantit qu'une seule requête tedious est en cours à un instant donné.
+     */
+    private enqueue<T>(operation: () => Promise<T>): Promise<T> {
+        const result = this.requestQueue.then(operation, operation);
+        this.requestQueue = result.then(() => {}, () => {});
+        return result;
+    }
+
+    /**
+     * Exécution interne d'une requête SELECT.
+     */
+    private execQuery(sql: string, params: unknown[]): Promise<RawQueryResult> {
         return new Promise((resolve, reject) => {
             const rows: Record<string, unknown>[] = [];
 
@@ -116,7 +143,7 @@ export class MssqlDriver extends NetworkSqlDriver {
         });
     }
 
-    protected execute(sql: string, params: unknown[] = []): Promise<{ affectedRows: number; insertId?: number }> {
+    private execExecute(sql: string, params: unknown[]): Promise<{ affectedRows: number; insertId?: number }> {
         return new Promise((resolve, reject) => {
             const request = new TdsRequest(sql, (err, rowCount) => {
                 if (err) {
@@ -774,7 +801,7 @@ export class MssqlDriver extends NetworkSqlDriver {
 
         const startTime = performance.now();
 
-        return new Promise<StoredProcedureExecResult>((resolve, reject) => {
+        return this.enqueue(() => new Promise<StoredProcedureExecResult>((resolve, reject) => {
             const rows: unknown[][] = [];
             const columns: string[] = [];
             let columnsSet = false;
@@ -840,7 +867,7 @@ export class MssqlDriver extends NetworkSqlDriver {
             });
 
             this.connection!.callProcedure(request);
-        });
+        }));
     }
 
     /**

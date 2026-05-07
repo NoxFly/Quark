@@ -19,6 +19,7 @@ import { I18nService } from "src/app/core/services/i18n.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import { DatabaseService } from "src/app/core/services/database.service";
+import { ThemeService } from "src/app/core/services/theme.service";
 import type { StoredProcedureDetail, StoredProcedureExecResult, StoredProcedureParam } from "@shared/types";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
@@ -44,6 +45,7 @@ export class StoredProcedurePage {
     protected readonly storedProcService = inject(StoredProceduresService);
     protected readonly dbService = inject(DatabaseService);
     private readonly monacoPreload = inject(MonacoPreloadService);
+    private readonly themeService = inject(ThemeService);
     private readonly destroyRef = inject(DestroyRef);
 
     private readonly editorContainerRef = viewChild<ElementRef<HTMLDivElement>>("monacoContainer");
@@ -54,6 +56,12 @@ export class StoredProcedurePage {
     protected readonly isExecuting = signal<boolean>(false);
     protected readonly isLoading = signal<boolean>(true);
     protected readonly isSaving = signal<boolean>(false);
+
+    /** Toggle : masquer/afficher la section paramètres. */
+    protected readonly paramsVisible = signal<boolean>(true);
+
+    /** Toggle : fullscreen le panneau résultats (masque définition + paramètres). */
+    protected readonly resultsFullscreen = signal<boolean>(false);
 
     /** Valeurs du formulaire de paramètres. */
     protected readonly paramValues = signal<Record<string, string>>({});
@@ -95,14 +103,20 @@ export class StoredProcedurePage {
 
     public constructor() {
         // Créer l'éditeur Monaco dès que le conteneur devient disponible dans le DOM.
-        // On utilise effect() plutôt que afterNextRender() car le conteneur n'existe
-        // que lorsqu'une procédure est sélectionnée (template conditionnel @else).
         effect(() => {
             const container = this.editorContainerRef()?.nativeElement;
             if (!container || this.editor) {
                 return;
             }
             void this.initMonaco(container);
+        });
+
+        // Réagir aux changements de thème pour mettre à jour Monaco.
+        effect(() => {
+            const theme = this.themeService.currentTheme();
+            if (this.editor) {
+                monaco.editor.setTheme(this.resolveMonacoTheme(theme));
+            }
         });
 
         this.destroyRef.onDestroy(() => {
@@ -209,6 +223,20 @@ export class StoredProcedurePage {
     }
 
     /**
+     * Toggle la visibilité de la section paramètres.
+     */
+    protected toggleParams(): void {
+        this.paramsVisible.update(v => !v);
+    }
+
+    /**
+     * Toggle le mode fullscreen des résultats.
+     */
+    protected toggleResultsFullscreen(): void {
+        this.resultsFullscreen.update(v => !v);
+    }
+
+    /**
      * Met à jour la valeur d'un paramètre.
      */
     protected updateParamValue(paramName: string, value: string): void {
@@ -245,6 +273,68 @@ export class StoredProcedurePage {
      */
     protected isNull(value: unknown): boolean {
         return value === null || value === undefined;
+    }
+
+    /**
+     * Démarre le redimensionnement vertical (entre éditeur et résultats).
+     */
+    protected startVerticalResize(event: MouseEvent): void {
+        event.preventDefault();
+        const host = (event.target as HTMLElement).closest(".stored-procedure-page") as HTMLElement;
+        const editorContainer = host.querySelector(".editor-params-container") as HTMLElement;
+        const resultsPanel = host.querySelector(".results-panel") as HTMLElement;
+        if (!editorContainer || !resultsPanel) {
+            return;
+        }
+
+        const startY = event.clientY;
+        const startEditorHeight = editorContainer.offsetHeight;
+        const totalHeight = editorContainer.offsetHeight + resultsPanel.offsetHeight;
+
+        const onMouseMove = (e: MouseEvent): void => {
+            const delta = e.clientY - startY;
+            const newEditorHeight = Math.max(100, Math.min(totalHeight - 80, startEditorHeight + delta));
+            editorContainer.style.flex = "none";
+            editorContainer.style.height = `${newEditorHeight}px`;
+            resultsPanel.style.flex = "1";
+        };
+
+        const onMouseUp = (): void => {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+    }
+
+    /**
+     * Démarre le redimensionnement horizontal (entre éditeur et paramètres).
+     */
+    protected startHorizontalResize(event: MouseEvent): void {
+        event.preventDefault();
+        const host = (event.target as HTMLElement).closest(".editor-params-container") as HTMLElement;
+        const paramsSection = host?.querySelector(".params-section") as HTMLElement;
+        if (!paramsSection) {
+            return;
+        }
+
+        const startX = event.clientX;
+        const startWidth = paramsSection.offsetWidth;
+
+        const onMouseMove = (e: MouseEvent): void => {
+            const delta = startX - e.clientX;
+            const newWidth = Math.max(180, Math.min(500, startWidth + delta));
+            paramsSection.style.width = `${newWidth}px`;
+        };
+
+        const onMouseUp = (): void => {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
     }
 
     /**
@@ -293,6 +383,16 @@ export class StoredProcedurePage {
     }
 
     /**
+     * Résout le thème Monaco à partir du thème applicatif.
+     */
+    private resolveMonacoTheme(appTheme: string): string {
+        if (appTheme === "light") {
+            return "vs";
+        }
+        return "vs-dark";
+    }
+
+    /**
      * Attend que Monaco soit chargé puis crée l'éditeur.
      */
     private async initMonaco(container: HTMLElement): Promise<void> {
@@ -304,13 +404,12 @@ export class StoredProcedurePage {
      * Crée l'instance Monaco Editor pour la procédure stockée.
      */
     private createEditor(container: HTMLElement): void {
-        const isDark = document.documentElement.getAttribute("data-theme") !== "light"
-            && document.documentElement.getAttribute("data-theme") !== "legacy";
+        const theme = this.resolveMonacoTheme(this.themeService.currentTheme());
 
         this.editor = monaco.editor.create(container, {
             value: this.procedure()?.definition ?? "",
             language: "sql",
-            theme: isDark ? "vs-dark" : "vs",
+            theme,
             minimap: { enabled: false },
             fontSize: 13,
             fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",

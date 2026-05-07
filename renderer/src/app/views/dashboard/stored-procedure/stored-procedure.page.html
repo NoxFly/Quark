@@ -1,5 +1,5 @@
-<div class="stored-procedure-page">
-    @if (isLoading()) {
+<div class="stored-procedure-page" [class.results-fullscreen]="resultsFullscreen()">
+    @if (isLoading() && !procedure()) {
         <div class="loading-hint">{{ i18n.t("storedProc.loading") }}</div>
     }
     @else if (!procedure()) {
@@ -13,6 +13,20 @@
                 <span class="proc-name">{{ procedure()!.name }}</span>
             </div>
             <div class="proc-actions">
+                <button
+                    class="action-btn icon-btn fullscreen-btn"
+                    [class.active]="resultsFullscreen()"
+                    (click)="toggleResultsFullscreen()"
+                    [tooltip]="i18n.t('storedProc.toggleResultsFullscreen')">
+                    <span class="action-icon">&#x26F6;</span>
+                </button>
+                <button
+                    class="action-btn icon-btn toggle-params-btn"
+                    [class.active]="paramsVisible()"
+                    (click)="toggleParams()"
+                    [tooltip]="i18n.t('storedProc.toggleParams')">
+                    <span class="action-icon">&#xE8A0;</span>
+                </button>
                 <button
                     class="action-btn save-btn"
                     [disabled]="isSaving() || dbService.readOnly()"
@@ -32,64 +46,75 @@
             </div>
         </div>
 
+        @if (isLoading()) {
+            <div class="loading-overlay">
+                <div class="loading-hint">{{ i18n.t("storedProc.loading") }}</div>
+            </div>
+        }
+
         <!-- Éditeur et Formulaire côte à côte -->
-        <div class="editor-params-container">
+        <div class="editor-params-container" [class.hidden]="resultsFullscreen()">
             <!-- Monaco Editor -->
             <div class="editor-section">
-                <div class="section-label">{{ i18n.t("storedProc.definition") }}</div>
+                <!-- <div class="section-label">{{ i18n.t("storedProc.definition") }}</div> -->
                 <div class="monaco-container" #monacoContainer></div>
-                <div class="editor-hint">{{ i18n.t("storedProc.editorHint") }}</div>
+                <!-- <div class="editor-hint">{{ i18n.t("storedProc.editorHint") }}</div> -->
             </div>
 
-            <!-- Formulaire de paramètres (toujours visible) -->
-            <div class="params-section">
-                <div class="section-label">{{ i18n.t("storedProc.parameters") }}</div>
+            <!-- Resize handle horizontal (entre éditeur et params) -->
+            @if (paramsVisible()) {
+                <div class="resize-handle-horizontal" (mousedown)="startHorizontalResize($event)"></div>
+            }
 
-                @if (inputParams().length > 0) {
-                    <div class="params-form">
-                        @for (param of inputParams(); track param.name) {
-                            <div class="param-field">
-                                <label class="param-label" [attr.for]="'param-' + param.name">
+            <!-- Formulaire de paramètres -->
+            @if (paramsVisible()) {
+                <div class="params-section">
+                    <div class="section-label">{{ i18n.t("storedProc.parameters") }}</div>
+
+                    @if (inputParams().length > 0) {
+                        <div class="params-form">
+                            @for (param of inputParams(); track param.name) {
+                                <div class="param-field">
+                                    <label class="param-label" [attr.for]="'param-' + param.name">
+                                        <span class="param-name">&#64;{{ param.name }}</span>
+                                        <span class="param-type">{{ param.type }}</span>
+                                    </label>
+                                    <input
+                                        class="param-input"
+                                        [id]="'param-' + param.name"
+                                        type="text"
+                                        [placeholder]="param.hasDefault ? 'DEFAULT' : 'NULL'"
+                                        [value]="paramValues()[param.name] ?? ''"
+                                        (input)="updateParamValue(param.name, $any($event.target).value)"
+                                    />
+                                </div>
+                            }
+                        </div>
+                    }
+                    @else {
+                        <div class="params-empty-hint">{{ i18n.t("storedProc.noInputParams") }}</div>
+                    }
+
+                    @if (outputParams().length > 0) {
+                        <div class="output-params">
+                            <div class="output-label">{{ i18n.t("storedProc.outputParams") }}</div>
+                            @for (param of outputParams(); track param.name) {
+                                <div class="output-param-entry">
                                     <span class="param-name">&#64;{{ param.name }}</span>
                                     <span class="param-type">{{ param.type }}</span>
-                                </label>
-                                <input
-                                    class="param-input"
-                                    [id]="'param-' + param.name"
-                                    type="text"
-                                    [placeholder]="param.hasDefault ? 'DEFAULT' : 'NULL'"
-                                    [value]="paramValues()[param.name] ?? ''"
-                                    (input)="updateParamValue(param.name, $any($event.target).value)"
-                                />
-                            </div>
-                        }
-                    </div>
-                }
-                @else {
-                    <div class="params-empty-hint">{{ i18n.t("storedProc.noInputParams") }}</div>
-                }
-
-                @if (outputParams().length > 0) {
-                    <div class="output-params">
-                        <div class="output-label">{{ i18n.t("storedProc.outputParams") }}</div>
-                        @for (param of outputParams(); track param.name) {
-                            <div class="output-param-entry">
-                                <span class="param-name">&#64;{{ param.name }}</span>
-                                <span class="param-type">{{ param.type }}</span>
-                                <!-- @if (getOutputParamValue(param.name) !== null) {
-                                    <span class="param-value">= {{ formatCell(getOutputParamValue(param.name)) }}</span>
-                                } -->
-                            </div>
-                        }
-                    </div>
-                }
-                @else {
-                    <div class="params-empty-hint output-params-hint">{{ i18n.t("storedProc.noOutputParams") }}</div>
-                }
-            </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    @else {
+                        <div class="params-empty-hint output-params-hint">{{ i18n.t("storedProc.noOutputParams") }}</div>
+                    }
+                </div>
+            }
         </div>
 
-        <div class="section-divider"></div>
+        <!-- Resize handle vertical (entre éditeur et résultats) -->
+        <div class="resize-handle-vertical" [class.hidden]="resultsFullscreen()" (mousedown)="startVerticalResize($event)"></div>
 
         <!-- Résultats -->
         <div class="results-panel">

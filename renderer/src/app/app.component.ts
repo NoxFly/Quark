@@ -19,6 +19,7 @@ import { ChangePasswordComponent } from "./shared/components/change-password/cha
 import { CreateTableComponent } from "./shared/components/create-table/create-table.component";
 import { IndexViewerComponent } from "./shared/components/index-viewer/index-viewer.component";
 import { SchemaEditorComponent } from "./shared/components/schema-editor/schema-editor.component";
+import { EntitySearchComponent } from "./shared/components/entity-search/entity-search.component";
 import { AlertController } from "@ui/alert/alert.controller";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
@@ -41,6 +42,7 @@ import type { UIDismissData } from "src/app/shared/ui/ui.types";
         ThemePickerComponent,
         RecentDatabasesComponent,
         PasswordPromptComponent,
+        EntitySearchComponent,
     ],
     host: {
         "(window:beforeunload)": "handleBeforeUnload()",
@@ -280,8 +282,8 @@ export class AppComponent {
             this.noxus.ipc.toggleFullscreen();
         }
 
-        // Ctrl+E : toggle mode édition
-        if (event.ctrlKey && !event.altKey && event.key === "e") {
+        // Ctrl+D : toggle mode édition (aka [D]esign Mode)
+        if (event.ctrlKey && !event.altKey && event.key === "d") {
             event.preventDefault();
             if (this.state.connected()) {
                 this.dbService.toggleReadOnly();
@@ -326,6 +328,14 @@ export class AppComponent {
                 this.tabsService.openTab(SQL_EDITOR_TAB_ID);
                 this.dbService.selectedTable.set(null);
                 this.router.navigate(["/dashboard/sql-editor"]);
+            }
+        }
+
+        // Ctrl+E : ouvrir la recherche d'entités (tables/procédures)
+        if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key === "e") {
+            event.preventDefault();
+            if (this.state.connected()) {
+                document.dispatchEvent(new CustomEvent("open-entity-search"));
             }
         }
     }

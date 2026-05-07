@@ -54,7 +54,7 @@ export class ShortcutsComponent {
         {
             title: "shortcuts.group.edit",
             shortcuts: [
-                { keys: "Ctrl+E", description: "shortcuts.toggleEditMode" },
+                { keys: "Ctrl+D", description: "shortcuts.toggleEditMode" },
                 { keys: "Ctrl+T", description: "shortcuts.startTransaction" },
                 { keys: "Ctrl+Z", description: "shortcuts.undo" },
                 { keys: "Ctrl+Y", description: "shortcuts.redo" },
@@ -63,6 +63,7 @@ export class ShortcutsComponent {
         {
             title: "shortcuts.group.view",
             shortcuts: [
+                { keys: "Ctrl+E", description: "shortcuts.entitySearch" },
                 { keys: "Ctrl+Shift+Q", description: "shortcuts.sqlEditor" },
                 { keys: "F11", description: "shortcuts.fullscreen" },
                 { keys: "Ctrl+K  Ctrl+T", description: "shortcuts.changeTheme" },

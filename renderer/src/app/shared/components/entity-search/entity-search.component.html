@@ -1,0 +1,35 @@
+@if (isOpen()) {
+    <div class="entity-search-overlay" (click)="close()">
+        <div class="entity-search-sheet" (click)="$event.stopPropagation()">
+            <div class="entity-search-input-wrapper">
+                <span class="search-icon">&#xE721;</span>
+                <input
+                    #searchInput
+                    class="entity-search-input"
+                    type="text"
+                    [placeholder]="placeholder()"
+                    [value]="query()"
+                    (input)="onInput($any($event.target).value)"
+                />
+            </div>
+            @if (filteredResults().length > 0) {
+                <div class="entity-search-list">
+                    @for (result of filteredResults(); track result.label; let i = $index) {
+                        <button
+                            class="entity-search-item"
+                            [class.selected]="selectedIndex() === i"
+                            (click)="selectResultAtIndex($event, i)"
+                        >
+                            <span class="item-icon">{{ result.type === "table" ? "&#xE8F1;" : "&#xE943;" }}</span>
+                            <span class="item-label">{{ result.label }}</span>
+                            <span class="item-type">{{ result.type }}</span>
+                        </button>
+                    }
+                </div>
+            }
+            @else {
+                <div class="entity-search-empty">No results</div>
+            }
+        </div>
+    </div>
+}

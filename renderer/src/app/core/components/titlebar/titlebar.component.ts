@@ -74,7 +74,7 @@ export class TitlebarComponent {
             { label: t("menu.undo"), shortcut: "Ctrl+Z", action: () => this.dbService.undoLastMutation(), disabled: isReadOnly || !this.dbService.mutationHistory.canUndo() },
             { label: t("menu.redo"), shortcut: "Ctrl+Y", action: () => this.dbService.redoLastMutation(), disabled: isReadOnly || !this.dbService.mutationHistory.canRedo() },
             { label: "", separator: true },
-            { label: t("menu.toggleEditMode"), shortcut: "Ctrl+E", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
+            { label: t("menu.toggleEditMode"), shortcut: "Ctrl+D", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
         ];
 
         if (!capabilities || capabilities.transactions) {

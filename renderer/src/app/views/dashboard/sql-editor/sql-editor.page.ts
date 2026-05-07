@@ -4,11 +4,12 @@
  * @see https://github.com/NoxFly
  */
 
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, inject, signal, viewChild } from "@angular/core";
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from "@angular/core";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
+import { ThemeService } from "src/app/core/services/theme.service";
 import type { R_SqlExecResponse } from "@shared/types";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
@@ -37,6 +38,7 @@ export class SqlEditorPage {
     protected readonly i18n = inject(I18nService);
     private readonly state = inject(StateService);
     private readonly monacoPreload = inject(MonacoPreloadService);
+    private readonly themeService = inject(ThemeService);
     private readonly destroyRef = inject(DestroyRef);
 
     private readonly editorContainerRef = viewChild<ElementRef<HTMLDivElement>>("monacoContainer");
@@ -79,6 +81,15 @@ export class SqlEditorPage {
 
     public constructor() {
         afterNextRender(() => this.initMonaco());
+
+        // Réagir aux changements de thème pour mettre à jour Monaco.
+        effect(() => {
+            const theme = this.themeService.currentTheme();
+            if (this.editor) {
+                const monacoTheme = theme === "light" ? "vs" : "vs-dark";
+                monaco.editor.setTheme(monacoTheme);
+            }
+        });
 
         this.destroyRef.onDestroy(() => {
             this.completionDisposable?.dispose();
@@ -228,14 +239,13 @@ export class SqlEditorPage {
      * Crée l'instance Monaco Editor et configure l'autocomplétion DB.
      */
     private createEditor(container: HTMLElement): void {
-        // Déterminer le thème en fonction du thème CSS actif
-        const isDark = document.documentElement.getAttribute("data-theme") !== "light"
-            && document.documentElement.getAttribute("data-theme") !== "legacy";
+        // Déterminer le thème en fonction du thème actif
+        const theme = this.themeService.currentTheme() === "light" ? "vs" : "vs-dark";
 
         this.editor = monaco.editor.create(container, {
             value: "",
             language: "sql",
-            theme: isDark ? "vs-dark" : "vs",
+            theme,
             minimap: { enabled: false },
             fontSize: 13,
             fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
