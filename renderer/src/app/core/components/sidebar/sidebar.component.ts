@@ -180,6 +180,75 @@ export class SidebarComponent {
     }
 
     /**
+     * Gère le clic sur le bouton "+" du section-header Tables.
+     * Empêche la propagation pour ne pas toggler la section.
+     */
+    protected onCreateTable(event: MouseEvent): void {
+        event.stopPropagation();
+        this.dispatchCreateTable();
+    }
+
+    /**
+     * Gère le clic sur le bouton "+" du section-header Procédures stockées.
+     * Empêche la propagation pour ne pas toggler la section.
+     */
+    protected onCreateProcedure(event: MouseEvent): void {
+        event.stopPropagation();
+        this.dispatchCreateProcedure();
+    }
+
+    /**
+     * Dispatche l'événement d'ouverture de la création d'une procédure stockée.
+     */
+    protected dispatchCreateProcedure(): void {
+        this.router.navigate(["/dashboard/stored-procedure"]).then(() => {
+            setTimeout(() => {
+                document.dispatchEvent(new CustomEvent("create-stored-procedure"));
+            }, 50);
+        });
+    }
+
+    /**
+     * Menu contextuel pour le section-header Tables.
+     */
+    protected onTablesSectionContextMenu(event: MouseEvent): void {
+        event.preventDefault();
+        if (this.dbService.readOnly()) {
+            return;
+        }
+
+        const items: { label: string; icon?: string; action: () => void }[] = [
+            {
+                label: this.i18n.t(this.isNoSql() ? "sidebar.createCollection" : "sidebar.createTable"),
+                icon: "\uE710",
+                action: () => this.dispatchCreateTable(),
+            },
+        ];
+
+        this.contextMenu().open(event, items);
+    }
+
+    /**
+     * Menu contextuel pour le section-header Procédures stockées.
+     */
+    protected onProcsSectionContextMenu(event: MouseEvent): void {
+        event.preventDefault();
+        if (this.dbService.readOnly()) {
+            return;
+        }
+
+        const items: { label: string; icon?: string; action: () => void }[] = [
+            {
+                label: this.i18n.t("sidebar.storedProcs.create"),
+                icon: "\uE710",
+                action: () => this.dispatchCreateProcedure(),
+            },
+        ];
+
+        this.contextMenu().open(event, items);
+    }
+
+    /**
      * Bascule la visibilité de la section tables.
      */
     protected toggleTablesSection(): void {

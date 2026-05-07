@@ -91,6 +91,14 @@ export class SqlEditorPage {
             }
         });
 
+        // Réagir aux changements du mode readOnly pour mettre à jour l'éditeur.
+        effect(() => {
+            const readOnly = this.dbService.readOnly();
+            if (this.editor) {
+                this.editor.updateOptions({ readOnly });
+            }
+        });
+
         this.destroyRef.onDestroy(() => {
             this.completionDisposable?.dispose();
             this.editor?.dispose();
@@ -257,6 +265,7 @@ export class SqlEditorPage {
             suggestOnTriggerCharacters: true,
             quickSuggestions: true,
             padding: { top: 8, bottom: 8 },
+            readOnly: this.dbService.readOnly(),
         });
 
         // Ctrl+Enter → exécuter

@@ -341,6 +341,8 @@ export const en: Record<string, string> = {
     "sidebar.section.storedProcedures": "Stored Procedures",
     "sidebar.storedProcs.empty": "No stored procedures",
     "sidebar.storedProcs.open": "Open",
+    "sidebar.storedProcs.create": "New procedure",
+    "sidebar.storedProcs.create.tooltip": "Create a new stored procedure",
     "sidebar.storedProcs.delete": "Delete procedure",
 
     // --- Stored Procedures ---

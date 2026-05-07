@@ -63,6 +63,9 @@ export class StoredProcedurePage {
     /** Toggle : fullscreen le panneau résultats (masque définition + paramètres). */
     protected readonly resultsFullscreen = signal<boolean>(false);
 
+    /** Indique si c'est une nouvelle procédure (pas encore créée en base). */
+    protected readonly isNewProcedure = signal<boolean>(false);
+
     /** Valeurs du formulaire de paramètres. */
     protected readonly paramValues = signal<Record<string, string>>({});
 
@@ -119,6 +122,14 @@ export class StoredProcedurePage {
             }
         });
 
+        // Réagir aux changements du mode readOnly pour mettre à jour l'éditeur.
+        effect(() => {
+            const readOnly = this.dbService.readOnly();
+            if (this.editor) {
+                this.editor.updateOptions({ readOnly });
+            }
+        });
+
         this.destroyRef.onDestroy(() => {
             this.editor?.dispose();
         });
@@ -130,6 +141,13 @@ export class StoredProcedurePage {
         };
         document.addEventListener("open-stored-procedure", handler);
         this.destroyRef.onDestroy(() => document.removeEventListener("open-stored-procedure", handler));
+
+        // Écouter l'événement de création d'une procédure
+        const createHandler = (): void => {
+            this.createNewProcedure();
+        };
+        document.addEventListener("create-stored-procedure", createHandler);
+        this.destroyRef.onDestroy(() => document.removeEventListener("create-stored-procedure", createHandler));
     }
 
     /**
@@ -137,6 +155,7 @@ export class StoredProcedurePage {
      */
     public async loadProcedure(name: string, schema: string): Promise<void> {
         this.isLoading.set(true);
+        this.isNewProcedure.set(false);
         this.result.set(null);
         this.errorMessage.set(null);
 
@@ -155,9 +174,9 @@ export class StoredProcedurePage {
             }
             this.paramValues.set(values);
 
-            // Mettre à jour l'éditeur Monaco
+            // Mettre à jour l'éditeur Monaco (sans le préfixe CREATE/ALTER)
             if (this.editor) {
-                this.editor.setValue(detail.definition);
+                this.editor.setValue(this.stripCreateAlterPrefix(detail.definition));
             }
         }
         catch (err) {
@@ -165,6 +184,33 @@ export class StoredProcedurePage {
         }
         finally {
             this.isLoading.set(false);
+        }
+    }
+
+    /**
+     * Prépare l'éditeur pour la création d'une nouvelle procédure.
+     */
+    protected createNewProcedure(): void {
+        const template = "PROCEDURE [dbo].[NewProcedure]\nAS\nBEGIN\n    \nEND";
+        const detail: StoredProcedureDetail = {
+            name: "NewProcedure",
+            schema: "dbo",
+            definition: template,
+            params: [],
+            createdAt: null,
+            modifiedAt: null,
+        };
+
+        this.procedure.set(detail);
+        this.isNewProcedure.set(true);
+        this.result.set(null);
+        this.errorMessage.set(null);
+        this.paramValues.set({});
+        this.isLoading.set(false);
+
+        if (this.editor) {
+            this.editor.setValue(template);
+            this.editor.focus();
         }
     }
 
@@ -195,7 +241,8 @@ export class StoredProcedurePage {
     }
 
     /**
-     * Sauvegarde (ALTER) la procédure stockée modifiée dans l'éditeur.
+     * Sauvegarde la procédure stockée. Le backend détermine s'il faut
+     * CREATE ou ALTER en fonction de l'existence de la procédure.
      */
     protected async save(): Promise<void> {
         const proc = this.procedure();
@@ -213,6 +260,12 @@ export class StoredProcedurePage {
 
         try {
             await this.storedProcService.modifyProcedure(proc.name, proc.schema, definition);
+
+            // Après création réussie, recharger la liste et marquer comme existante
+            if (this.isNewProcedure()) {
+                this.isNewProcedure.set(false);
+                await this.storedProcService.loadProcedures();
+            }
         }
         catch (err) {
             this.errorMessage.set(extractIpcErrorMessage(err instanceof Error ? err.message : String(err)));
@@ -401,13 +454,22 @@ export class StoredProcedurePage {
     }
 
     /**
+     * Retire le préfixe CREATE, ALTER ou CREATE OR ALTER d'une définition
+     * de procédure stockée, en ne laissant que la partie commençant par PROCEDURE.
+     */
+    private stripCreateAlterPrefix(definition: string): string {
+        return definition.replace(/^\s*(?:CREATE\s+(?:OR\s+ALTER\s+)?|ALTER\s+)PROC(?:EDURE)?/im, "PROCEDURE");
+    }
+
+    /**
      * Crée l'instance Monaco Editor pour la procédure stockée.
      */
     private createEditor(container: HTMLElement): void {
         const theme = this.resolveMonacoTheme(this.themeService.currentTheme());
+        const initialDefinition = this.procedure()?.definition ?? "";
 
         this.editor = monaco.editor.create(container, {
-            value: this.procedure()?.definition ?? "",
+            value: this.stripCreateAlterPrefix(initialDefinition),
             language: "sql",
             theme,
             minimap: { enabled: false },

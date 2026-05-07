@@ -139,6 +139,31 @@
             color: rgba(127, 127, 127, 0.5);
             font-weight: 400;
         }
+
+        .section-action-btn {
+            background: none;
+            border: none;
+            padding: 4px 4px;
+            cursor: pointer;
+            color: var(--medium-shade);
+            border-radius: 3px;
+            line-height: 1;
+            opacity: 0;
+            transition: opacity 0.15s, background 0.1s;
+
+            &:hover {
+                background: rgba(127, 127, 127, 0.15);
+            }
+
+            .section-action-icon {
+                font-family: "Segoe Fluent Icons", sans-serif;
+                font-size: 0.9em;
+            }
+        }
+
+        &:hover .section-action-btn {
+            opacity: 1;
+        }
     }
 
     .section-list {
@@ -280,17 +305,6 @@
     &:hover::after,
     &:active::after {
         background: var(--interactive, var(--color-primary));
-    }
-}
-
-.sidebar-footer {
-    .footer-btn {
-        --btn-width: 100%;
-        margin: 10px auto 5px auto;
-        display: block;
-        position: relative;
-        width: max(200px, 90%);
-        font-size: .8rem;
     }
 }
 

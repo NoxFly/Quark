@@ -13,20 +13,14 @@
                 <span class="proc-name">{{ procedure()!.name }}</span>
             </div>
             <div class="proc-actions">
-                <button
-                    class="action-btn icon-btn fullscreen-btn"
-                    [class.active]="resultsFullscreen()"
-                    (click)="toggleResultsFullscreen()"
-                    [tooltip]="i18n.t('storedProc.toggleResultsFullscreen')">
-                    <span class="action-icon">&#x26F6;</span>
-                </button>
-                <button
-                    class="action-btn icon-btn toggle-params-btn"
-                    [class.active]="paramsVisible()"
-                    (click)="toggleParams()"
-                    [tooltip]="i18n.t('storedProc.toggleParams')">
-                    <span class="action-icon">&#xE8A0;</span>
-                </button>
+                @if(!paramsVisible()) {
+                    <button
+                        class="action-btn icon-btn toggle-params-btn"
+                        (click)="toggleParams()"
+                        [tooltip]="i18n.t('storedProc.toggleParams')">
+                        <span class="action-icon">&#xE8A0;</span>
+                    </button>
+                }
                 <button
                     class="action-btn save-btn"
                     [disabled]="isSaving() || dbService.readOnly()"
@@ -69,7 +63,16 @@
             <!-- Formulaire de paramètres -->
             @if (paramsVisible()) {
                 <div class="params-section">
-                    <div class="section-label">{{ i18n.t("storedProc.parameters") }}</div>
+                    <div class="section-label">
+                        <span>{{ i18n.t("storedProc.parameters") }}</span>
+                        <button
+                            class="action-btn icon-btn toggle-params-btn"
+                            [class.active]="paramsVisible()"
+                            (click)="toggleParams()"
+                            [tooltip]="i18n.t('storedProc.toggleParams')">
+                            <span class="action-icon">&#xE8A0;</span>
+                        </button>
+                    </div>
 
                     @if (inputParams().length > 0) {
                         <div class="params-form">
@@ -118,6 +121,28 @@
 
         <!-- Résultats -->
         <div class="results-panel">
+            <div class="results-top-bar">
+                <div class="results-meta-bar">
+                    @if(result()) {
+                        <span class="meta-rows">
+                            {{ i18n.t("storedProc.rowsAffected", { count: result()!.rowsAffected }) }}
+                        </span>
+
+                        @if (executionTime()) {
+                            <span class="meta-timing">{{ executionTime() }}</span>
+                        }
+                    }
+                </div>
+
+                <button
+                    class="action-btn icon-btn fullscreen-btn"
+                    [class.active]="resultsFullscreen()"
+                    (click)="toggleResultsFullscreen()"
+                    [tooltip]="i18n.t('storedProc.toggleResultsFullscreen')">
+                    <span class="action-icon">&#x26F6;</span>
+                </button>
+            </div>
+
             @if (errorMessage()) {
                 <div class="error-banner">
                     <span class="error-icon">&#xE783;</span>
@@ -126,15 +151,6 @@
             }
 
             @if (result()) {
-                <div class="results-meta-bar">
-                    <span class="meta-rows">
-                        {{ i18n.t("storedProc.rowsAffected", { count: result()!.rowsAffected }) }}
-                    </span>
-                    @if (executionTime()) {
-                        <span class="meta-timing">{{ executionTime() }}</span>
-                    }
-                </div>
-
                 @if (resultColumns().length > 0) {
                     <div class="results-table-wrapper">
                         <table class="results-table">

@@ -23,9 +23,17 @@
         }
 
         <!-- Section Tables -->
-        <div class="section-header" (click)="toggleTablesSection()">
+        <div class="section-header"
+            (click)="toggleTablesSection()"
+            (contextmenu)="onTablesSectionContextMenu($event)">
             <span class="section-icon" [class.collapsed]="tablesCollapsed()">&#xE76C;</span>
             <span class="section-title">{{ i18n.t(isNoSql() ? "sidebar.section.collections" : "sidebar.section.tables") }}</span>
+            @if (!dbService.readOnly()) {
+                <button class="section-action-btn" (click)="onCreateTable($event)"
+                    [tooltip]="i18n.t(isNoSql() ? 'sidebar.createCollection.tooltip' : 'sidebar.createTable.tooltip')">
+                    <span class="section-action-icon">&#xE710;</span>
+                </button>
+            }
             <span class="section-count">{{ tables().length }}</span>
         </div>
 
@@ -63,9 +71,17 @@
 
         <!-- Section Stored Procedures (MSSQL only) -->
         @if (hasStoredProcedures()) {
-            <div class="section-header" (click)="toggleProcsSection()">
+            <div class="section-header"
+                (click)="toggleProcsSection()"
+                (contextmenu)="onProcsSectionContextMenu($event)">
                 <span class="section-icon" [class.collapsed]="procsCollapsed()">&#xE76C;</span>
                 <span class="section-title">{{ i18n.t("sidebar.section.storedProcedures") }}</span>
+                @if (!dbService.readOnly()) {
+                    <button class="section-action-btn" (click)="onCreateProcedure($event)"
+                        [tooltip]="i18n.t('sidebar.storedProcs.create.tooltip')">
+                        <span class="section-action-icon">&#xE710;</span>
+                    </button>
+                }
                 <span class="section-count">{{ storedProcService.procedures().length }}</span>
             </div>
 
@@ -92,19 +108,6 @@
             }
         }
     </nav>
-
-    @if (!dbService.readOnly()) {
-        <div class="sidebar-footer">
-            <ui-button
-                class="footer-btn"
-                icon="e710"
-                (click)="dispatchCreateTable()"
-                [tooltip]="i18n.t(state.isNoSqlDatabase() ? 'sidebar.createCollection.tooltip' : 'sidebar.createTable.tooltip')"
-            >
-                {{ i18n.t(state.isNoSqlDatabase() ? "sidebar.createCollection" : "sidebar.createTable") }}
-            </ui-button>
-        </div>
-    }
 
     <div
         class="resize-handle"

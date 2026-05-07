@@ -871,11 +871,23 @@ export class MssqlDriver extends NetworkSqlDriver {
     }
 
     /**
-     * Modifie (ALTER) une procédure stockée avec la nouvelle définition.
+     * Crée ou modifie une procédure stockée.
+     * Détermine automatiquement s'il faut CREATE ou ALTER en fonction
+     * de l'existence de la procédure. La définition reçue commence par
+     * « PROCEDURE [schema].[name] ... » (sans CREATE/ALTER).
      */
     public async modifyStoredProcedure(name: string, schema: string, definition: string): Promise<void> {
         this.ensureOpen();
-        await this.execute(definition);
+
+        const qualifiedName = `${schema}.${name}`;
+        const existsResult = await this.query(
+            "SELECT OBJECT_ID(@p0) AS id",
+            [qualifiedName],
+        );
+        const exists = existsResult.rows[0]?.["id"] !== null;
+
+        const prefix = exists ? "ALTER " : "CREATE ";
+        await this.execute(`${prefix}${definition}`);
     }
 
     /**
