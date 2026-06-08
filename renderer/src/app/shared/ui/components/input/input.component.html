@@ -16,6 +16,16 @@
             [attr.aria-hidden]="true"/>
     }
 
+    @if(type() === 'number') {
+        <button
+            type="button"
+            class="stepper stepper-plus"
+            tabindex="-1"
+            aria-label="increment"
+            [disabled]="isDisabled() !== false || atMax()"
+            (click)="increment()">+</button>
+    }
+
     <input
         [id]="id"
         [type]="type()"
@@ -24,8 +34,21 @@
         [autocomplete]="autocomplete()"
         [value]="value()"
         [checked]="checked()"
+        [attr.min]="type() === 'number' ? min() : null"
+        [attr.max]="type() === 'number' ? max() : null"
+        [attr.step]="type() === 'number' ? step() : null"
         (input)="handleInput($event)"
         #input/>
+
+    @if(type() === 'number') {
+        <button
+            type="button"
+            class="stepper stepper-minus"
+            tabindex="-1"
+            aria-label="decrement"
+            [disabled]="isDisabled() !== false || atMin()"
+            (click)="decrement()">&minus;</button>
+    }
 
     @if(type() === 'radio' || type() === 'checkbox') {
         <span></span>

@@ -27,8 +27,9 @@ const defaultWindowOptions: BrowserWindowConstructorOptions = {
     minHeight: 400,
     minWidth: 600,
     resizable: true,
-    backgroundColor: "#000",
-    accentColor: "#000000",
+    // Couleur de fond initiale + couleur de la bordure DWM (Windows 11) d'une fenêtre
+    // frameless. En blanc pour s'accorder à l'application claire (au lieu du noir).
+    backgroundColor: "#ffffff",
 };
 
 /**

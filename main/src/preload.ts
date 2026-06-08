@@ -61,6 +61,19 @@ const api: IpcRendererBridge = {
     getSchema: () => ipcRenderer.invoke("db-get-schema"),
     getAllDriverInfos: () => ipcRenderer.invoke("db-get-driver-infos"),
 
+    // Connections vault
+    connVaultStatus: () => ipcRenderer.invoke("conn-status"),
+    connInitialize: (masterPassword) => ipcRenderer.invoke("conn-initialize", masterPassword),
+    connUnlock: (masterPassword) => ipcRenderer.invoke("conn-unlock", masterPassword),
+    connLock: () => ipcRenderer.invoke("conn-lock"),
+    connList: () => ipcRenderer.invoke("conn-list"),
+    connCreate: (input) => ipcRenderer.invoke("conn-create", input),
+    connUpdate: (id, input) => ipcRenderer.invoke("conn-update", id, input),
+    connDelete: (id) => ipcRenderer.invoke("conn-delete", id),
+    connConnect: (id) => ipcRenderer.invoke("conn-connect", id),
+    connExport: (ids, passphrase) => ipcRenderer.invoke("conn-export", ids, passphrase),
+    connImport: (passphrase) => ipcRenderer.invoke("conn-import", passphrase),
+
     // Events from main
     onNavigationRequested: (cb) => {
         ipcRenderer.removeAllListeners("navigate-to");

@@ -2,7 +2,9 @@ import { IApp, inject, Injectable, Logger, WindowManager } from "@noxfly/noxus/m
 import { app, BrowserWindow, dialog, ipcMain, Menu } from "electron/main";
 import { Window } from "src/core/services/window";
 import { RecentDatabases } from "src/core/services/recent-databases";
+import { ConnectionStore } from "src/core/services/connection-store";
 import { normalize, basename } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
 import { environment } from "src/core/environment";
 import type {
     R_AlterTableAction,
@@ -22,13 +24,16 @@ import type {
     R_UpdateCellBody,
 } from "@shared/types";
 import type { DatabaseDriverType } from "@shared/driver";
+import type { AzureAuthMode, ConnectionProfileInput } from "@shared/connection";
 import { getAllDriverInfos } from "src/core/drivers/driver-registry";
+import { AzureSqlDriver } from "src/core/drivers/azure-sql.driver";
 
 @Injectable({ lifetime: "singleton" })
 export class Application implements IApp {
     protected readonly windows = new Map<number, Window>();
     private readonly wm = inject(WindowManager);
     private readonly recentDatabases = new RecentDatabases();
+    private readonly connectionStore = new ConnectionStore();
 
     /**
      *
@@ -98,6 +103,7 @@ export class Application implements IApp {
     public async onReady(): Promise<void> {
         this.setupBridge();
         this.setupDbBridge();
+        this.setupConnectionBridge();
 
         // Menu contextuel de la barre des tâches (clic droit sur l'icône)
         const dockMenu = Menu.buildFromTemplate([
@@ -522,19 +528,7 @@ export class Application implements IApp {
 
             // Connexion pure — ne charge pas le schéma pour répondre immédiatement.
             // Le schéma est chargé séparément via `db-get-schema` (phase 2).
-            const uri = `${body.username}:${body.password}@${body.host}:${body.port}/${body.database}`;
-            await window.setDriverType(body.driverType);
-            await window.openDatabase(uri);
-
-            // Enregistrer dans l'historique sans le mot de passe
-            this.recentDatabases.addNetwork({
-                driverType: body.driverType,
-                host: body.host,
-                port: body.port,
-                username: body.username,
-                database: body.database,
-                hasEmptyPassword: body.password.length === 0,
-            });
+            await this.openNetworkConnection(window, body);
 
             return { connected: true };
         });
@@ -549,6 +543,164 @@ export class Application implements IApp {
 
         ipcMain.handle("db-get-driver-infos", () => {
             return getAllDriverInfos();
+        });
+    }
+
+    /**
+     * Ouvre une connexion réseau sur la fenêtre et l'enregistre dans l'historique
+     * (sans le mot de passe). Factorisé entre la connexion manuelle et la connexion
+     * depuis un profil sauvegardé.
+     */
+    private async openNetworkConnection(
+        window: Window,
+        params: {
+            driverType: DatabaseDriverType;
+            host: string;
+            port: number;
+            username: string;
+            password: string;
+            database: string;
+            authMode?: AzureAuthMode;
+            clientId?: string;
+            tenantId?: string;
+        },
+    ): Promise<void> {
+        // En mode service principal, aucun identifiant utilisateur n'existe : on
+        // injecte un utilisateur placeholder pour satisfaire le format d'URI. Le
+        // secret (clientSecret) reste porté par le champ `password`.
+        const uriUser = params.authMode === "service-principal" ? "aad" : params.username;
+        const uri = `${uriUser}:${params.password}@${params.host}:${params.port}/${params.database}`;
+        await window.setDriverType(params.driverType);
+
+        // Azure : appliquer le mode d'authentification (SQL ou service principal) avant l'ouverture.
+        const driver = window.database;
+        if (driver instanceof AzureSqlDriver && params.authMode) {
+            driver.configureAuth({ mode: params.authMode, clientId: params.clientId, tenantId: params.tenantId });
+        }
+
+        await window.openDatabase(uri);
+
+        this.recentDatabases.addNetwork({
+            driverType: params.driverType,
+            host: params.host,
+            port: params.port,
+            username: params.username,
+            database: params.database,
+            hasEmptyPassword: params.password.length === 0,
+        });
+    }
+
+    /**
+     * Setup des IPC pour le coffre de connexions sauvegardées.
+     */
+    private setupConnectionBridge(): void {
+        ipcMain.handle("conn-status", () => this.connectionStore.getStatus());
+
+        ipcMain.handle("conn-initialize", (_event, masterPassword: string) => {
+            this.connectionStore.initialize(masterPassword);
+        });
+
+        ipcMain.handle("conn-unlock", (_event, masterPassword: string) => {
+            return this.connectionStore.unlock(masterPassword);
+        });
+
+        ipcMain.handle("conn-lock", () => {
+            this.connectionStore.lock();
+        });
+
+        ipcMain.handle("conn-list", () => this.connectionStore.list());
+
+        ipcMain.handle("conn-create", (_event, input: ConnectionProfileInput) => {
+            return this.connectionStore.create(input);
+        });
+
+        ipcMain.handle("conn-update", (_event, id: string, input: ConnectionProfileInput) => {
+            return this.connectionStore.update(id, input);
+        });
+
+        ipcMain.handle("conn-delete", (_event, id: string) => {
+            this.connectionStore.delete(id);
+        });
+
+        ipcMain.handle("conn-connect", async (_event, id: string) => {
+            const window = this.getWindowBySenderId(_event.sender.id);
+            if (!window) {
+                throw new Error("Window not found");
+            }
+
+            const profile = this.connectionStore.getProfile(id);
+            if (!profile) {
+                throw new Error(`Connection profile not found: ${id}`);
+            }
+
+            if (profile.connectionType === "network") {
+                await this.openNetworkConnection(window, {
+                    driverType: profile.driverType,
+                    host: profile.host ?? "localhost",
+                    port: profile.port ?? 0,
+                    username: profile.username ?? "",
+                    password: profile.password ?? "",
+                    database: profile.database ?? "",
+                    authMode: profile.authMode,
+                    clientId: profile.clientId,
+                    tenantId: profile.tenantId,
+                });
+                // Le schéma réseau est chargé en arrière-plan par le renderer.
+                return { needsPassword: false, database: null };
+            }
+
+            // Connexion fichier (SQLite). Réinitialiser le driver avant l'ouverture
+            // pour éviter qu'un driver réseau actif ne parse le chemin comme une URI.
+            const filePath = profile.filePath ?? "";
+            await window.setDriverType(profile.driverType);
+            const needsPassword = await window.openDatabase(filePath);
+
+            // Fichier chiffré sans mot de passe stocké : déléguer au prompt standard
+            // du renderer, qui rouvrira le fichier avec le mot de passe saisi.
+            if (needsPassword && !profile.password) {
+                await window.closeDatabase();
+                return { needsPassword: true, database: null };
+            }
+
+            if (needsPassword && profile.password) {
+                await window.unlockDatabase(profile.password);
+            }
+
+            this.recentDatabases.addFile(filePath, needsPassword);
+            return { needsPassword: false, database: await window.getDatabaseSchema() };
+        });
+
+        ipcMain.handle("conn-export", async (_event, ids: string[], passphrase: string) => {
+            const win = BrowserWindow.fromWebContents(_event.sender);
+            const result = await dialog.showSaveDialog(win ?? BrowserWindow.getFocusedWindow()!, {
+                title: "Export connections",
+                defaultPath: "connections.xml",
+                filters: [{ name: "Encrypted connection profile", extensions: ["xml"] }],
+            });
+
+            if (result.canceled || !result.filePath) {
+                return false;
+            }
+
+            const xml = this.connectionStore.exportProfiles(ids, passphrase);
+            writeFileSync(result.filePath, xml, "utf-8");
+            return true;
+        });
+
+        ipcMain.handle("conn-import", async (_event, passphrase: string) => {
+            const win = BrowserWindow.fromWebContents(_event.sender);
+            const result = await dialog.showOpenDialog(win ?? BrowserWindow.getFocusedWindow()!, {
+                title: "Import connections",
+                properties: ["openFile"],
+                filters: [{ name: "Encrypted connection profile", extensions: ["xml"] }],
+            });
+
+            if (result.canceled || result.filePaths.length === 0) {
+                return 0;
+            }
+
+            const xml = readFileSync(result.filePaths[0], "utf-8");
+            return this.connectionStore.importProfiles(xml, passphrase);
         });
     }
 }

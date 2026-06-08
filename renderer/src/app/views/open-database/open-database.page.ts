@@ -4,14 +4,19 @@
  * @see https://github.com/NoxFly
  */
 
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
+import type { AzureAuthMode } from "@shared/connection";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
+import { SelectComponent } from "@ui/select/select.component";
+import { SelectOptionComponent } from "@ui/select/select-option/select-option.component";
+import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 
 /** Chemins des logos PNG par type de driver. */
 const DRIVER_LOGOS: Record<DatabaseDriverType, string> = {
@@ -20,6 +25,7 @@ const DRIVER_LOGOS: Record<DatabaseDriverType, string> = {
     postgresql: "images/logo-postgresql.png",
     oracle:     "images/logo-oracle.png",
     mssql:      "images/logo-mssql.png",
+    azure:      "images/logo-azure.png",
     mongodb:    "images/logo-mongodb.png",
 };
 
@@ -30,6 +36,7 @@ const DRIVER_COLORS: Record<DatabaseDriverType, string> = {
     postgresql: "#44668c",
     oracle:     "#c84b3a",
     mssql:      "#5397da",
+    azure:      "#0078d4",
     mongodb:    "#086c4f",
 };
 
@@ -39,7 +46,7 @@ const DRIVER_COLORS: Record<DatabaseDriverType, string> = {
     templateUrl: "./open-database.page.html",
     styleUrl: "./open-database.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, TranslatePipe],
+    imports: [FormsModule, TranslatePipe, SelectComponent, SelectOptionComponent, ButtonComponent, InputComponent],
     host: {
         "(dragover)": "onDragOver($event)",
         "(dragleave)": "onDragLeave($event)",
@@ -70,6 +77,17 @@ export class OpenDatabasePage implements OnInit {
     protected readonly networkDatabase = signal<string>("");
     protected readonly networkError = signal<string | null>(null);
     protected readonly networkConnecting = signal<boolean>(false);
+
+    /** Champs Azure : mode d'authentification et identifiants Entra ID. */
+    protected readonly authMode = signal<AzureAuthMode>("sql");
+    protected readonly clientId = signal<string>("");
+    protected readonly tenantId = signal<string>("");
+
+    /** Vrai si le driver réseau sélectionné est Azure SQL. */
+    protected readonly isAzure = computed<boolean>(() => this.selectedDriver()?.type === "azure");
+
+    /** Vrai si l'authentification par principal de service (Entra ID) est sélectionnée. */
+    protected readonly isServicePrincipal = computed<boolean>(() => this.isAzure() && this.authMode() === "service-principal");
 
     public readonly driverLogos = DRIVER_LOGOS;
     public readonly driverColors = DRIVER_COLORS;
@@ -130,6 +148,9 @@ export class OpenDatabasePage implements OnInit {
         this.networkPort.set(driver.defaultPort ?? 5432);
         this.networkError.set(null);
         this.networkConnecting.set(false);
+        this.authMode.set("sql");
+        this.clientId.set("");
+        this.tenantId.set("");
     }
 
     /**
@@ -161,6 +182,9 @@ export class OpenDatabasePage implements OnInit {
                 username: this.networkUser(),
                 password: this.networkPassword(),
                 database: this.networkDatabase(),
+                authMode: this.isAzure() ? this.authMode() : undefined,
+                clientId: this.isServicePrincipal() ? this.clientId() : undefined,
+                tenantId: this.isServicePrincipal() ? this.tenantId() : undefined,
             });
             this.selectedDriver.set(null);
         }

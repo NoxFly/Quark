@@ -19,7 +19,8 @@ import type {
 } from "@shared/types";
 import { Logger } from "@noxfly/noxus/main";
 import { NetworkSqlDriver, type RawQueryResult } from "src/core/drivers/network-sql.driver";
-import { Connection, Request as TdsRequest, TYPES } from "tedious";
+import { type ConnectionAuthentication, Connection, Request as TdsRequest, TYPES } from "tedious";
+import type { NetworkConnectionParams } from "src/core/drivers/network-sql.driver";
 
 /**
  * Driver SQL Server (MSSQL) utilisant tedious.
@@ -35,24 +36,41 @@ export class MssqlDriver extends NetworkSqlDriver {
      */
     private requestQueue: Promise<unknown> = Promise.resolve();
 
+    /**
+     * Options TLS de la connexion tedious.
+     * Surchargée par le driver Azure pour forcer le chiffrement TLS.
+     */
+    protected getTlsOptions(): { encrypt: boolean; trustServerCertificate: boolean } {
+        return { encrypt: false, trustServerCertificate: true };
+    }
+
+    /**
+     * Construit l'objet d'authentification tedious.
+     * Surchargé par le driver Azure pour supporter Microsoft Entra ID (Azure AD).
+     */
+    protected getAuthentication(p: NetworkConnectionParams): ConnectionAuthentication {
+        return {
+            type: "default",
+            options: {
+                userName: p.user,
+                password: p.password,
+            },
+        };
+    }
+
     protected connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             const p = this.connectionParams!;
+            const tls = this.getTlsOptions();
 
             const config = {
                 server: p.host,
-                authentication: {
-                    type: "default" as const,
-                    options: {
-                        userName: p.user,
-                        password: p.password,
-                    },
-                },
+                authentication: this.getAuthentication(p),
                 options: {
                     database: p.database,
                     port: p.port,
-                    encrypt: false,
-                    trustServerCertificate: true,
+                    encrypt: tls.encrypt,
+                    trustServerCertificate: tls.trustServerCertificate,
                     rowCollectionOnRequestCompletion: true,
                 },
             };

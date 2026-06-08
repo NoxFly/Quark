@@ -78,7 +78,7 @@ module.exports = {
     fileAssociations: [
         {
             ext: ["db", "sqlite", "sqlite3", "s3db"],
-            name: "Knova",
+            name: "Quark",
             description: "Database file editor",
             mimeType: "application/x-sqlite3",
             icon: windowsIconPath,

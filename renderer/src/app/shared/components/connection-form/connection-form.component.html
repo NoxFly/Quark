@@ -1,0 +1,107 @@
+<div class="connection-form">
+    <div class="form-group">
+        <label>{{ i18n.t('connections.form.name') }}</label>
+        <input type="text" [(ngModel)]="name" [placeholder]="i18n.t('connections.form.namePlaceholder')" />
+    </div>
+
+    <div class="form-group">
+        <label>{{ i18n.t('connections.form.driver') }}</label>
+        <select [ngModel]="driverType()" (ngModelChange)="onDriverChange($event)">
+            @for (driver of driverInfos(); track driver.type) {
+                <option [value]="driver.type">{{ driver.displayName }}</option>
+            }
+        </select>
+    </div>
+
+    @if (isNetwork()) {
+        <div class="form-row">
+            <div class="form-group grow">
+                <label>{{ i18n.t('connections.form.host') }}</label>
+                <input type="text" [(ngModel)]="host" placeholder="localhost" />
+            </div>
+            <div class="form-group port">
+                <label>{{ i18n.t('connections.form.port') }}</label>
+                <input type="number" [(ngModel)]="port" />
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>{{ i18n.t('connections.form.database') }}</label>
+            <input type="text" [(ngModel)]="database" />
+        </div>
+
+        @if (isAzure()) {
+            <div class="form-group">
+                <label>{{ i18n.t('connections.form.authMode') }}</label>
+                <ui-select [ngModel]="authMode()" (ngModelChange)="authMode.set($event)">
+                    <ui-select-option value="sql">{{ i18n.t('connections.form.authSql') }}</ui-select-option>
+                    <ui-select-option value="service-principal">{{ i18n.t('connections.form.authServicePrincipal') }}</ui-select-option>
+                </ui-select>
+            </div>
+        }
+
+        @if (isServicePrincipal()) {
+            <div class="form-group">
+                <label>{{ i18n.t('connections.form.clientId') }}</label>
+                <input type="text" [(ngModel)]="clientId" autocomplete="off" />
+            </div>
+            <div class="form-group">
+                <label>{{ i18n.t('connections.form.tenantId') }}</label>
+                <input type="text" [(ngModel)]="tenantId" autocomplete="off" />
+            </div>
+            <div class="form-group">
+                <label>{{ i18n.t('connections.form.clientSecret') }}</label>
+                <input
+                    type="password"
+                    [(ngModel)]="password"
+                    autocomplete="new-password"
+                    [placeholder]="profile()?.hasPassword ? i18n.t('connections.form.passwordUnchanged') : ''" />
+            </div>
+        }
+        @else {
+            <div class="form-group">
+                <label>{{ i18n.t('connections.form.username') }}</label>
+                <input type="text" [(ngModel)]="username" autocomplete="off" />
+            </div>
+
+            <div class="form-group">
+                <label>{{ i18n.t('connections.form.password') }}</label>
+                <input
+                    type="password"
+                    [(ngModel)]="password"
+                    autocomplete="new-password"
+                    [placeholder]="profile()?.hasPassword ? i18n.t('connections.form.passwordUnchanged') : ''" />
+            </div>
+        }
+    }
+    @else {
+        <div class="form-group">
+            <label>{{ i18n.t('connections.form.filePath') }}</label>
+            <div class="file-row">
+                <input type="text" [(ngModel)]="filePath" readonly />
+                <ui-button color="secondary" (click)="pickFile()">{{ i18n.t('connections.form.browse') }}</ui-button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>{{ i18n.t('connections.form.password') }}</label>
+            <input
+                type="password"
+                [(ngModel)]="password"
+                autocomplete="new-password"
+                [placeholder]="profile()?.hasPassword ? i18n.t('connections.form.passwordUnchanged') : i18n.t('connections.form.passwordOptional')" />
+        </div>
+    }
+
+    <div class="form-group">
+        <label>{{ i18n.t('connections.form.color') }}</label>
+        <input type="color" class="color-input" [(ngModel)]="color" />
+    </div>
+
+    <div class="modal-actions">
+        <ui-button color="secondary" (click)="cancel.emit()">{{ i18n.t('editor.cancel') }}</ui-button>
+        <ui-button color="primary" [disabled]="!canSubmit" (click)="submit()">
+            {{ isEditing() ? i18n.t('connections.form.save') : i18n.t('connections.form.create') }}
+        </ui-button>
+    </div>
+</div>

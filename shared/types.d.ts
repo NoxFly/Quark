@@ -260,6 +260,12 @@ export type R_NetworkConnectBody = {
     username: string;
     password: string;
     database: string;
+    /** Mode d'authentification Azure (défaut `sql`). */
+    authMode?: import("./connection").AzureAuthMode;
+    /** Client ID Azure AD (requis pour `service-principal`). */
+    clientId?: string;
+    /** Tenant ID Azure AD (requis pour `service-principal`). */
+    tenantId?: string;
 };
 
 // --- Stored Procedures (MSSQL) ---

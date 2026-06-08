@@ -2,8 +2,8 @@
     "private": true,
     "main": "./dist/main.js",
     "license": "MIT",
-    "name": "knova",
-    "productName": "Knova",
+    "name": "quark",
+    "productName": "Quark",
     "description": "A simple database visualization and management tool",
     "productDescription": "A simple database visualization and management tool",
     "version": "0.0.1",
@@ -42,6 +42,7 @@
     "dependencies": {
         "@noxfly/noxus": "^3.0.0-dev.12",
         "better-sqlite3-multiple-ciphers": "^12.8.0",
+        "fast-xml-parser": "^5.8.0",
         "mongodb": "^7.1.1",
         "mysql2": "^3.22.0",
         "oracledb": "^6.10.0",

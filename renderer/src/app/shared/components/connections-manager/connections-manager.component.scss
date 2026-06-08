@@ -1,0 +1,177 @@
+@use "src/theme/mixins.scss" as *;
+
+.connections-manager {
+    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    width: 460px;
+}
+
+.modal-header {
+    @include flex(flex, row, nowrap, space-between, center, 8px);
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color);
+
+    h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .lock-btn {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 14px;
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+
+        &:hover {
+            color: var(--text-color);
+        }
+    }
+}
+
+.error-banner {
+    padding: 10px 24px;
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+    font-size: 13px;
+}
+
+.success-banner {
+    padding: 10px 24px;
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    font-size: 13px;
+}
+
+.modal-body {
+    @include flex(flex, column, nowrap, stretch, stretch, 14px);
+    padding: 20px 24px;
+
+    .hint {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+}
+
+.form-group {
+    @include flex(flex, column, nowrap, stretch, flex-start, 6px);
+
+    label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--surface-alt);
+        color: var(--text-color);
+        font-size: 13px;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--color-primary);
+        }
+    }
+}
+
+.list-toolbar {
+    @include flex(flex, row, nowrap, flex-start, center, 8px);
+    padding: 16px 24px 8px;
+}
+
+.profiles {
+    @include flex(flex, column, nowrap, stretch, stretch, 4px);
+    padding: 8px 16px;
+    max-height: 360px;
+    overflow-y: auto;
+
+    .empty {
+        padding: 24px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+}
+
+.profile-row {
+    @include flex(flex, row, nowrap, flex-start, center, 10px);
+    padding: 8px;
+    border-radius: 6px;
+    transition: background 0.15s;
+
+    &:hover {
+        background: var(--surface-alt);
+    }
+
+    .dot {
+        flex: 0 0 8px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .profile-info {
+        @include flex(flex, column, nowrap, center, flex-start, 2px);
+        flex: 1 1 auto;
+        min-width: 0;
+        cursor: pointer;
+
+        .profile-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .profile-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 320px;
+        }
+    }
+
+    .profile-actions {
+        @include flex(flex, row, nowrap, flex-end, center, 2px);
+        flex: 0 0 auto;
+    }
+
+    .icon-btn {
+        font-family: "Segoe MDL2 Assets", sans-serif;
+        font-size: 13px;
+        width: 26px;
+        height: 26px;
+        background: transparent;
+        border: none;
+        border-radius: 4px;
+        color: var(--text-muted);
+        cursor: pointer;
+
+        &:hover {
+            background: var(--surface);
+            color: var(--text-color);
+        }
+
+        &.danger:hover {
+            color: var(--color-danger);
+        }
+    }
+}
+
+.modal-actions {
+    @include flex(flex, row, nowrap, flex-end, center, 8px);
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+}

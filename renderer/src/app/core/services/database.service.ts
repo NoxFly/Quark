@@ -1,6 +1,8 @@
 import { inject, Injectable, signal } from "@angular/core";
 import { Router } from "@angular/router";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
+import type { ConnectionProfile } from "@shared/connection";
+import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import type {
     CreateTableColumnDef,
     DatabaseSchema,
@@ -782,18 +784,64 @@ export class DatabaseService {
 
         // Connexion établie — basculer immédiatement sur le dashboard sans attendre le schéma
         const path = `${body.host}:${body.port}/${body.database}`;
+        this.applyNetworkConnectedState(body.driverType, body.database, path);
+    }
+
+    /**
+     * Positionne l'état renderer après une connexion réseau réussie et lance le
+     * chargement du schéma en arrière-plan. Factorisé entre la connexion manuelle
+     * et la connexion depuis un profil sauvegardé.
+     */
+    private applyNetworkConnectedState(driverType: DatabaseDriverType, database: string, path: string): void {
         this.state.connected.set(true);
-        this.state.driverType.set(body.driverType);
+        this.state.driverType.set(driverType);
         this.state.filePath.set(path);
-        this.state.title.set(body.database);
-        this.state.fileName.set(body.database);
-        this.state.database.set({ name: body.database, path, tables: [], driverType: body.driverType });
+        this.state.title.set(database);
+        this.state.fileName.set(database);
+        this.state.database.set({ name: database, path, tables: [], driverType });
         this.state.schemaLoading.set(true);
-        void this.resolveAndSetDriverInfo(body.driverType);
+        void this.resolveAndSetDriverInfo(driverType);
         this.router.navigate(["/dashboard/no-table"]);
 
-        // Phase 2 : chargement du schéma en arrière-plan (peut être long sur MSSQL)
+        // Chargement du schéma en arrière-plan (peut être long sur MSSQL / Azure)
         void this.loadSchemaInBackground();
+    }
+
+    /**
+     * Connecte une fenêtre à partir d'un profil de connexion sauvegardé.
+     * Le mot de passe est résolu côté main depuis le coffre chiffré.
+     * Pour un fichier chiffré sans secret stocké, délègue au prompt de mot de passe standard.
+     */
+    public async connectFromProfile(profile: ConnectionProfile): Promise<void> {
+        this.loading.set(true);
+        try {
+            const result = await this.noxus.ipc.connConnect(profile.id);
+
+            if (result.needsPassword) {
+                const entry: RecentDatabaseEntry = {
+                    connectionType: "file",
+                    driverType: profile.driverType,
+                    displayName: profile.name,
+                    displaySubtitle: profile.filePath ?? "",
+                    lastOpened: Date.now(),
+                    requiresPassword: true,
+                    filePath: profile.filePath,
+                };
+                document.dispatchEvent(new CustomEvent("open-password-prompt", { detail: entry }));
+                return;
+            }
+
+            if (result.database) {
+                this.onDatabaseOpened(result.database);
+            }
+            else if (profile.connectionType === "network") {
+                const path = `${profile.host}:${profile.port}/${profile.database}`;
+                this.applyNetworkConnectedState(profile.driverType, profile.database ?? "", path);
+            }
+        }
+        finally {
+            this.loading.set(false);
+        }
     }
 
     private async loadSchemaInBackground(): Promise<void> {

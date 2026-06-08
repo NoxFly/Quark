@@ -14,6 +14,7 @@ export type DatabaseDriverType =
     | "postgresql"
     | "oracle"
     | "mssql"
+    | "azure"
     | "mongodb";
 
 /**

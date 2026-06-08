@@ -7,6 +7,7 @@ import { StateService } from "src/app/core/services/state.service";
 import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { ChangePasswordComponent } from "src/app/shared/components/change-password/change-password.component";
+import { ConnectionsManagerComponent } from "src/app/shared/components/connections-manager/connections-manager.component";
 import { CreateTableComponent } from "src/app/shared/components/create-table/create-table.component";
 import { ImportDataComponent } from "src/app/shared/components/import-data/import-data.component";
 import { IndexViewerComponent } from "src/app/shared/components/index-viewer/index-viewer.component";
@@ -176,6 +177,7 @@ export class TitlebarComponent {
                 label: t("menu.file"),
                 items: [
                     { label: t("menu.open"), shortcut: "Ctrl+O", action: () => this.dbService.openFileDialog() },
+                    { label: t("menu.connections"), shortcut: "Ctrl+Shift+C", action: () => this.openConnectionsManager() },
                     { label: t("menu.newWindow"), shortcut: "Ctrl+Shift+N", action: () => this.noxus.ipc.newWindow() },
                     { label: "", separator: true },
                     { label: t("menu.refresh"), shortcut: "Ctrl+Shift+R", action: () => this.dbService.refreshDatabase(), disabled: !connected },
@@ -284,6 +286,23 @@ export class TitlebarComponent {
             blurry: false,
         });
         const comp = modal.getComponentInstance<DatabaseSchemaComponent>();
+        if (comp) {
+            comp.dismiss = () => modal.dismiss();
+        }
+    }
+
+    /**
+     * Ouvre le gestionnaire de connexions sauvegardées (coffre chiffré).
+     */
+    private async openConnectionsManager(): Promise<void> {
+        const modal = await this.modalCtrl.create({
+            component: ConnectionsManagerComponent,
+            componentProps: {},
+            backdropClose: true,
+            showDots: false,
+            blurry: false,
+        });
+        const comp = modal.getComponentInstance<ConnectionsManagerComponent>();
         if (comp) {
             comp.dismiss = () => modal.dismiss();
         }

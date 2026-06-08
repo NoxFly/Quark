@@ -1,0 +1,74 @@
+@use "src/theme/mixins.scss" as *;
+
+.connection-form {
+    @include flex(flex, column, nowrap, stretch, stretch, 14px);
+    width: 420px;
+    padding: 20px 24px;
+}
+
+.form-row {
+    @include flex(flex, row, nowrap, stretch, flex-start, 12px);
+
+    .grow {
+        flex: 1 1 auto;
+    }
+
+    .port {
+        flex: 0 0 90px;
+    }
+}
+
+.form-group {
+    @include flex(flex, column, nowrap, stretch, flex-start, 6px);
+
+    label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    select {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--surface-alt);
+        color: var(--text-color);
+        font-size: 13px;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+
+        &:focus {
+            border-color: var(--color-primary);
+        }
+    }
+
+    .color-input {
+        width: 48px;
+        height: 32px;
+        padding: 2px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--surface-alt);
+        cursor: pointer;
+    }
+}
+
+.file-row {
+    @include flex(flex, row, nowrap, stretch, center, 8px);
+
+    input {
+        flex: 1 1 auto;
+    }
+}
+
+.modal-actions {
+    @include flex(flex, row, nowrap, flex-end, center, 8px);
+    padding-top: 8px;
+}

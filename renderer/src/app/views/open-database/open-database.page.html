@@ -7,18 +7,16 @@
             <p>{{ "openDb.enterPassword" | translate }}</p>
 
             <div class="password-field">
-                <input
+                <ui-input
                     type="password"
-                    [placeholder]="'openDb.password' | translate"
-                    [ngModel]="password()"
-                    (ngModelChange)="password.set($event)"
-                    (keydown)="onPasswordKeydown($event)"
                     [class.error]="passwordError()"
-                    autofocus
-                />
-                <button (click)="submitPassword()" [disabled]="submitting() || !password()">
+                    [placeholder]="'openDb.password' | translate"
+                    [value]="password()"
+                    (valueChange)="password.set($event)"
+                    (keydown)="onPasswordKeydown($event)" />
+                <ui-button color="primary" [disabled]="submitting() || !password()" (click)="submitPassword()">
                     {{ "openDb.unlock" | translate }}
-                </button>
+                </ui-button>
             </div>
 
             @if (passwordError()) {
@@ -39,44 +37,63 @@
             <div class="network-form-body">
                 <div class="form-row">
                     <label>{{ "openDb.networkForm.host" | translate }}</label>
-                    <input
+                    <ui-input
                         type="text"
-                        [ngModel]="networkHost()"
-                        (ngModelChange)="networkHost.set($event)"
-                        placeholder="localhost" />
+                        placeholder="localhost"
+                        [value]="networkHost()"
+                        (valueChange)="networkHost.set($event)" />
                 </div>
 
                 <div class="form-row">
                     <label>{{ "openDb.networkForm.port" | translate }}</label>
-                    <input
+                    <ui-input
                         type="number"
-                        [ngModel]="networkPort()"
-                        (ngModelChange)="networkPort.set(+$event)"
-                        [placeholder]="selectedDriver()!.defaultPort?.toString() ?? ''" />
+                        [min]="0"
+                        [step]="1"
+                        [placeholder]="selectedDriver()!.defaultPort?.toString() ?? ''"
+                        [value]="networkPort().toString()"
+                        (valueChange)="networkPort.set(+$event)" />
                 </div>
 
-                <div class="form-row">
-                    <label>{{ "openDb.networkForm.username" | translate }}</label>
-                    <input
-                        type="text"
-                        [ngModel]="networkUser()"
-                        (ngModelChange)="networkUser.set($event)" />
-                </div>
+                @if (isAzure()) {
+                    <div class="form-row">
+                        <label>{{ "openDb.networkForm.authMode" | translate }}</label>
+                        <ui-select [ngModel]="authMode()" (ngModelChange)="authMode.set($event)">
+                            <ui-select-option value="sql">{{ "openDb.networkForm.authSql" | translate }}</ui-select-option>
+                            <ui-select-option value="service-principal">{{ "openDb.networkForm.authServicePrincipal" | translate }}</ui-select-option>
+                        </ui-select>
+                    </div>
+                }
 
-                <div class="form-row">
-                    <label>{{ "openDb.networkForm.password" | translate }}</label>
-                    <input
-                        type="password"
-                        [ngModel]="networkPassword()"
-                        (ngModelChange)="networkPassword.set($event)" />
-                </div>
+                @if (isServicePrincipal()) {
+                    <div class="form-row">
+                        <label>{{ "openDb.networkForm.clientId" | translate }}</label>
+                        <ui-input type="text" [value]="clientId()" (valueChange)="clientId.set($event)" />
+                    </div>
+                    <div class="form-row">
+                        <label>{{ "openDb.networkForm.tenantId" | translate }}</label>
+                        <ui-input type="text" [value]="tenantId()" (valueChange)="tenantId.set($event)" />
+                    </div>
+                    <div class="form-row">
+                        <label>{{ "openDb.networkForm.clientSecret" | translate }}</label>
+                        <ui-input type="password" [value]="networkPassword()" (valueChange)="networkPassword.set($event)" />
+                    </div>
+                }
+                @else {
+                    <div class="form-row">
+                        <label>{{ "openDb.networkForm.username" | translate }}</label>
+                        <ui-input type="text" [value]="networkUser()" (valueChange)="networkUser.set($event)" />
+                    </div>
+
+                    <div class="form-row">
+                        <label>{{ "openDb.networkForm.password" | translate }}</label>
+                        <ui-input type="password" [value]="networkPassword()" (valueChange)="networkPassword.set($event)" />
+                    </div>
+                }
 
                 <div class="form-row">
                     <label>{{ "openDb.networkForm.database" | translate }}</label>
-                    <input
-                        type="text"
-                        [ngModel]="networkDatabase()"
-                        (ngModelChange)="networkDatabase.set($event)" />
+                    <ui-input type="text" [value]="networkDatabase()" (valueChange)="networkDatabase.set($event)" />
                 </div>
 
                 @if (networkError()) {
@@ -85,16 +102,17 @@
             </div>
 
             <div class="network-form-actions">
-                <button class="btn-cancel" (click)="cancelNetworkForm()" [disabled]="networkConnecting()">
+                <ui-button color="light" [disabled]="networkConnecting()" (click)="cancelNetworkForm()">
                     {{ "openDb.networkForm.cancel" | translate }}
-                </button>
-                <button
+                </ui-button>
+                <ui-button
                     class="btn-connect"
-                    [style.--accent]="driverColors[selectedDriver()!.type]"
-                    (click)="connectNetwork()"
-                    [disabled]="networkConnecting() || !networkHost() || !networkDatabase()">
+                    [style.--bg-color]="driverColors[selectedDriver()!.type]"
+                    [style.--fg-color]="'#ffffff'"
+                    [disabled]="networkConnecting() || !networkHost() || !networkDatabase() || (isServicePrincipal() && (!clientId() || !tenantId() || !networkPassword()))"
+                    (click)="connectNetwork()">
                     {{ networkConnecting() ? ("openDb.networkForm.connecting" | translate) : ("openDb.networkForm.connect" | translate) }}
-                </button>
+                </ui-button>
             </div>
         </div>
     } @else {
@@ -118,13 +136,14 @@
                 <p class="drivers-hint">{{ "openDb.selectDriver" | translate }}</p>
                 <div class="drivers-grid">
                     @for (driver of networkDrivers(); track driver.type) {
-                        <button
+                        <ui-button
                             class="driver-card"
+                            color="light"
                             [style.--accent]="driverColors[driver.type]"
                             (click)="selectDriver(driver)">
                             <img class="driver-card-logo" [src]="driverLogos[driver.type]" [alt]="driver.displayName" />
                             <span class="driver-card-name">{{ driver.displayName }}</span>
-                        </button>
+                        </ui-button>
                     }
                 </div>
             </div>

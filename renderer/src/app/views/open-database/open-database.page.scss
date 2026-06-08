@@ -123,14 +123,10 @@
     width: 100%;
 }
 
-.driver-card {
-    @include flex($dir: column, $gap: 8px);
-    --btn-min-width: 0;
-    --btn-width: 100%;
-    --btn-padding: 20px 15px;
+ui-button.driver-card {
+    margin: 0;
     border: 1px solid rgba(127, 127, 127, 0.2);
     border-radius: 10px;
-    background: transparent;
     cursor: pointer;
     transition: all 0.15s ease;
     user-select: none;
@@ -145,6 +141,23 @@
         background: color-mix(in srgb, var(--accent, rgba(127, 127, 127, 0.3)) 10%, transparent);
         transform: translateY(-2px);
         box-shadow: 0 4px 12px color-mix(in srgb, var(--accent, rgba(0, 0, 0, 0.2)) 20%, transparent);
+    }
+
+    // L'élément <button> interne de ui-button doit remplir la carte et empiler
+    // logo + nom verticalement, sur un fond transparent (le fond est porté par l'hôte).
+    ::ng-deep button {
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        border: none;
+        padding: 20px 15px;
+
+        .content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
     }
 
     .driver-card-logo {
@@ -191,43 +204,17 @@
     .password-field {
         @include flex($dir: row, $gap: 8px);
 
-        input {
-            padding: 8px 12px;
-            border: 1px solid rgba(127, 127, 127, 0.3);
-            border-radius: 6px;
-            background: rgba(0, 0, 0, 0.2);
-            color: var(--text-color);
-            font-size: 0.9em;
-            outline: none;
-            min-width: 250px;
+        ui-input {
+            margin: 0;
+            --width: 250px;
 
-            &:focus {
-                border-color: var(--color-primary);
-            }
-
-            &.error {
+            &.error ::ng-deep .input-container {
                 border-color: var(--color-danger);
             }
         }
 
-        button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            background: var(--color-primary);
-            color: #fff;
-            cursor: pointer;
-            font-size: 0.85em;
-            transition: opacity 0.15s;
-
-            &:hover {
-                opacity: 0.9;
-            }
-
-            &:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
+        ui-button {
+            margin: 0;
         }
     }
 
@@ -285,20 +272,12 @@
         flex-shrink: 0;
     }
 
-    input {
+    ui-input,
+    ui-select {
         flex: 1;
-        padding: 7px 10px;
-        border: 1px solid rgba(127, 127, 127, 0.25);
-        border-radius: 6px;
-        background: var(--surface);
-        color: var(--text-color);
-        font-size: 13px;
-        outline: none;
-        transition: border-color 0.15s;
-
-        &:focus {
-            border-color: var(--color-primary);
-        }
+        min-width: 0;
+        margin: 0;
+        --width: 100%;
     }
 }
 
@@ -317,35 +296,8 @@
     @include flex($dir: row, $hor: flex-end, $gap: 8px);
     padding: 12px 24px 20px;
 
-    button {
-        padding: 8px 20px;
-        border-radius: 6px;
-        font-size: 13px;
-        cursor: pointer;
-        transition: opacity 0.15s, background 0.15s;
-
-        &:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-    }
-
-    .btn-cancel {
-        background: transparent;
-
-        &:hover:not(:disabled) {
-            background: rgba(127, 127, 127, 0.1);
-        }
-    }
-
-    .btn-connect {
-        border: none;
-        background: var(--accent, var(--color-primary));
-        color: #fff;
-
-        &:hover:not(:disabled) {
-            opacity: 0.88;
-        }
+    ui-button {
+        margin: 0;
     }
 }
 
@@ -355,12 +307,8 @@
             grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
         }
 
-        .driver-card {
-            --btn-padding: 10px 10px;
-
-            .driver-card-icon {
-                font-size: 20px;
-            }
+        .driver-card ::ng-deep button {
+            padding: 10px;
         }
     }
 }

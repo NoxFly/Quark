@@ -6,6 +6,7 @@
 
 import type { DatabaseCategory, DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
+import { AzureSqlDriver } from "src/core/drivers/azure-sql.driver";
 import { MongodbDriver } from "src/core/drivers/mongodb.driver";
 import { MssqlDriver } from "src/core/drivers/mssql.driver";
 import { MysqlDriver } from "src/core/drivers/mysql.driver";
@@ -22,6 +23,7 @@ const DRIVER_CATEGORIES: Record<DatabaseDriverType, DatabaseCategory> = {
     postgresql: "sql",
     oracle: "sql",
     mssql: "sql",
+    azure: "sql",
     mongodb: "nosql",
 };
 
@@ -123,6 +125,25 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             storedProcedures: true,
         },
     },
+    azure: {
+        type: "azure",
+        category: "sql",
+        displayName: "Azure SQL",
+        defaultPort: 1433,
+        capabilities: {
+            transactions: true,
+            schemaEditing: true,
+            sqlQueries: true,
+            foreignKeys: true,
+            encryption: false,
+            indexes: true,
+            importExport: true,
+            erDiagram: true,
+            collections: false,
+            networkConnection: true,
+            storedProcedures: true,
+        },
+    },
     mongodb: {
         type: "mongodb",
         category: "nosql",
@@ -160,6 +181,8 @@ export function createDriver(type: DatabaseDriverType): DatabaseDriver {
             return new OracleDriver();
         case "mssql":
             return new MssqlDriver();
+        case "azure":
+            return new AzureSqlDriver();
         case "mongodb":
             return new MongodbDriver();
         default:

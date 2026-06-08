@@ -59,6 +59,19 @@ export interface IpcRendererBridge {
     getSchema(): Promise<import("./types").DatabaseSchema | null>;
     getAllDriverInfos(): Promise<import("./driver").DriverInfo[]>;
 
+    // Coffre de connexions sauvegardées
+    connVaultStatus(): Promise<import("./connection").ConnectionVaultStatus>;
+    connInitialize(masterPassword: string): Promise<void>;
+    connUnlock(masterPassword: string): Promise<boolean>;
+    connLock(): Promise<void>;
+    connList(): Promise<import("./connection").ConnectionProfile[]>;
+    connCreate(input: import("./connection").ConnectionProfileInput): Promise<import("./connection").ConnectionProfile>;
+    connUpdate(id: string, input: import("./connection").ConnectionProfileInput): Promise<import("./connection").ConnectionProfile>;
+    connDelete(id: string): Promise<void>;
+    connConnect(id: string): Promise<import("./connection").ConnectionConnectResult>;
+    connExport(ids: string[], passphrase: string): Promise<boolean>;
+    connImport(passphrase: string): Promise<number>;
+
     onNavigationRequested(cb: (route: NavigationRequest) => void): void;
     onFileOpened(cb: (filePath: string) => void): void;
     onTitleChanged(cb: (title: string) => void): void;

@@ -142,6 +142,54 @@
         }
     }
 
+    &[type="number"] {
+        input {
+            text-align: center;
+            // Masque les flèches natives : on fournit nos propres boutons +/-.
+            appearance: textfield;
+            -moz-appearance: textfield;
+
+            &::-webkit-outer-spin-button,
+            &::-webkit-inner-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+            }
+        }
+
+        .stepper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 24px;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: inherit;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s, opacity 0.15s;
+
+            &:hover:not(:disabled) {
+                background: color-mix(in srgb, var(--bg-color), #000 10%);
+            }
+
+            &:active:not(:disabled) {
+                background: color-mix(in srgb, var(--bg-color), #000 16%);
+            }
+
+            &:disabled {
+                opacity: 0.3;
+                cursor: not-allowed;
+            }
+        }
+    }
+
     input {
         padding-inline: 0;
         height: 100%;

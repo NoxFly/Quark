@@ -1,0 +1,114 @@
+<div class="connections-manager">
+    <div class="modal-header">
+        <h2>{{ i18n.t('connections.title') }}</h2>
+        @if (view() === 'list') {
+            <button class="lock-btn" [title]="i18n.t('connections.lock')" (click)="lockVault()">&#xE72E;</button>
+        }
+    </div>
+
+    @if (errorMessage()) {
+        <div class="error-banner">{{ errorMessage() }}</div>
+    }
+    @if (feedback()) {
+        <div class="success-banner">{{ feedback() }}</div>
+    }
+
+    <!-- Définition du mot de passe maître -->
+    @if (view() === 'init') {
+        <div class="modal-body">
+            <p class="hint">{{ i18n.t('connections.setMasterHint') }}</p>
+            <div class="form-group">
+                <label>{{ i18n.t('connections.masterPassword') }}</label>
+                <input type="password" [(ngModel)]="masterPassword" autocomplete="new-password" (keydown.enter)="initVault()" />
+            </div>
+            <div class="form-group">
+                <label>{{ i18n.t('connections.confirmMasterPassword') }}</label>
+                <input type="password" [(ngModel)]="confirmPassword" autocomplete="new-password" (keydown.enter)="initVault()" />
+            </div>
+        </div>
+        <div class="modal-actions">
+            <ui-button color="secondary" (click)="dismiss && dismiss()">{{ i18n.t('editor.cancel') }}</ui-button>
+            <ui-button color="primary" [disabled]="!canInit || busy()" (click)="initVault()">
+                {{ i18n.t('connections.setMaster') }}
+            </ui-button>
+        </div>
+    }
+
+    <!-- Déverrouillage -->
+    @else if (view() === 'unlock') {
+        <div class="modal-body">
+            <p class="hint">{{ i18n.t('connections.unlockHint') }}</p>
+            <div class="form-group">
+                <label>{{ i18n.t('connections.masterPassword') }}</label>
+                <input type="password" [(ngModel)]="masterPassword" autocomplete="current-password" (keydown.enter)="unlockVault()" />
+            </div>
+        </div>
+        <div class="modal-actions">
+            <ui-button color="secondary" (click)="dismiss && dismiss()">{{ i18n.t('editor.cancel') }}</ui-button>
+            <ui-button color="primary" [disabled]="!masterPassword() || busy()" (click)="unlockVault()">
+                {{ i18n.t('connections.unlock') }}
+            </ui-button>
+        </div>
+    }
+
+    <!-- Formulaire création / édition -->
+    @else if (view() === 'form') {
+        <app-connection-form
+            [profile]="editingProfile()"
+            [driverInfos]="driverInfos()"
+            (save)="saveProfile($event)"
+            (cancel)="view.set('list')" />
+    }
+
+    <!-- Liste des profils -->
+    @else if (view() === 'list') {
+        @if (passphrasePrompt(); as prompt) {
+            <div class="modal-body">
+                <p class="hint">
+                    {{ prompt.mode === 'export' ? i18n.t('connections.exportHint') : i18n.t('connections.importHint') }}
+                </p>
+                <div class="form-group">
+                    <label>{{ i18n.t('connections.passphrase') }}</label>
+                    <input type="password" [(ngModel)]="passphrase" autocomplete="off" (keydown.enter)="confirmPassphrase()" />
+                </div>
+            </div>
+            <div class="modal-actions">
+                <ui-button color="secondary" (click)="cancelPassphrase()">{{ i18n.t('editor.cancel') }}</ui-button>
+                <ui-button color="primary" [disabled]="!passphrase() || busy()" (click)="confirmPassphrase()">
+                    {{ prompt.mode === 'export' ? i18n.t('connections.export') : i18n.t('connections.import') }}
+                </ui-button>
+            </div>
+        }
+        @else {
+            <div class="list-toolbar">
+                <ui-button color="primary" (click)="openCreate()">{{ i18n.t('connections.new') }}</ui-button>
+                <ui-button color="secondary" (click)="startImport()">{{ i18n.t('connections.import') }}</ui-button>
+            </div>
+
+            <div class="profiles">
+                @if (profiles.length === 0) {
+                    <div class="empty">{{ i18n.t('connections.empty') }}</div>
+                }
+                @for (profile of profiles; track profile.id) {
+                    <div class="profile-row">
+                        <span class="dot" [style.background]="profile.color || 'var(--color-primary)'"></span>
+                        <div class="profile-info" (click)="connectProfile(profile)">
+                            <span class="profile-name">{{ profile.name }}</span>
+                            <span class="profile-sub">{{ driverName(profile) }} · {{ subtitle(profile) }}</span>
+                        </div>
+                        <div class="profile-actions">
+                            <button class="icon-btn" [title]="i18n.t('connections.connect')" (click)="connectProfile(profile)">&#xE768;</button>
+                            <button class="icon-btn" [title]="i18n.t('connections.edit')" (click)="openEdit(profile)">&#xE70F;</button>
+                            <button class="icon-btn" [title]="i18n.t('connections.export')" (click)="startExport(profile)">&#xEDE1;</button>
+                            <button class="icon-btn danger" [title]="i18n.t('connections.delete')" (click)="deleteProfile(profile)">&#xE74D;</button>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-actions">
+                <ui-button color="secondary" (click)="dismiss && dismiss()">{{ i18n.t('importData.done') }}</ui-button>
+            </div>
+        }
+    }
+</div>

@@ -9,12 +9,14 @@ import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
     Component,
+    computed,
     DOCUMENT,
     ElementRef,
     forwardRef,
     inject,
     input,
     model,
+    numberAttribute,
     OnDestroy,
     output,
     signal,
@@ -121,6 +123,32 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
     public readonly icon = input<string | undefined>(undefined);
     public readonly suggestions = model<string[]>([]); // disponible que pour le type "text"
     public readonly checked = model<boolean>(false); // radio et checkbox seulement
+
+    // Contraintes numériques (type "number" uniquement).
+    // `numberAttribute` coerce les attributs statiques (ex: min="5") en nombre.
+    public readonly min = input<number | undefined, unknown>(undefined, { transform: v => v == null ? undefined : numberAttribute(v) });
+    public readonly max = input<number | undefined, unknown>(undefined, { transform: v => v == null ? undefined : numberAttribute(v) });
+    public readonly step = input<number, unknown>(1, { transform: v => numberAttribute(v, 1) });
+
+    /** Vrai si la valeur courante a atteint le minimum (désactive le bouton "-"). */
+    protected readonly atMin = computed<boolean>(() => {
+        const min = this.min();
+        if (min === undefined) {
+            return false;
+        }
+        const parsed = Number.parseFloat(this.value());
+        return Number.isFinite(parsed) && parsed <= min;
+    });
+
+    /** Vrai si la valeur courante a atteint le maximum (désactive le bouton "+"). */
+    protected readonly atMax = computed<boolean>(() => {
+        const max = this.max();
+        if (max === undefined) {
+            return false;
+        }
+        const parsed = Number.parseFloat(this.value());
+        return Number.isFinite(parsed) && parsed >= max;
+    });
 
     protected id = randomId();
 
@@ -241,6 +269,57 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
     }
 
     // ---
+
+    /**
+     * Incrémente la valeur numérique d'un pas (bouton "+").
+     */
+    protected increment(): void {
+        this.stepValue(1);
+    }
+
+    /**
+     * Décrémente la valeur numérique d'un pas (bouton "-").
+     */
+    protected decrement(): void {
+        this.stepValue(-1);
+    }
+
+    /**
+     * Applique un pas à la valeur numérique en respectant `min`, `max` et `step`.
+     */
+    private stepValue(direction: 1 | -1): void {
+        if (this.isDisabled() !== false) {
+            return;
+        }
+
+        const step = this.step() > 0 ? this.step() : 1;
+        const min = this.min();
+        const max = this.max();
+
+        const parsed = Number.parseFloat(this.value());
+        const current = Number.isFinite(parsed) ? parsed : (min ?? 0);
+
+        let next = current + direction * step;
+
+        if (min !== undefined && next < min) {
+            next = min;
+        }
+        if (max !== undefined && next > max) {
+            next = max;
+        }
+
+        this.setValue(String(this.normalizeToStep(next, step)));
+        this.inputElement().nativeElement.focus();
+    }
+
+    /**
+     * Arrondit à la précision décimale du pas pour éviter les imprécisions
+     * de l'arithmétique flottante (ex: 0.1 + 0.2).
+     */
+    private normalizeToStep(value: number, step: number): number {
+        const decimals = (String(step).split(".")[1] ?? "").length;
+        return decimals > 0 ? Number(value.toFixed(decimals)) : value;
+    }
 
     /**
      *
