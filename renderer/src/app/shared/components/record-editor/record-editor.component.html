@@ -29,13 +29,13 @@
                         }
                     </span>
                 </label>
-                <input
+                <ui-input
                     [id]="'field-' + field.def.name"
                     type="text"
                     class="field-input"
                     [ngModel]="field.value"
                     (ngModelChange)="onFieldChange(i, $event)"
-                    [disabled]="field.disabled"
+                    [isDisabled]="field.disabled"
                     [placeholder]="getPlaceholder(field.def)"
                 />
             </div>
@@ -43,13 +43,13 @@
     </div>
 
     <div class="editor-actions">
-        <button class="btn-cancel" (click)="cancel()">{{ i18n.t("editor.cancel") }}</button>
-        <button class="btn-save" (click)="save()" [disabled]="saving()">
+        <ui-button class="btn-cancel" color="secondary" (click)="cancel()">{{ i18n.t("editor.cancel") }}</ui-button>
+        <ui-button class="btn-save" color="primary" (click)="save()" [disabled]="saving()">
             @if (saving()) {
                 {{ i18n.t("editor.saving") }}
             } @else {
                 {{ i18n.t("editor.save") }}
             }
-        </button>
+        </ui-button>
     </div>
 </div>

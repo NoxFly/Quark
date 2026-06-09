@@ -16,6 +16,7 @@ import { ModalController } from "src/app/shared/ui/components/modal/modal.contro
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 import type { DbRecord, FieldDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
 /**
@@ -34,7 +35,7 @@ import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.d
     templateUrl: "./table-data.page.html",
     styleUrl: "./table-data.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ContextMenuComponent, ButtonComponent, TooltipDirective],
+    imports: [FormsModule, ContextMenuComponent, ButtonComponent, InputComponent, TooltipDirective],
     host: {
         "[class.transaction-mode]": "dbService.inTransaction()",
         "[class.edit-mode]": "!dbService.readOnly()",

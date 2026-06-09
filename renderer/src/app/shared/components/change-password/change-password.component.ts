@@ -9,6 +9,7 @@ import { FormsModule } from "@angular/forms";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 
 /**
  * Modal pour changer ou supprimer le mot de passe SQLCipher.
@@ -22,7 +23,7 @@ import { ButtonComponent } from "@ui/button/button.component";
     templateUrl: "./change-password.component.html",
     styleUrl: "./change-password.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent],
+    imports: [FormsModule, ButtonComponent, InputComponent],
 })
 export class ChangePasswordComponent {
     private readonly dbService = inject(DatabaseService);

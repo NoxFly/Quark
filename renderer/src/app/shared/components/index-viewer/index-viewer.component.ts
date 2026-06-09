@@ -10,6 +10,7 @@ import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import type { FieldDef, IndexDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 
 /**
  * Modal de visualisation et gestion des index d'une table.
@@ -20,7 +21,7 @@ import { ButtonComponent } from "@ui/button/button.component";
     templateUrl: "./index-viewer.component.html",
     styleUrl: "./index-viewer.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent],
+    imports: [FormsModule, ButtonComponent, InputComponent],
 })
 export class IndexViewerComponent implements OnInit {
     private readonly dbService = inject(DatabaseService);

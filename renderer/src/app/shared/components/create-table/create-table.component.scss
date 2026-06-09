@@ -49,7 +49,7 @@
         transition: border-color 0.15s;
 
         &:focus {
-            border-color: var(--color-primary);
+            border-color: var(--interactive);
         }
     }
 }
@@ -72,8 +72,8 @@
 
 .add-col-btn {
     background: none;
-    border: 1px solid var(--color-primary);
-    color: var(--color-primary);
+    border: 1px solid var(--interactive);
+    color: var(--interactive);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 12px;
@@ -81,7 +81,7 @@
     transition: background 0.15s;
 
     &:hover {
-        background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+        background: color-mix(in srgb, var(--interactive) 12%, transparent);
     }
 }
 
@@ -137,7 +137,7 @@
         transition: border-color 0.15s;
 
         &:focus {
-            border-color: var(--color-primary);
+            border-color: var(--interactive);
         }
     }
 

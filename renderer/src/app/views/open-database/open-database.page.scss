@@ -15,11 +15,11 @@
 
     &.dragging {
         .drop-zone {
-            border-color: var(--color-primary);
-            background: color-mix(in srgb, var(--color-primary), transparent 92%);
+            border-color: var(--interactive);
+            background: color-mix(in srgb, var(--interactive), transparent 92%);
 
             .drop-icon {
-                color: var(--color-primary);
+                color: var(--interactive);
                 transform: scale(1.15);
             }
         }

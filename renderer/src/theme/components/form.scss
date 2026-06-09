@@ -19,11 +19,11 @@ input:not(:where([type="checkbox"], [type="radio"])) {
 
         &:hover {
             border-color: rgba(127, 127, 127, 0.2);
-            border-bottom-color: var(--color-primary-tint);
+            border-bottom-color: var(--interactive-subtle);
         }
 
         &:focus {
-            border-bottom-color: var(--color-primary-shade);
+            border-bottom-color: var(--interactive-hover);
         }
     }
 
@@ -44,7 +44,7 @@ input:not(:where([type="checkbox"], [type="radio"])) {
             }
 
             &:focus {
-                border-color: var(--color-primary);
+                border-color: var(--interactive);
             }
         }
     }
@@ -81,7 +81,7 @@ input[type="checkbox"] {
         transform: translate(-50%, -50%) scale(.5);
         width: 50%;
         aspect-ratio: 1/1;
-        background: linear-gradient(0deg, var(--color-primary), var(--color-primary-tint));
+        background: linear-gradient(0deg, var(--interactive), var(--interactive-subtle));
         opacity: 0;
         transition: opacity 0.3s ease, transform 0.3s ease;
         border-radius: inherit;
@@ -92,7 +92,7 @@ input[type="checkbox"] {
     }
 
     &:checked {
-        border-color: var(--color-primary);
+        border-color: var(--interactive);
 
         &::after {
             transform: translate(-50%, -50%) scale(1);
@@ -141,11 +141,11 @@ textarea {
     &:not(:disabled):not(:read-only) {
         &:hover {
             border-color: rgba(127, 127, 127, 0.2);
-            border-bottom-color: var(--color-primary-tint);
+            border-bottom-color: var(--interactive-subtle);
         }
 
         &:focus {
-            border-bottom-color: var(--color-primary-shade);
+            border-bottom-color: var(--interactive-hover);
         }
     }
 }

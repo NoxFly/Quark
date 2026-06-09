@@ -4,12 +4,12 @@
         <span class="transaction-icon">&#xE7BA;</span>
         <span>{{ i18n.t("table.transactionActive") }}</span>
         <div class="transaction-actions">
-            <button class="btn-commit" (click)="commitTransaction()">
+            <ui-button class="btn-commit" color="primary" (click)="commitTransaction()">
                 {{ i18n.t("table.commit") }}
-            </button>
-            <button class="btn-rollback" (click)="rollbackTransaction()">
+            </ui-button>
+            <ui-button class="btn-rollback" color="danger" (click)="rollbackTransaction()">
                 {{ i18n.t("table.cancel") }}
-            </button>
+            </ui-button>
         </div>
     </div>
 }
@@ -17,7 +17,7 @@
 <!-- Toolbar (filtre + actions) -->
 <div class="toolbar">
     <div class="filter-bar">
-        <input
+        <ui-input
             type="text"
             [placeholder]="sqlFilterMode() ? filterSqlPlaceholder() : i18n.t('table.searchPlaceholder')"
             [ngModel]="filterInput()"
@@ -25,14 +25,14 @@
             class="filter-input"
         />
         @if (true) {
-            <button
+            <ui-button
                 class="btn-filter-mode"
                 [class.active]="sqlFilterMode()"
                 (click)="toggleSqlFilterMode()"
                 [tooltip]="sqlFilterMode() ? i18n.t('table.switchToSearch') : (isNoSql() ? i18n.t('table.switchToNosql') : i18n.t('table.switchToSql'))"
             >
                 {{ isNoSql() ? 'noSQL' : 'SQL' }}
-            </button>
+            </ui-button>
         }
     </div>
     @if (!dbService.readOnly()) {

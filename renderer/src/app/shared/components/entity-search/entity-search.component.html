@@ -3,10 +3,10 @@
         <div class="entity-search-sheet" (click)="$event.stopPropagation()">
             <div class="entity-search-input-wrapper">
                 <span class="search-icon">&#xE721;</span>
-                <input
+                <ui-input
                     #searchInput
                     class="entity-search-input"
-                    type="text"
+                    type="search"
                     [placeholder]="placeholder()"
                     [value]="query()"
                     (input)="onInput($any($event.target).value)"

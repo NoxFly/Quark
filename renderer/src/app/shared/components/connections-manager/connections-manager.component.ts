@@ -12,6 +12,7 @@ import { ConnectionsService } from "src/app/core/services/connections.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 import { ConnectionFormComponent } from "src/app/shared/components/connection-form/connection-form.component";
 
 /** Vue active du gestionnaire. */
@@ -36,7 +37,7 @@ interface PassphrasePrompt {
     templateUrl: "./connections-manager.component.html",
     styleUrl: "./connections-manager.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent, ConnectionFormComponent],
+    imports: [FormsModule, ButtonComponent, InputComponent, ConnectionFormComponent],
 })
 export class ConnectionsManagerComponent implements OnInit {
     private readonly connections = inject(ConnectionsService);

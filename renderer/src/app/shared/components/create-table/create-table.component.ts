@@ -10,6 +10,9 @@ import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import type { CreateTableColumnDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
+import { SelectComponent } from "@ui/select/select.component";
+import { SelectOptionComponent } from "@ui/select/select-option/select-option.component";
 
 /**
  * Modal de création d'une nouvelle table SQLite.
@@ -20,7 +23,7 @@ import { ButtonComponent } from "@ui/button/button.component";
     templateUrl: "./create-table.component.html",
     styleUrl: "./create-table.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent],
+    imports: [FormsModule, ButtonComponent, InputComponent, SelectComponent, SelectOptionComponent],
 })
 export class CreateTableComponent implements OnInit {
     protected readonly i18n = inject(I18nService);

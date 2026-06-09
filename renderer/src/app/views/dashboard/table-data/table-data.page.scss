@@ -89,7 +89,7 @@
             outline: none;
 
             &:focus {
-                border-color: var(--color-primary);
+                border-color: var(--interactive);
             }
 
             &::placeholder {
@@ -121,9 +121,9 @@
             }
 
             &.active {
-                background: color-mix(in srgb, var(--color-primary), transparent 85%);
-                color: var(--color-primary);
-                border-color: var(--color-primary);
+                background: color-mix(in srgb, var(--interactive), transparent 85%);
+                color: var(--interactive);
+                border-color: var(--interactive);
             }
         }
     }
@@ -195,14 +195,14 @@ thead {
                 font-size: 0.65em;
                 padding: 1px 4px;
                 border-radius: 3px;
-                background: color-mix(in srgb, var(--color-primary), transparent 85%);
-                color: var(--color-primary);
+                background: color-mix(in srgb, var(--interactive), transparent 85%);
+                color: var(--interactive);
                 white-space: nowrap;
             }
 
             .sort-icon {
                 font-size: 0.7em;
-                color: var(--color-primary);
+                color: var(--interactive);
             }
         }
 
@@ -258,10 +258,10 @@ thead {
 
             &:hover::after,
             &:active::after {
-                background: var(--interactive, var(--color-primary));
+                background: var(--interactive);
                 // box-shadow n’est pas clipé par overflow: auto, ce qui permet
                 // à la ligne de s’étendre sur toute la hauteur du tableau
-                box-shadow: 0 9999px 0 var(--interactive, var(--color-primary));
+                box-shadow: 0 9999px 0 var(--interactive);
             }
         }
 
@@ -284,15 +284,15 @@ tbody {
         }
 
         &.selected {
-            background: color-mix(in srgb, var(--color-primary), transparent 92%);
+            background: color-mix(in srgb, var(--interactive), transparent 92%);
 
             &:hover {
-                background: color-mix(in srgb, var(--color-primary), transparent 88%);
+                background: color-mix(in srgb, var(--interactive), transparent 88%);
             }
         }
 
         &.cursor {
-            outline: 2px solid var(--color-primary);
+            outline: 2px solid var(--interactive);
             outline-offset: -2px;
         }
     }
@@ -355,8 +355,8 @@ tbody {
             vertical-align: middle;
 
             &:hover {
-                color: var(--color-primary);
-                background: color-mix(in srgb, var(--color-primary), transparent 90%);
+                color: var(--interactive);
+                background: color-mix(in srgb, var(--interactive), transparent 90%);
             }
         }
 
@@ -364,7 +364,7 @@ tbody {
             width: 100%;
             height: 36px;
             padding: 4px 10px;
-            border: 1px solid var(--color-primary);
+            border: 1px solid var(--interactive);
             border-radius: 0;
             background: none;
             color: var(--text-color);

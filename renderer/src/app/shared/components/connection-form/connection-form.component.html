@@ -1,33 +1,33 @@
 <div class="connection-form">
     <div class="form-group">
         <label>{{ i18n.t('connections.form.name') }}</label>
-        <input type="text" [(ngModel)]="name" [placeholder]="i18n.t('connections.form.namePlaceholder')" />
+        <ui-input type="text" [(ngModel)]="name" [placeholder]="i18n.t('connections.form.namePlaceholder')" />
     </div>
 
     <div class="form-group">
         <label>{{ i18n.t('connections.form.driver') }}</label>
-        <select [ngModel]="driverType()" (ngModelChange)="onDriverChange($event)">
+        <ui-select [ngModel]="driverType()" (ngModelChange)="onDriverChange($event)">
             @for (driver of driverInfos(); track driver.type) {
-                <option [value]="driver.type">{{ driver.displayName }}</option>
+                <ui-select-option [value]="driver.type">{{ driver.displayName }}</ui-select-option>
             }
-        </select>
+        </ui-select>
     </div>
 
     @if (isNetwork()) {
         <div class="form-row">
             <div class="form-group grow">
                 <label>{{ i18n.t('connections.form.host') }}</label>
-                <input type="text" [(ngModel)]="host" placeholder="localhost" />
+                <ui-input type="text" [(ngModel)]="host" placeholder="localhost" />
             </div>
             <div class="form-group port">
                 <label>{{ i18n.t('connections.form.port') }}</label>
-                <input type="number" [(ngModel)]="port" />
+                <ui-input type="number" [(ngModel)]="port" />
             </div>
         </div>
 
         <div class="form-group">
             <label>{{ i18n.t('connections.form.database') }}</label>
-            <input type="text" [(ngModel)]="database" />
+            <ui-input type="text" [(ngModel)]="database" />
         </div>
 
         @if (isAzure()) {
@@ -43,15 +43,15 @@
         @if (isServicePrincipal()) {
             <div class="form-group">
                 <label>{{ i18n.t('connections.form.clientId') }}</label>
-                <input type="text" [(ngModel)]="clientId" autocomplete="off" />
+                <ui-input type="text" [(ngModel)]="clientId" autocomplete="off" />
             </div>
             <div class="form-group">
                 <label>{{ i18n.t('connections.form.tenantId') }}</label>
-                <input type="text" [(ngModel)]="tenantId" autocomplete="off" />
+                <ui-input type="text" [(ngModel)]="tenantId" autocomplete="off" />
             </div>
             <div class="form-group">
                 <label>{{ i18n.t('connections.form.clientSecret') }}</label>
-                <input
+                <ui-input
                     type="password"
                     [(ngModel)]="password"
                     autocomplete="new-password"
@@ -61,12 +61,12 @@
         @else {
             <div class="form-group">
                 <label>{{ i18n.t('connections.form.username') }}</label>
-                <input type="text" [(ngModel)]="username" autocomplete="off" />
+                <ui-input type="text" [(ngModel)]="username" autocomplete="off" />
             </div>
 
             <div class="form-group">
                 <label>{{ i18n.t('connections.form.password') }}</label>
-                <input
+                <ui-input
                     type="password"
                     [(ngModel)]="password"
                     autocomplete="new-password"
@@ -85,7 +85,7 @@
 
         <div class="form-group">
             <label>{{ i18n.t('connections.form.password') }}</label>
-            <input
+            <ui-input
                 type="password"
                 [(ngModel)]="password"
                 autocomplete="new-password"

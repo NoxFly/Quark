@@ -70,8 +70,8 @@
         font-weight: 600;
 
         &.pk {
-            background: color-mix(in srgb, var(--color-primary), transparent 85%);
-            color: var(--color-primary);
+            background: color-mix(in srgb, var(--interactive), transparent 85%);
+            color: var(--interactive);
         }
 
         &.fk {
@@ -99,7 +99,7 @@
     transition: border-color 0.15s;
 
     &:focus {
-        border-color: var(--color-primary);
+        border-color: var(--interactive);
     }
 
     &:disabled {
@@ -144,7 +144,7 @@
     }
 
     .btn-save {
-        background: var(--color-primary);
+        background: var(--interactive);
         color: #fff;
     }
 }

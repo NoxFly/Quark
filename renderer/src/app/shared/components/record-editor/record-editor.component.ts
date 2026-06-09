@@ -13,6 +13,8 @@ import {
     signal,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
+import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
@@ -41,7 +43,7 @@ interface FormField {
     templateUrl: "./record-editor.component.html",
     styleUrl: "./record-editor.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule],
+    imports: [FormsModule, ButtonComponent, InputComponent],
 })
 export class RecordEditorComponent implements OnInit {
     private readonly dbService = inject(DatabaseService);

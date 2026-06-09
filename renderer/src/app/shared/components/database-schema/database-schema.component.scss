@@ -35,14 +35,14 @@
 
 .table-block-header {
     padding: 6px 12px;
-    background: color-mix(in srgb, var(--color-primary) 10%, var(--surface-alt));
+    background: color-mix(in srgb, var(--interactive) 10%, var(--surface-alt));
     border-bottom: 1px solid var(--border-color);
 }
 
 .table-block-name {
     font-size: 12px;
     font-weight: 700;
-    color: var(--color-primary);
+    color: var(--interactive);
     font-family: "Consolas", monospace;
 }
 

@@ -19,11 +19,11 @@
     @if(type() === 'number') {
         <button
             type="button"
-            class="stepper stepper-plus"
+            class="stepper stepper-minus"
             tabindex="-1"
-            aria-label="increment"
-            [disabled]="isDisabled() !== false || atMax()"
-            (click)="increment()">+</button>
+            aria-label="decrement"
+            [disabled]="isDisabled() !== false || atMin()"
+            (click)="decrement()">&minus;</button>
     }
 
     <input
@@ -43,11 +43,11 @@
     @if(type() === 'number') {
         <button
             type="button"
-            class="stepper stepper-minus"
+            class="stepper stepper-plus"
             tabindex="-1"
-            aria-label="decrement"
-            [disabled]="isDisabled() !== false || atMin()"
-            (click)="decrement()">&minus;</button>
+            aria-label="increment"
+            [disabled]="isDisabled() !== false || atMax()"
+            (click)="increment()">+</button>
     }
 
     @if(type() === 'radio' || type() === 'checkbox') {

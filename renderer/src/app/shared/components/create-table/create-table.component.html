@@ -6,7 +6,7 @@
     <div class="modal-body">
         <div class="form-group">
             <label>{{ i18n.t(isNoSql() ? 'createTable.tableName.nosql' : 'createTable.tableName') }}</label>
-            <input
+            <ui-input
                 type="text"
                 [(ngModel)]="tableName"
                 [placeholder]="i18n.t(isNoSql() ? 'createTable.tableNamePlaceholder.nosql' : 'createTable.tableNamePlaceholder')"
@@ -16,9 +16,9 @@
         <div class="columns-section">
             <div class="columns-header">
                 <span class="section-title">{{ i18n.t(isNoSql() ? 'createTable.columns.nosql' : 'createTable.columns') }}</span>
-                <button class="add-col-btn" (click)="addColumn()">
+                <ui-button class="add-col-btn" color="primary" (click)="addColumn()">
                     + {{ i18n.t(isNoSql() ? 'createTable.addColumn.nosql' : 'createTable.addColumn') }}
-                </button>
+                </ui-button>
             </div>
 
             <div class="columns-table">
@@ -34,18 +34,18 @@
 
                 @for (col of columns(); track $index; let i = $index) {
                     <div class="col-row">
-                        <input
+                        <ui-input
                             type="text"
                             [value]="col.name"
                             (input)="updateColumn(i, 'name', $any($event.target).value)"
                             [placeholder]="i18n.t('createTable.colNamePlaceholder')" />
-                        <select
-                            [value]="col.type"
-                            (change)="updateColumn(i, 'type', $any($event.target).value)">
+                        <ui-select
+                            [selected]="col.type"
+                            (selectionChange)="updateColumn(i, 'type', $event[0]?.value())">
                             @for (type of columnTypes; track type) {
-                                <option [value]="type" [selected]="col.type === type">{{ type }}</option>
+                                <ui-select-option [value]="type">{{ type }}</ui-select-option>
                             }
-                        </select>
+                        </ui-select>
                         <input
                             type="checkbox"
                             [checked]="col.primaryKey"
@@ -58,7 +58,7 @@
                             type="checkbox"
                             [checked]="col.unique"
                             (change)="updateColumn(i, 'unique', $any($event.target).checked)" />
-                        <input
+                        <ui-input
                             type="text"
                             [value]="col.defaultValue ?? ''"
                             (input)="updateColumn(i, 'defaultValue', $any($event.target).value || null)"

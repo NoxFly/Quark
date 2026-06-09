@@ -11,7 +11,7 @@
         <!-- Renommage de table -->
         <div class="section">
             <div class="section-title">{{ i18n.t(state.isNoSqlDatabase() ? 'schemaEditor.tableName.nosql' : 'schemaEditor.tableName') }}</div>
-            <input
+            <ui-input
                 type="text"
                 [(ngModel)]="newTableName"
                 [placeholder]="tableName()" />
@@ -31,10 +31,10 @@
                                 <span class="badge fk">FK</span>
                             }
                         </div>
-                        <input
+                        <ui-input
                             type="text"
                             [(ngModel)]="col.newName"
-                            [disabled]="col.markedForDrop || col.original.pk"
+                            [isDisabled]="col.markedForDrop || col.original.pk"
                             class="col-name-input" />
                         <span class="col-type">{{ col.original.type }}</span>
                         @if (!col.original.pk) {
@@ -62,20 +62,20 @@
 
             @if (showAddColumn()) {
                 <div class="add-column-form">
-                    <input
+                    <ui-input
                         type="text"
                         [(ngModel)]="newColumnName"
                         [placeholder]="i18n.t('schemaEditor.colName')" />
-                    <select [(ngModel)]="newColumnType">
+                    <ui-select [(ngModel)]="newColumnType">
                         @for (type of columnTypes; track type) {
-                            <option [value]="type">{{ type }}</option>
+                            <ui-select-option [value]="type">{{ type }}</ui-select-option>
                         }
-                    </select>
+                    </ui-select>
                     <label class="checkbox-label">
                         <input type="checkbox" [(ngModel)]="newColumnNotNull" />
                         NOT NULL
                     </label>
-                    <input
+                    <ui-input
                         type="text"
                         [(ngModel)]="newColumnDefault"
                         [placeholder]="i18n.t('schemaEditor.defaultValue')" />

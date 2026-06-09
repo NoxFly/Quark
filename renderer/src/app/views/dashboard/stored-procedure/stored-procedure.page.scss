@@ -98,7 +98,7 @@
     }
 
     &.active {
-        color: var(--color-primary);
+        color: var(--interactive);
     }
 }
 
@@ -113,11 +113,11 @@
 }
 
 .exec-btn {
-    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
-    color: var(--color-primary);
+    background: color-mix(in srgb, var(--interactive) 15%, transparent);
+    color: var(--interactive);
 
     &:hover:not(:disabled) {
-        background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+        background: color-mix(in srgb, var(--interactive) 25%, transparent);
     }
 }
 
@@ -145,7 +145,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: var(--color-primary);
+    color: var(--interactive);
     background: var(--surface);
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
@@ -200,7 +200,7 @@
 
     &:hover::after,
     &:active::after {
-        background: var(--color-primary);
+        background: var(--interactive);
     }
 }
 
@@ -235,7 +235,7 @@
 
     &:hover::after,
     &:active::after {
-        background: var(--color-primary);
+        background: var(--interactive);
     }
 }
 
@@ -287,7 +287,7 @@
     transition: border-color 0.15s;
 
     &:focus {
-        --border-color: var(--color-primary);
+        --border-color: var(--interactive);
     }
 
     &::placeholder {
@@ -319,7 +319,7 @@
 .output-label {
     font-size: 11px;
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--interactive);
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -344,7 +344,7 @@
     }
 
     .param-value {
-        color: var(--color-primary);
+        color: var(--interactive);
         font-family: "Consolas", monospace;
     }
 }
@@ -413,7 +413,7 @@
 .meta-timing {
     margin-left: auto;
     font-family: "Consolas", monospace;
-    color: var(--color-primary);
+    color: var(--interactive);
     opacity: 0.8;
     @include flex(flex, row, nowrap, flex-start, center, 4px);
 
@@ -466,7 +466,7 @@
     }
 
     tr:hover td {
-        background: color-mix(in srgb, var(--color-primary) 8%, var(--surface-alt));
+        background: color-mix(in srgb, var(--interactive) 8%, var(--surface-alt));
     }
 }
 

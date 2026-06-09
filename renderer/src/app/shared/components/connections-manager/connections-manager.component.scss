@@ -80,7 +80,7 @@
         transition: border-color 0.15s;
 
         &:focus {
-            border-color: var(--color-primary);
+            border-color: var(--interactive);
         }
     }
 }

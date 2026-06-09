@@ -33,14 +33,14 @@
 
     &:not(.opened) {
         .selected {
-            background: var(--surface-alt);
+            background: var(--input-background, var(--surface));
         }
 
         &:hover {
             --selected-border-color: color-mix(in srgb, var(--border-color), #000 20%);
 
             .selected {
-                background: var(--surface-alt);
+                background: var(--input-background, var(--surface));
             }
         }
 

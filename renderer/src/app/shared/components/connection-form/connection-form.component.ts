@@ -11,6 +11,7 @@ import type { DriverInfo } from "@shared/driver";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 import { SelectComponent } from "@ui/select/select.component";
 import { SelectOptionComponent } from "@ui/select/select-option/select-option.component";
 
@@ -27,7 +28,7 @@ import { SelectOptionComponent } from "@ui/select/select-option/select-option.co
     templateUrl: "./connection-form.component.html",
     styleUrl: "./connection-form.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent, SelectComponent, SelectOptionComponent],
+    imports: [FormsModule, ButtonComponent, InputComponent, SelectComponent, SelectOptionComponent],
 })
 export class ConnectionFormComponent implements OnInit {
     private readonly noxus = inject(NoxusService);

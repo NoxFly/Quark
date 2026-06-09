@@ -27,9 +27,9 @@
                         <span class="badge origin">{{ getOriginLabel(index.origin) }}</span>
                     </div>
                     @if (index.origin === 'c') {
-                        <button class="drop-btn" (click)="dropIndex(index.name)" [disabled]="isLoading()">
+                        <ui-button class="drop-btn" color="danger" (click)="dropIndex(index.name)" [disabled]="isLoading()">
                             {{ i18n.t('indexViewer.drop') }}
-                        </button>
+                        </ui-button>
                     }
                 </div>
                 <div class="index-columns">
@@ -40,16 +40,16 @@
     </div>
 
     <div class="create-section">
-        <button class="toggle-create-btn" (click)="showCreateForm.set(!showCreateForm())">
+        <ui-button class="toggle-create-btn" (click)="showCreateForm.set(!showCreateForm())">
             {{ showCreateForm() ? '▲ ' : '+ ' }}{{ i18n.t('indexViewer.createIndex') }}
-        </button>
+        </ui-button>
 
         @if (showCreateForm()) {
             <div class="create-form">
                 <div class="form-row">
                     <div class="form-group">
                         <label>{{ i18n.t('indexViewer.indexName') }}</label>
-                        <input
+                        <ui-input
                             type="text"
                             [(ngModel)]="newIndexName"
                             [placeholder]="i18n.t('indexViewer.indexNamePlaceholder')" />

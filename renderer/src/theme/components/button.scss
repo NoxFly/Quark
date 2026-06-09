@@ -19,13 +19,13 @@ button {
     &:not(:disabled) {
         &:hover {
             border-color: rgba(255, 255, 255, 0.1);
-            --btn-bg: var(--color-primary);
-            --btn-fg: var(--color-primary-contrast);
+            --btn-bg: var(--interactive);
+            --btn-fg: var(--interactive-fg);
         }
 
         &:active {
-            --btn-bg: var(--color-primary-shade);
-            --btn-fg: var(--color-primary-contrast);
+            --btn-bg: var(--interactive-hover);
+            --btn-fg: var(--interactive-fg);
             transform: scale(.96);
         }
 
@@ -41,11 +41,11 @@ button {
         }
 
         &.btn-primary {
-            --btn-bg: var(--color-primary);
-            --btn-fg: var(--color-primary-contrast);
+            --btn-bg: var(--interactive);
+            --btn-fg: var(--interactive-fg);
 
             &:hover {
-                --btn-bg: var(--color-primary-shade);
+                --btn-bg: var(--interactive-hover);
             }
         }
 

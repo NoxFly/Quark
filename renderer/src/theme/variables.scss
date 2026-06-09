@@ -1,17 +1,17 @@
 :root {
-    --color-primary: oklch(52.451% 0.08931 193.804);
-    --color-primary-tint: oklch(68.887% 0.12675 178.063);
-    --color-primary-shade: oklch(35.524% 0.06043 201.429);
+    --color-primary: oklch(50.089% 0.0906 177.594);
+    --color-primary-tint: oklch(66.328% 0.13003 167.553);
+    --color-primary-shade: oklch(38.179% 0.06592 184.454);
     --color-primary-contrast: var(--color-light);
 
-    --color-secondary: oklch(68.071% 0.04097 166.804);
-    --color-secondary-tint: oklch(79.527% 0.03556 168.642);
-    --color-secondary-shade: oklch(45.59% 0.03248 169.912);
+    --color-secondary: oklch(67.901% 0.04599 157.592);
+    --color-secondary-tint: oklch(79.387% 0.03936 159.782);
+    --color-secondary-shade: oklch(45.433% 0.03688 159.005);
     --color-secondary-contrast: var(--color-light);
 
-    --color-tertiary: oklch(39.687% 0.02139 214.743);
-    --color-tertiary-tint: oklch(60.139% 0.0193 210.381);
-    --color-tertiary-shade: oklch(34.085% 0.01809 231.93);
+    --color-tertiary: oklch(37.908% 0.02233 253.593);
+    --color-tertiary-tint: oklch(59.007% 0.01796 239.426);
+    --color-tertiary-shade: oklch(33.042% 0.02021 257.302);
     --color-tertiary-contrast: var(--color-light);
 
     --color-success: oklch(65.368% 0.12176 133.198);
@@ -38,7 +38,7 @@
     --color-light-contrast: oklch(32.109% 0.00004 271.152);
 
     // couleur dark plus douce (plus claire) et avec 1% de primary
-    --color-soft-dark: color-mix(in oklch, color-mix(in oklch, var(--color-dark-shade), var(--color-light-tint) 23%), var(--color-primary) 3%);
+    --color-soft-dark: color-mix(in oklch, var(--color-dark-shade), var(--color-light-tint) 23%);
     --color-soft-dark-tint: color-mix(in oklch, var(--color-soft-dark), var(--color-light-tint) 5%);
     --color-soft-dark-shade: color-mix(in oklch, var(--color-soft-dark), var(--color-light-shade) 5%);
     --color-soft-dark-contrast: color-mix(in oklch, var(--color-soft-dark), var(--color-light-contrast) 5%);
@@ -90,6 +90,9 @@
     --surface-raised: var(--color-light-shade);
     --surface-dark: var(--color-light-shade);
     --surface-dark-alt: var(--color-medium-tint);
+
+    // Fond des champs de saisie (inputs, selects) — ressort sur les conteneurs.
+    --input-background: var(--surface);
 
     // --- Bordures (pas de noir, toutes claires) ---
     --border: var(--color-light-shade);
@@ -145,9 +148,11 @@
     --neutral-emphasis: var(--color-medium-shade);
     --neutral-fg: var(--color-medium-contrast);
 
-    // --- Scrollbar ---
-    --scrollbar-track: var(--color-medium-tint);
-    --scrollbar-thumb: var(--color-medium);
+    // --- Scrollbar (fond clair : pouce gris moyen) ---
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: var(--color-medium-tint);
+    --scrollbar-thumb-hover: var(--color-medium);
+    --scrollbar-thumb-active: var(--color-medium-shade);
 
     // --- Ombres ---
     --shadow-highlight: var(--color-light-tint);
@@ -229,9 +234,11 @@
     --neutral-emphasis: var(--color-medium-shade);
     --neutral-fg: var(--color-medium-contrast);
 
-    // --- Scrollbar ---
-    --scrollbar-track: var(--color-medium-tint);
-    --scrollbar-thumb: var(--color-medium);
+    // --- Scrollbar (fond clair : pouce gris moyen) ---
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: var(--color-medium-tint);
+    --scrollbar-thumb-hover: var(--color-medium);
+    --scrollbar-thumb-active: var(--color-medium-shade);
 
     // --- Ombres ---
     --shadow-highlight: var(--color-light-tint);
@@ -313,9 +320,11 @@
     --neutral-emphasis: var(--color-medium-tint);
     --neutral-fg: var(--color-light);
 
-    // --- Scrollbar ---
-    --scrollbar-track: var(--color-medium-shade);
-    --scrollbar-thumb: var(--color-medium);
+    // --- Scrollbar (fond gris foncé : pouce discret) ---
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: var(--color-medium-shade);
+    --scrollbar-thumb-hover: var(--color-medium);
+    --scrollbar-thumb-active: var(--color-medium-tint);
 
     // --- Ombres ---
     --shadow-highlight: var(--color-medium-shade);
@@ -337,19 +346,21 @@
 
 @mixin midnight-theme {
     // --- Surfaces (inversées : clair → sombre) ---
-    --surface: var(--color-dark-tint);              // gris très sombre
-    --surface-alt: var(--color-dark);               // un cran plus sombre
-    --surface-raised: var(--color-dark-tint);       // surélevé : ressort sur le fond sombre
+    --surface: var(--color-dark);                   // gris très sombre
+    --surface-alt: var(--color-dark-shade);         // un cran plus sombre
+    --surface-raised: var(--color-dark);            // surélevé : ressort sur le fond sombre
     --surface-dark: var(--color-dark-shade);        // le plus profond (noir)
     --surface-dark-alt: var(--color-dark);          // presque noir
+
+    --input-background: var(--surface-raised);
 
     // --- Bordures (assombries, subtiles sur fond sombre) ---
     --border: var(--color-dark-tint);               // bordure subtile
     --border-strong: var(--color-medium);           // plus visible
-    --border-heavy: var(--color-medium-tint);       // la plus marquée
+    --border-heavy: var(--color-medium-shade);      // la plus marquée
 
     // --- Texte (clair sur sombre, légèrement atténué) ---
-    --text: var(--color-dark-contrast);             // texte principal off-white
+    --text: var(--color-medium);             // texte principal off-white
     --text-heading: var(--color-light);             // titres lumineux
     --text-emphasis: var(--color-light-shade);      // emphase claire
     --text-secondary: var(--color-medium-tint);     // secondaire gris clair
@@ -364,8 +375,8 @@
     --interactive-fg: var(--color-light-shade);
 
     // --- Statut (teintes pour meilleure visibilité sur sombre) ---
-    --status-success: var(--color-success-tint);
-    --status-success-subtle: var(--color-success);
+    --status-success: color-mix(in srgb, var(--color-success-tint), var(--color-dark-shade) 25%);
+    --status-success-subtle: color-mix(in srgb, var(--color-success), var(--color-dark-shade) 25%);
     --status-success-emphasis: var(--color-success-shade);
     --status-success-fg: var(--color-light);
 
@@ -374,20 +385,20 @@
     --status-danger-emphasis: var(--color-danger-shade);
     --status-danger-fg: var(--color-light);
 
-    --status-warning: var(--color-warning-shade);
-    --status-warning-subtle: var(--color-warning);
+    --status-warning:var(--color-warning-shade);
+    --status-warning-subtle: color-mix(in srgb, var(--color-warning), var(--color-dark-shade) 25%);
     --status-warning-emphasis: var(--color-warning-shade);
     --status-warning-fg: var(--color-light);
 
-    // --- Accent secondaire ---
-    --accent-secondary: var(--color-secondary-tint);
-    --accent-secondary-subtle: var(--color-secondary);
+    // --- Accent secondaire (assombri : le secondaire de base est trop clair sur fond sombre) ---
+    --accent-secondary: color-mix(in srgb, var(--color-secondary), var(--color-dark-shade) 50%);
+    --accent-secondary-subtle: color-mix(in srgb, var(--color-secondary-shade), var(--color-dark-shade) 50%);
     --accent-secondary-emphasis: var(--color-secondary-shade);
     --accent-secondary-fg: var(--color-light);
 
-    // --- Accent tertiaire ---
-    --accent-tertiary: var(--color-tertiary-tint);
-    --accent-tertiary-subtle: var(--color-tertiary);
+    // --- Accent tertiaire (assombri pour rester discret sur fond sombre) ---
+    --accent-tertiary: color-mix(in srgb, var(--color-tertiary-tint), var(--color-dark-shade) 50%);
+    --accent-tertiary-subtle: color-mix(in srgb, var(--color-tertiary), var(--color-dark-shade) 50%);
     --accent-tertiary-emphasis: var(--color-tertiary-shade);
     --accent-tertiary-fg: var(--color-light);
 
@@ -398,9 +409,11 @@
     --neutral-emphasis: var(--color-medium-tint);
     --neutral-fg: var(--color-dark);
 
-    // --- Scrollbar ---
-    --scrollbar-track: var(--color-medium-shade);
-    --scrollbar-thumb: var(--color-medium);
+    // --- Scrollbar (très sombre : à peine visible du fond, un peu plus au survol) ---
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: var(--color-dark-tint);          // 26% — juste au-dessus du fond (~19%)
+    --scrollbar-thumb-hover: var(--color-medium-shade); // 37% — un cran plus visible
+    --scrollbar-thumb-active: var(--color-medium);      // 47% — actif
 
     // --- Ombres ---
     --shadow-highlight: var(--color-medium-shade);

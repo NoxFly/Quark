@@ -13,6 +13,7 @@ import {
     OnDestroy,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
+import { InputComponent } from "@ui/input/input.component";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import type { R_NetworkConnectBody } from "@shared/types";
 import { DatabaseService } from "src/app/core/services/database.service";
@@ -27,7 +28,7 @@ import { I18nService } from "src/app/core/services/i18n.service";
 @Component({
     selector: "app-password-prompt",
     standalone: true,
-    imports: [FormsModule],
+    imports: [FormsModule, InputComponent],
     templateUrl: "./password-prompt.component.html",
     styleUrl: "./password-prompt.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,

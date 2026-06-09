@@ -21,22 +21,24 @@
                         <span class="action-icon">&#xE8A0;</span>
                     </button>
                 }
-                <button
+                <ui-button
                     class="action-btn save-btn"
+                    color="primary"
                     [disabled]="isSaving() || dbService.readOnly()"
                     (click)="save()"
                     [tooltip]="i18n.t('storedProc.save')">
                     <span class="action-icon">&#xE74E;</span>
                     <span>{{ i18n.t("storedProc.save") }}</span>
-                </button>
-                <button
+                </ui-button>
+                <ui-button
                     class="action-btn exec-btn"
+                    color="primary"
                     [disabled]="isExecuting()"
                     (click)="execute()"
                     [tooltip]="i18n.t('storedProc.execute')">
                     <span class="action-icon">&#xE768;</span>
                     <span>{{ i18n.t("storedProc.execute") }}</span>
-                </button>
+                </ui-button>
             </div>
         </div>
 
@@ -82,7 +84,7 @@
                                         <span class="param-name">&#64;{{ param.name }}</span>
                                         <span class="param-type">{{ param.type }}</span>
                                     </label>
-                                    <input
+                                    <ui-input
                                         class="param-input"
                                         [id]="'param-' + param.name"
                                         type="text"

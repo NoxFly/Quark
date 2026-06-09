@@ -10,6 +10,9 @@ import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import type { FieldDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
+import { SelectComponent } from "@ui/select/select.component";
+import { SelectOptionComponent } from "@ui/select/select-option/select-option.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
 /** État éditable d'une colonne (pour le renommage). */
@@ -29,7 +32,7 @@ interface EditableColumn {
     templateUrl: "./schema-editor.component.html",
     styleUrl: "./schema-editor.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent, TooltipDirective],
+    imports: [FormsModule, ButtonComponent, InputComponent, SelectComponent, SelectOptionComponent, TooltipDirective],
 })
 export class SchemaEditorComponent implements OnInit {
     protected readonly i18n = inject(I18nService);

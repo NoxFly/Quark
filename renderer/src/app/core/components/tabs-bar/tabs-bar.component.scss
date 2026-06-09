@@ -60,10 +60,10 @@
     }
 
     &.drag-over {
-        background: color-mix(in srgb, var(--color-primary) 15%, var(--surface-alt));
+        background: color-mix(in srgb, var(--interactive) 15%, var(--surface-alt));
 
         &::after {
-            background: var(--color-primary);
+            background: var(--interactive);
         }
     }
 
@@ -73,7 +73,7 @@
         font-weight: 500;
 
         &::after {
-            background: var(--color-primary);
+            background: var(--interactive);
         }
     }
 }

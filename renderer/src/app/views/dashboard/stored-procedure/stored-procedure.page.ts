@@ -22,6 +22,8 @@ import { DatabaseService } from "src/app/core/services/database.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import type { StoredProcedureDetail, StoredProcedureExecResult, StoredProcedureParam } from "@shared/types";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 
 /** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
@@ -38,7 +40,7 @@ declare const monaco: typeof import("monaco-editor");
     templateUrl: "./stored-procedure.page.html",
     styleUrl: "./stored-procedure.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TooltipDirective],
+    imports: [TooltipDirective, ButtonComponent, InputComponent],
 })
 export class StoredProcedurePage {
     protected readonly i18n = inject(I18nService);

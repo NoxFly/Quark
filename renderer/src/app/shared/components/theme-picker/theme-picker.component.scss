@@ -66,12 +66,12 @@
 
     &.selected {
         background: rgba(127, 127, 127, 0.12);
-        color: var(--color-primary);
+        color: var(--interactive);
     }
 
     .theme-check {
         font-family: "Segoe Fluent Icons", sans-serif;
         font-size: 0.85em;
-        color: var(--color-primary);
+        color: var(--interactive);
     }
 }

@@ -67,8 +67,8 @@
     border-radius: 3px;
 
     &.unique {
-        background: color-mix(in srgb, var(--color-primary) 20%, transparent);
-        color: var(--color-primary);
+        background: color-mix(in srgb, var(--interactive) 20%, transparent);
+        color: var(--interactive);
     }
 
     &.origin {
@@ -114,7 +114,7 @@
 .toggle-create-btn {
     background: none;
     border: none;
-    color: var(--color-primary);
+    color: var(--interactive);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
@@ -159,7 +159,7 @@
         transition: border-color 0.15s;
 
         &:focus {
-            border-color: var(--color-primary);
+            border-color: var(--interactive);
         }
     }
 }

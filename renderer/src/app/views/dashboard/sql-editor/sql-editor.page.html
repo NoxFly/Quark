@@ -2,27 +2,25 @@
     <div class="editor-panel">
         <div class="editor-toolbar">
             <span class="editor-label"></span>
-            <button
-                class="history-toggle-btn"
-                [class.active]="historyVisible()"
+            <ui-button
+                icon="E81C"
                 (click)="toggleHistory()"
                 [tooltip]="i18n.t('sqlEditor.history')">
-                <span class="segoe-icon">&#xE81C;</span>
-                <span>{{ i18n.t('sqlEditor.history') }}</span>
-            </button>
+                {{ i18n.t('sqlEditor.history') }}
+            </ui-button>
             <!-- <ui-button
                 color="secondary"
                 (click)="clearResult()">
                 {{ i18n.t('sqlEditor.clear') }}
             </ui-button> -->
-            <button
-                class="execute-btn"
+            <ui-button
+                color="primary"
+                icon="E768"
                 [disabled]="isExecuting() || !hasInput()"
                 (click)="execute()"
                 [tooltip]="isExecuting() ? i18n.t('sqlEditor.executing') : i18n.t('sqlEditor.execute')">
-                <span class="segoe-icon">&#xE768;</span>
-                <span>{{ i18n.t('sqlEditor.execute') }}</span>
-            </button>
+                {{ i18n.t('sqlEditor.execute') }}
+            </ui-button>
         </div>
 
         <div class="monaco-container" #monacoContainer></div>

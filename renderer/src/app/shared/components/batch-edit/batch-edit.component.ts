@@ -9,6 +9,9 @@ import { FormsModule } from "@angular/forms";
 import { I18nService } from "src/app/core/services/i18n.service";
 import type { FieldDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { InputComponent } from "@ui/input/input.component";
+import { SelectComponent } from "@ui/select/select.component";
+import { SelectOptionComponent } from "@ui/select/select-option/select-option.component";
 
 /**
  * Modal d'édition par lot.
@@ -20,7 +23,7 @@ import { ButtonComponent } from "@ui/button/button.component";
     templateUrl: "./batch-edit.component.html",
     styleUrl: "./batch-edit.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent],
+    imports: [FormsModule, ButtonComponent, InputComponent, SelectComponent, SelectOptionComponent],
 })
 export class BatchEditComponent implements OnInit {
     protected readonly i18n = inject(I18nService);

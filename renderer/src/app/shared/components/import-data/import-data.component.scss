@@ -41,8 +41,8 @@
         transition: background 0.2s, border-color 0.2s, color 0.2s;
 
         &.active {
-            background: var(--color-primary);
-            border-color: var(--color-primary);
+            background: var(--interactive);
+            border-color: var(--interactive);
             color: white;
         }
     }
@@ -103,7 +103,7 @@
         transition: border-color 0.15s;
 
         &:focus {
-            border-color: var(--color-primary);
+            border-color: var(--interactive);
         }
     }
 

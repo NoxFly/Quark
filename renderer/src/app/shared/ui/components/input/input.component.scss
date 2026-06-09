@@ -11,7 +11,7 @@
 
 :host {
     --fg-color: var(--text-color);
-    --bg-color: var(--background-color-tint);
+    --bg-color: var(--input-background, var(--surface));
 
     margin: 10px;
     display: inline-block;

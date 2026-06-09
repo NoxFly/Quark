@@ -7,11 +7,11 @@
     <div class="modal-body">
         <div class="form-group">
             <label>{{ i18n.t('batchEdit.column') }}</label>
-            <select [(ngModel)]="selectedColumn">
+            <ui-select [(ngModel)]="selectedColumn">
                 @for (field of editableFields(); track field.name) {
-                    <option [value]="field.name">{{ field.name }} ({{ field.type }})</option>
+                    <ui-select-option [value]="field.name">{{ field.name }} ({{ field.type }})</ui-select-option>
                 }
-            </select>
+            </ui-select>
         </div>
 
         <div class="form-group">
@@ -24,7 +24,7 @@
         @if (!setNull()) {
             <div class="form-group">
                 <label>{{ i18n.t('batchEdit.value') }}</label>
-                <input
+                <ui-input
                     type="text"
                     [(ngModel)]="inputValue"
                     [placeholder]="i18n.t('batchEdit.valuePlaceholder')"

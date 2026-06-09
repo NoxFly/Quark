@@ -12,6 +12,7 @@ import { MonacoPreloadService } from "src/app/core/services/monaco-preload.servi
 import { ThemeService } from "src/app/core/services/theme.service";
 import type { R_SqlExecResponse } from "@shared/types";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+import { ButtonComponent } from "@ui/button/button.component";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 
 /** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
@@ -31,7 +32,7 @@ declare const monaco: typeof import("monaco-editor");
     templateUrl: "./sql-editor.page.html",
     styleUrl: "./sql-editor.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TooltipDirective],
+    imports: [TooltipDirective, ButtonComponent],
 })
 export class SqlEditorPage {
     protected readonly dbService = inject(DatabaseService);

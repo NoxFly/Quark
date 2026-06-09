@@ -19,11 +19,11 @@
             <p class="hint">{{ i18n.t('connections.setMasterHint') }}</p>
             <div class="form-group">
                 <label>{{ i18n.t('connections.masterPassword') }}</label>
-                <input type="password" [(ngModel)]="masterPassword" autocomplete="new-password" (keydown.enter)="initVault()" />
+                <ui-input type="password" [(ngModel)]="masterPassword" autocomplete="new-password" (keydown.enter)="initVault()" />
             </div>
             <div class="form-group">
                 <label>{{ i18n.t('connections.confirmMasterPassword') }}</label>
-                <input type="password" [(ngModel)]="confirmPassword" autocomplete="new-password" (keydown.enter)="initVault()" />
+                <ui-input type="password" [(ngModel)]="confirmPassword" autocomplete="new-password" (keydown.enter)="initVault()" />
             </div>
         </div>
         <div class="modal-actions">
@@ -40,7 +40,7 @@
             <p class="hint">{{ i18n.t('connections.unlockHint') }}</p>
             <div class="form-group">
                 <label>{{ i18n.t('connections.masterPassword') }}</label>
-                <input type="password" [(ngModel)]="masterPassword" autocomplete="current-password" (keydown.enter)="unlockVault()" />
+                <ui-input type="password" [(ngModel)]="masterPassword" autocomplete="current-password" (keydown.enter)="unlockVault()" />
             </div>
         </div>
         <div class="modal-actions">
@@ -69,7 +69,7 @@
                 </p>
                 <div class="form-group">
                     <label>{{ i18n.t('connections.passphrase') }}</label>
-                    <input type="password" [(ngModel)]="passphrase" autocomplete="off" (keydown.enter)="confirmPassphrase()" />
+                    <ui-input type="password" [(ngModel)]="passphrase" autocomplete="off" (keydown.enter)="confirmPassphrase()" />
                 </div>
             </div>
             <div class="modal-actions">
@@ -91,7 +91,7 @@
                 }
                 @for (profile of profiles; track profile.id) {
                     <div class="profile-row">
-                        <span class="dot" [style.background]="profile.color || 'var(--color-primary)'"></span>
+                        <span class="dot" [style.background]="profile.color || 'var(--interactive)'"></span>
                         <div class="profile-info" (click)="connectProfile(profile)">
                             <span class="profile-name">{{ profile.name }}</span>
                             <span class="profile-sub">{{ driverName(profile) }} · {{ subtitle(profile) }}</span>

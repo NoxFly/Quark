@@ -8,7 +8,6 @@ import {
     ChangeDetectionStrategy,
     Component,
     computed,
-    ElementRef,
     inject,
     OnDestroy,
     OnInit,
@@ -16,6 +15,7 @@ import {
     viewChild,
 } from "@angular/core";
 import { Router } from "@angular/router";
+import { InputComponent } from "@ui/input/input.component";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { StateService } from "src/app/core/services/state.service";
@@ -36,6 +36,7 @@ interface SearchResult {
 @Component({
     selector: "app-entity-search",
     standalone: true,
+    imports: [InputComponent],
     templateUrl: "./entity-search.component.html",
     styleUrl: "./entity-search.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,7 +51,7 @@ export class EntitySearchComponent implements OnInit, OnDestroy {
     private readonly storedProcService = inject(StoredProceduresService);
     private readonly router = inject(Router);
 
-    private readonly inputRef = viewChild<ElementRef<HTMLInputElement>>("searchInput");
+    private readonly inputRef = viewChild<InputComponent>("searchInput");
 
     protected readonly isOpen = signal<boolean>(false);
     protected readonly query = signal<string>("");
@@ -92,7 +93,7 @@ export class EntitySearchComponent implements OnInit, OnDestroy {
         this.isOpen.set(true);
 
         // Focus l'input après le rendu
-        setTimeout(() => this.inputRef()?.nativeElement.focus(), 0);
+        setTimeout(() => this.inputRef()?.setFocus(), 0);
     }
 
     /**

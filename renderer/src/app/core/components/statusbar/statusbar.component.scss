@@ -37,7 +37,7 @@
 }
 
 .selection-info {
-    color: var(--color-primary);
+    color: var(--interactive);
 }
 
 .transaction-badge {
@@ -78,7 +78,7 @@
     }
 
     &.active {
-        color: var(--color-primary);
+        color: var(--interactive);
     }
 }
 
@@ -106,8 +106,8 @@
     }
 
     &.active {
-        color: var(--color-primary);
-        background: color-mix(in srgb, var(--color-primary), transparent 90%);
+        color: var(--interactive);
+        background: color-mix(in srgb, var(--interactive), transparent 90%);
     }
 }
 
