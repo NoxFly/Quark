@@ -9,4 +9,8 @@ export const routes = defineRoutes([
         path: "db",
         load: () => import("./db/db.controller"),
     },
+    {
+        path: "update",
+        load: () => import("./updater/updater.controller"),
+    },
 ]);

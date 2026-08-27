@@ -5,6 +5,7 @@ import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
+import { UpdateService } from "src/app/core/services/update.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { ChangePasswordComponent } from "src/app/shared/components/change-password/change-password.component";
 import { ConnectionsManagerComponent } from "src/app/shared/components/connections-manager/connections-manager.component";
@@ -51,6 +52,7 @@ export class TitlebarComponent {
     private readonly router = inject(Router);
     private readonly modalCtrl = inject(ModalController);
     private readonly tabsService = inject(TabsService);
+    private readonly updateService = inject(UpdateService);
     protected readonly state = inject(StateService);
     protected readonly themeService = inject(ThemeService);
 
@@ -202,6 +204,7 @@ export class TitlebarComponent {
                 label: t("menu.help"),
                 items: [
                     { label: t("menu.shortcuts"), action: () => this.openShortcuts() },
+                    { label: t("menu.checkForUpdates"), action: () => void this.updateService.checkNow() },
                     { label: "", separator: true },
                     { label: t("menu.about"), action: () => this.openAbout() },
                 ],

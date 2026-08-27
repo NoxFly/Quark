@@ -75,6 +75,17 @@ switch (process.platform) {
 
 // ---
 
+// Injecté à la compilation par tsup depuis la variable d'environnement du même
+// nom : la CI y place `${{ github.repository }}`, de sorte qu'un fork publie ses
+// propres mises à jour sans que personne ait à modifier le code.
+const updateRepository = process.env.UPDATE_REPOSITORY || "NoxFly/quark";
+
+// `releases/latest/download/...` suit automatiquement la dernière release :
+// aucune URL à faire évoluer à chaque publication, ni côté client ni côté CI.
+const manifestUrl = `https://github.com/${updateRepository}/releases/latest/download/latest-${os}.json`;
+
+// ---
+
 export const environment: Environment = {
     env: appEnv,
     rootDir,
@@ -85,6 +96,11 @@ export const environment: Environment = {
         name: appName,
         displayName: appDisplayName,
         version: appVersion,
+    },
+    update: {
+        repository: updateRepository,
+        manifestUrl,
+        releasesUrl: `https://github.com/${updateRepository}/releases/latest`,
     },
 };
 

@@ -15,6 +15,7 @@ import { LoadingScreenComponent } from "./shared/components/loading-screen/loadi
 import { ThemePickerComponent } from "./shared/components/theme-picker/theme-picker.component";
 import { RecentDatabasesComponent } from "./shared/components/recent-databases/recent-databases.component";
 import { PasswordPromptComponent } from "./shared/components/password-prompt/password-prompt.component";
+import { StartupErrorComponent } from "./shared/components/startup-error/startup-error.component";
 import { ChangePasswordComponent } from "./shared/components/change-password/change-password.component";
 import { CreateTableComponent } from "./shared/components/create-table/create-table.component";
 import { IndexViewerComponent } from "./shared/components/index-viewer/index-viewer.component";
@@ -23,7 +24,18 @@ import { EntitySearchComponent } from "./shared/components/entity-search/entity-
 import { AlertController } from "@ui/alert/alert.controller";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
+import { UpdateService } from "src/app/core/services/update.service";
+import { withTimeout } from "src/app/shared/helpers/global.helper";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
+
+/**
+ * Échéance de la poignée de main du pont IPC. Plus large que les autres étapes :
+ * elle inclut le démarrage du process main sur une machine froide.
+ */
+const BRIDGE_TIMEOUT_MS = 20_000;
+
+/** Échéance de chaque requête d'initialisation qui suit la poignée de main. */
+const STARTUP_STEP_TIMEOUT_MS = 15_000;
 
 
 @Component({
@@ -43,6 +55,7 @@ import type { UIDismissData } from "src/app/shared/ui/ui.types";
         RecentDatabasesComponent,
         PasswordPromptComponent,
         EntitySearchComponent,
+        StartupErrorComponent,
     ],
     host: {
         "(window:beforeunload)": "handleBeforeUnload()",
@@ -71,12 +84,18 @@ export class AppComponent {
     protected readonly hasFocus = signal<boolean>(true);
     protected readonly isHovered = signal<boolean>(true);
 
+    /**
+     * Message d'échec de l'initialisation, `null` tant que rien n'a échoué.
+     * Sa présence remplace l'écran de chargement par un écran d'erreur actionnable.
+     */
+    protected readonly startupError = signal<string | null>(null);
+
     private pendingNavigationRequest: string | null = null;
 
     /** Tracks Ctrl+K prefix for chord shortcuts like Ctrl+K, Ctrl+T */
     private ctrlKPressed = false;
 
-    private readonly state = inject(StateService);
+    protected readonly state = inject(StateService);
     private readonly router = inject(Router);
     private readonly noxus = inject(NoxusService);
     private readonly dbService = inject(DatabaseService);
@@ -86,6 +105,7 @@ export class AppComponent {
     private readonly modalCtrl = inject(ModalController);
     private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly storedProcService = inject(StoredProceduresService);
+    private readonly updateService = inject(UpdateService);
     private readonly destroyRef = inject(DestroyRef);
 
     /**
@@ -119,6 +139,10 @@ export class AppComponent {
             this.state.fileName.set(title);
         });
 
+        // Le main recherche les mises à jour de lui-même ; on se contente d'écouter
+        // pour proposer l'installation le moment venu.
+        this.updateService.listen();
+
         // Écouter l'événement "À propos" depuis le titlebar
         const onAbout = (): void => this.showAboutDialog();
         const onCreateTable = (): void => { void this.openCreateTable(); };
@@ -140,60 +164,111 @@ export class AppComponent {
             document.removeEventListener("open-index-viewer", onIndexViewer);
         });
 
-        this.load();
+        void this.load();
     }
 
     /**
+     * Initialise l'application : poignée de main IPC, restauration de l'état de la
+     * fenêtre, puis routage vers la vue correspondante.
      *
+     * Chaque attente est bornée et toute erreur est rattrapée : sans cela, un pont
+     * IPC qui ne répond pas laisse `isReady` à `false` indéfiniment, et l'écran de
+     * chargement — un calque opaque plein écran qui recouvre jusqu'à la titlebar —
+     * se présente à l'utilisateur comme une fenêtre entièrement blanche, dans le
+     * même état après un Ctrl+Alt+R.
      */
     private async load(): Promise<void> {
         if (this.isReady()) {
             return;
         }
 
-        await this.noxus.init();
+        this.startupError.set(null);
 
-        // Charger les infos de l'application
-        const loadResult = await this.noxus.ipc.loadApp();
-        this.state.appName.set(loadResult.appName);
-        this.state.appVersion.set(loadResult.appVersion);
+        try {
+            await withTimeout(this.noxus.init(), BRIDGE_TIMEOUT_MS, "IPC bridge handshake");
 
-        const appState = await this.noxus.request<AppState>({
-            method: "GET",
-            path: "app/state",
-        });
+            // Charger les infos de l'application
+            const loadResult = await withTimeout(this.noxus.ipc.loadApp(), STARTUP_STEP_TIMEOUT_MS, "loadApp");
+            this.state.appName.set(loadResult.appName);
+            this.state.appVersion.set(loadResult.appVersion);
 
-        // Restaurer l'état de la fenêtre (transaction, etc.) depuis le main process
-        const windowState = await this.noxus.ipc.getWindowState();
-        this.dbService.inTransaction.set(windowState.inTransaction);
+            const appState = await withTimeout(
+                this.noxus.request<AppState>({ method: "GET", path: "app/state" }),
+                STARTUP_STEP_TIMEOUT_MS,
+                "app/state",
+            );
 
-        this.isReady.set(true);
+            // Restaurer l'état de la fenêtre (transaction, etc.) depuis le main process
+            const windowState = await withTimeout(
+                this.noxus.ipc.getWindowState(),
+                STARTUP_STEP_TIMEOUT_MS,
+                "getWindowState",
+            );
+            this.dbService.inTransaction.set(windowState.inTransaction);
 
-        // Précharger Monaco Editor en arrière-plan pour un affichage instantané
-        this.monacoPreload.preload();
+            this.isReady.set(true);
 
+            // Précharger Monaco Editor en arrière-plan pour un affichage instantané
+            this.monacoPreload.preload();
+
+            this.routeToInitialView(appState);
+
+            // La base passée en ligne de commande est ouverte une fois l'interface
+            // prête, jamais avant : le main la met en attente plutôt que de la
+            // pousser sur un minuteur qui pouvait expirer avant le renderer.
+            if (loadResult.pendingFile) {
+                void this.dbService.openFile(loadResult.pendingFile);
+            }
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error("Application startup failed:", error);
+            this.startupError.set(message);
+        }
+    }
+
+    /**
+     * Route vers la vue initiale selon l'état restauré du main process.
+     */
+    private routeToInitialView(appState: AppState): void {
         if (this.pendingNavigationRequest) {
             this.router.navigateByUrl(this.pendingNavigationRequest);
             this.pendingNavigationRequest = null;
+            return;
         }
-        else if (appState.connected && appState.database) {
-            this.state.connected.set(true);
-            this.state.database.set(appState.database);
-            this.state.filePath.set(appState.filePath);
-            this.state.driverType.set(appState.driverType);
-            this.state.driverInfo.set(appState.driverInfo);
-            this.state.title.set(appState.database.name);
-            this.state.fileName.set(appState.database.name);
-            this.router.navigate(["/dashboard/no-table"]);
 
-            // Recharger les procédures stockées si le driver les supporte (ex: après Ctrl+Alt+R)
-            if (appState.driverInfo?.capabilities?.storedProcedures) {
-                void this.storedProcService.loadProcedures();
-            }
-        }
-        else {
+        if (!appState.connected || !appState.database) {
             this.router.navigate(["/open-database"]);
+            return;
         }
+
+        this.state.connected.set(true);
+        this.state.database.set(appState.database);
+        this.state.filePath.set(appState.filePath);
+        this.state.driverType.set(appState.driverType);
+        this.state.driverInfo.set(appState.driverInfo);
+        this.state.title.set(appState.database.name);
+        this.state.fileName.set(appState.database.name);
+        this.router.navigate(["/dashboard/no-table"]);
+
+        // Recharger les procédures stockées si le driver les supporte (ex: après Ctrl+Alt+R)
+        if (appState.driverInfo?.capabilities?.storedProcedures) {
+            void this.storedProcService.loadProcedures();
+        }
+    }
+
+    /**
+     * Relance l'initialisation après un échec de démarrage.
+     */
+    protected retryStartup(): void {
+        void this.load();
+    }
+
+    /**
+     * Recharge complètement le renderer après un échec de démarrage.
+     */
+    protected reloadApplication(): void {
+        void this.noxus.ipc.requestReload();
     }
 
     /**

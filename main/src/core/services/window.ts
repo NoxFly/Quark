@@ -1,6 +1,6 @@
 import { Logger, WindowManager } from "@noxfly/noxus/main";
 import { shell } from "electron/common";
-import { BrowserWindow, BrowserWindowConstructorOptions, screen } from "electron/main";
+import { BrowserWindow, BrowserWindowConstructorOptions, dialog, screen } from "electron/main";
 import { join, basename } from "node:path";
 import { environment } from "src/core/environment";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
@@ -33,12 +33,20 @@ const defaultWindowOptions: BrowserWindowConstructorOptions = {
 };
 
 /**
+ * Délai au-delà duquel la fenêtre est affichée même si `ready-to-show` n'a jamais
+ * été émis. Sans ce filet, un renderer qui échoue à peindre laisse une fenêtre
+ * invisible et une application apparemment morte.
+ */
+const READY_TO_SHOW_FALLBACK_MS = 8_000;
+
+/**
  * 1 instance par fenêtre (renderer).
  * Chaque fenêtre gère une seule connexion DB via un driver interchangeable.
  */
 export class Window {
     private win: BrowserWindow | null = null;
     private _database: DatabaseDriver = createDriver("sqlite");
+    private showFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
     /**
      * Retourne le driver de base de données actif.
@@ -149,6 +157,15 @@ export class Window {
     }
 
     /**
+     * Pousse un événement vers le renderer de cette fenêtre.
+     * @param channel - Canal IPC écouté côté preload.
+     * @param payload - Données transmises au renderer.
+     */
+    public sendToRenderer(channel: string, ...payload: unknown[]): void {
+        this.win?.webContents.send(channel, ...payload);
+    }
+
+    /**
      * Met la fenêtre au premier plan.
      */
     public focus(): void {
@@ -174,7 +191,7 @@ export class Window {
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.workAreaSize;
 
-       const win = await this.windowManager.create({
+        const win = await this.windowManager.create({
             ...defaultWindowOptions,
             show: false,
             width: 1250,
@@ -184,6 +201,11 @@ export class Window {
         }, true);
 
         this.win = win;
+
+        // Les écouteurs de cycle de vie sont posés une seule fois pour la durée de vie
+        // de la fenêtre : `load()` peut être rappelé (Ctrl+Alt+R) et les réenregistrer
+        // à chaque passage accumulerait des écouteurs sur le même émetteur.
+        this.registerLifecycleHandlers(win);
 
         await this.load();
     }
@@ -196,6 +218,7 @@ export class Window {
             return;
         }
 
+        this.clearShowFallback();
         this.win.close();
         this.win = null;
     }
@@ -270,47 +293,180 @@ export class Window {
     // --------
 
     /**
+     * Enregistre les écouteurs de cycle de vie et de diagnostic de la fenêtre.
      *
+     * Sans eux, un échec de chargement, un crash du process de rendu ou une erreur
+     * de preload se traduisent par une fenêtre blanche muette : aucun message pour
+     * l'utilisateur, aucune trace exploitable dans les logs.
      */
-    private async load(cb?: (() => void) | null, launchPage?: string): Promise<void> {
-        launchPage ||= "";
+    private registerLifecycleHandlers(win: BrowserWindow): void {
+        win.on("ready-to-show", () => {
+            this.clearShowFallback();
+            win.show();
+        });
 
-        if(!this.win) {
+        win.on("unresponsive", () => {
+            Logger.critical(`Renderer ${win.id} is unresponsive.`);
+        });
+
+        win.on("responsive", () => {
+            Logger.info(`Renderer ${win.id} is responsive again.`);
+        });
+
+        win.webContents.on("preload-error", (_event, preloadPath, error) => {
+            Logger.critical(`Preload script failed (${preloadPath}): ${error.stack ?? error.message}`);
+            this.reportFatal("Preload error", error.message);
+        });
+
+        win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+            // -3 = ERR_ABORTED : émis quand une navigation en remplace une autre, sans conséquence.
+            if (!isMainFrame || errorCode === -3) {
+                return;
+            }
+
+            Logger.critical(`Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+            this.reportFatal("Loading error", `${errorDescription} (${errorCode})\n${validatedURL}`);
+        });
+
+        win.webContents.on("render-process-gone", (_event, details) => {
+            Logger.critical(`Render process gone: reason=${details.reason}, exitCode=${details.exitCode}`);
+
+            // « clean-exit » correspond à la fermeture volontaire de la fenêtre.
+            if (details.reason === "clean-exit") {
+                return;
+            }
+
+            this.reportFatal("Renderer crashed", `Reason: ${details.reason} (exit code ${details.exitCode})`);
+        });
+
+        // Toute navigation hors du document de l'application (drop d'un fichier sur
+        // une zone non gérée, lien interne mal formé) remplacerait l'interface par la
+        // cible : plus de titlebar, plus de raccourcis, aucun moyen de revenir. On la refuse.
+        win.webContents.on("will-navigate", (event, url) => {
+            if (this.isApplicationUrl(url)) {
+                return;
+            }
+
+            Logger.warn(`Blocked in-window navigation to ${url}`);
+            event.preventDefault();
+        });
+    }
+
+    /**
+     * Indique si l'URL correspond au document de l'application elle-même.
+     */
+    private isApplicationUrl(url: string): boolean {
+        const current = this.win?.webContents.getURL();
+
+        if (!current) {
+            return false;
+        }
+
+        // Le routage Angular est en mode hash : seule la partie avant `#` identifie le document.
+        const strip = (value: string): string => value.split("#")[0] ?? value;
+
+        return strip(url) === strip(current);
+    }
+
+    /**
+     * Affiche une erreur fatale du renderer dans une boîte de dialogue native.
+     * Le dialogue natif est le seul canal fiable ici : l'interface Angular est,
+     * par définition, indisponible.
+     */
+    private reportFatal(title: string, message: string): void {
+        this.clearShowFallback();
+        this.win?.show();
+
+        const answer = dialog.showMessageBoxSync({
+            type: "error",
+            title: `${environment.product.displayName} — ${title}`,
+            message: `${title}\n\n${message}`,
+            buttons: ["Reload", "Close"],
+            defaultId: 0,
+            cancelId: 1,
+        });
+
+        if (answer === 0) {
+            void this.reloadRenderer();
             return;
         }
 
-        this.win.once("ready-to-show", () => {
-            cb?.();
-            this.win?.show();
-        });
+        this.close();
+    }
 
-        // ouvre les liens _target="blank" (externes) dans le navigateur par défaut
-        this.win.webContents.setWindowOpenHandler(({ url }) => {
-            shell.openExternal(url);
-            return {
-                action: "deny",
-            }; // pas forcément, à voir selon le cas
-        });
+    /**
+     * Arme le filet de sécurité qui affiche la fenêtre même si `ready-to-show`
+     * n'est jamais émis.
+     */
+    private armShowFallback(): void {
+        this.clearShowFallback();
 
-        let url: string;
+        this.showFallbackTimer = setTimeout(() => {
+            this.showFallbackTimer = null;
 
-        switch (environment.env) {
-            case "development":
-                url = `http://localhost:4201/${launchPage ? `#/${launchPage}` : ""}`;
-                break;
+            if (this.win && !this.win.isVisible()) {
+                Logger.warn(`ready-to-show never fired after ${READY_TO_SHOW_FALLBACK_MS}ms — showing window anyway.`);
+                this.win.show();
+            }
+        }, READY_TO_SHOW_FALLBACK_MS);
+    }
 
-            default:
-            case "production":
-                url = `file://${join(environment.rootDir, "browser/index.html")}`;
-                break;
+    /**
+     *
+     */
+    private clearShowFallback(): void {
+        if (this.showFallbackTimer !== null) {
+            clearTimeout(this.showFallbackTimer);
+            this.showFallbackTimer = null;
+        }
+    }
+
+    /**
+     * Charge (ou recharge) le document du renderer dans la fenêtre.
+     */
+    private async load(launchPage?: string): Promise<void> {
+        const win = this.win;
+
+        if (!win) {
+            return;
         }
 
-        Logger.comment(`Loading URL: ${url}`);
+        this.armShowFallback();
 
-        await this.win.loadURL(url);
+        // ouvre les liens _target="blank" (externes) dans le navigateur par défaut
+        win.webContents.setWindowOpenHandler(({ url }) => {
+            shell.openExternal(url);
 
-        if (/* !environment.development && */ launchPage) {
-            this.win.webContents.send("navigate-to", launchPage);
+            return {
+                action: "deny",
+            };
+        });
+
+        try {
+            if (environment.env === AppEnv.DEVELOPMENT) {
+                const url = `http://localhost:4201/${launchPage ? `#/${launchPage}` : ""}`;
+                Logger.comment(`Loading URL: ${url}`);
+                await win.loadURL(url);
+            }
+            else {
+                // `loadFile` encode lui-même le chemin. Une URL `file://` construite à
+                // la main casse dès que le dossier d'installation contient un espace,
+                // un accent ou un `#` — écran blanc chez l'utilisateur, jamais chez le
+                // développeur.
+                const filePath = join(environment.rendererDir, "index.html");
+                Logger.comment(`Loading file: ${filePath}`);
+                await win.loadFile(filePath, launchPage ? { hash: `/${launchPage}` } : undefined);
+            }
+        }
+        catch (error) {
+            // `did-fail-load` a déjà rapporté le détail ; on empêche seulement le rejet
+            // de remonter en unhandledRejection.
+            Logger.critical(`Renderer load failed: ${error instanceof Error ? error.message : String(error)}`);
+            return;
+        }
+
+        if (launchPage) {
+            win.webContents.send("navigate-to", launchPage);
         }
     }
 
@@ -322,9 +478,9 @@ export class Window {
     }
 
     /**
-     *
+     * Recharge le document du renderer (Ctrl+Alt+R).
      */
     public async reloadRenderer(): Promise<void> {
-        this.load();
+        await this.load();
     }
 }

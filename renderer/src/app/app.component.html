@@ -15,7 +15,15 @@
 
 <app-statusbar></app-statusbar>
 
-@if(!ready) {
+@if(startupError(); as error) {
+    <app-startup-error
+        [details]="error"
+        [appVersion]="state.appVersion()"
+        (retry)="retryStartup()"
+        (reload)="reloadApplication()"
+    ></app-startup-error>
+}
+@else if(!ready) {
     <app-loading-screen [showContent]="!isReloading"></app-loading-screen>
 }
 

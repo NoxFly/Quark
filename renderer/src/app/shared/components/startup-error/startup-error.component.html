@@ -1,0 +1,26 @@
+<div class="startup-error__panel">
+    <h1 class="startup-error__title">Quark could not start</h1>
+
+    <p class="startup-error__lead">
+        The application failed to initialize. This usually means the database connection
+        restored from the previous session is not responding.
+    </p>
+
+    @if (details()) {
+        <pre class="startup-error__details">{{ details() }}</pre>
+    }
+
+    <div class="startup-error__actions">
+        <button type="button" class="startup-error__button startup-error__button--primary" (click)="retry.emit()">
+            Retry
+        </button>
+
+        <button type="button" class="startup-error__button" (click)="reload.emit()">
+            Reload the application
+        </button>
+    </div>
+
+    @if (appVersion()) {
+        <p class="startup-error__version">Version {{ appVersion() }}</p>
+    }
+</div>

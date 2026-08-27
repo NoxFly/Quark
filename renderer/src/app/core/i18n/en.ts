@@ -418,4 +418,20 @@ export const en: Record<string, string> = {
     // --- Entity Search ---
     "entitySearch.placeholder": "Search tables...",
     "entitySearch.placeholderWithProcs": "Search tables or procedures...",
+
+    // --- Updates ---
+    "menu.checkForUpdates": "Check for updates",
+    "update.availableTitle": "Version {version} is available",
+    "update.availableMessage": "You are running {current}. Version {version} can be installed now.",
+    "update.later": "Later",
+    "update.install": "Install now",
+    "update.download": "Download",
+    "update.downloading": "Downloading the update...",
+    "update.downloadingPercent": "Downloading the update... {percent}%",
+    "update.upToDate": "Quark is up to date (version {version}).",
+    "update.checkFailedTitle": "Update check failed",
+    "update.checkFailedMessage": "Could not reach the update server. Check your internet connection and try again.",
+    "update.failedTitle": "Update failed",
+    "update.failedMessage": "The update could not be applied. You can download it manually from the releases page.",
+    "update.openReleases": "Open releases page",
 };

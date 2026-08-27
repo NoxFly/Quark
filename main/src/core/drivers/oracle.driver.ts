@@ -289,7 +289,7 @@ export class OracleDriver extends NetworkSqlDriver {
     /**
      * Override pour utiliser la pagination Oracle (OFFSET ROWS FETCH).
      */
-    private extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
+    protected override extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
         const trimmed = filter.trim();
 
         // Vérifier si le filtre commence par ORDER BY

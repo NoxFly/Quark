@@ -20,4 +20,12 @@ export interface Environment {
         displayName: string;
         version: string;
     };
+    update: {
+        /** Dépôt GitHub au format `owner/repo` qui héberge les releases. */
+        repository: string;
+        /** URL du manifeste de la dernière version publiée pour cette plateforme. */
+        manifestUrl: string;
+        /** Page des releases, ouverte quand la mise à jour ne peut être appliquée seule. */
+        releasesUrl: string;
+    };
 }

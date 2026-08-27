@@ -116,7 +116,7 @@ module.exports = {
         artifactName: installerFilename,
     },
     nsis: {
-        oneClick: false,
+        oneClick: true,
         allowToChangeInstallationDirectory: true,
         perMachine: false,
         allowElevation: false,

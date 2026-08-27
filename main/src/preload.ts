@@ -5,6 +5,7 @@ import type {
     LoadAppResult,
     TitlebarState,
 } from "@shared/ipc-renderer";
+import type { UpdateInfo, UpdateProgress } from "@shared/update";
 import { exposeNoxusBridge } from "@noxfly/noxus/preload";
 
 // .invoke -> front sends to back
@@ -93,6 +94,16 @@ const api: IpcRendererBridge = {
     whenDisplayErrorDialog: (cb) => {
         ipcRenderer.removeAllListeners("display-error-dialog");
         ipcRenderer.on("display-error-dialog", (_event, error: ErrorDialogPayload) => cb(error));
+    },
+
+    onUpdateAvailable: (cb) => {
+        ipcRenderer.removeAllListeners("update-available");
+        ipcRenderer.on("update-available", (_event, info: UpdateInfo) => cb(info));
+    },
+
+    onUpdateProgress: (cb) => {
+        ipcRenderer.removeAllListeners("update-progress");
+        ipcRenderer.on("update-progress", (_event, progress: UpdateProgress) => cb(progress));
     },
 };
 

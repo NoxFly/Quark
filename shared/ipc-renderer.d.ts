@@ -12,6 +12,11 @@ export type LoadAppResult = {
     windowType: "primary" | "secondary";
     appName: string;
     appVersion: string;
+    /**
+     * Base passée en ligne de commande (double-clic sur un fichier) à ouvrir dès
+     * que le renderer est prêt. `null` si l'application a été lancée sans fichier.
+     */
+    pendingFile: string | null;
 };
 
 export type NavigationRequest = string;
@@ -76,6 +81,11 @@ export interface IpcRendererBridge {
     onFileOpened(cb: (filePath: string) => void): void;
     onTitleChanged(cb: (title: string) => void): void;
     whenDisplayErrorDialog(cb: (error: ErrorDialogPayload) => void): void;
+
+    /** Notifié quand la recherche automatique détecte une version plus récente. */
+    onUpdateAvailable(cb: (info: import("./update").UpdateInfo) => void): void;
+    /** Notifié pendant le téléchargement de l'installeur. */
+    onUpdateProgress(cb: (progress: import("./update").UpdateProgress) => void): void;
 }
 
 export interface ErrorDialogPayload {

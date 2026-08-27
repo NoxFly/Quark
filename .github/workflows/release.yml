@@ -1,0 +1,187 @@
+# Build et publication automatique d'une release à chaque push sur `main`.
+#
+# La version publiée est celle de `package.json`, suffixée du numéro de run
+# (`1.2.3+build.42`) : deux pushs successifs produisent donc deux releases
+# distinctes sans qu'il faille bumper le fichier à la main.
+#
+# Chaque plateforme publie, à côté de son installeur, un manifeste
+# `latest-<os>.json` que l'application interroge via l'URL stable
+# `releases/latest/download/latest-<os>.json`.
+
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: resolve
+        shell: bash
+        run: |
+          BASE=$(node -p "require('./package.json').version.replace(/[+-].*$/, '')")
+          VERSION="${BASE}+build.${GITHUB_RUN_NUMBER}"
+          # Le `+` est légal en semver mais pas dans une référence git : le tag
+          # utilise le séparateur `-` pour rester poussable.
+          TAG="v${BASE}-build.${GITHUB_RUN_NUMBER}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Publishing ${VERSION} as ${TAG}"
+
+  build:
+    name: Build (${{ matrix.os_label }})
+    needs: version
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            os_label: Windows
+            artifact_glob: |
+              out/*.exe
+          - runner: ubuntu-latest
+            os_label: Linux
+            artifact_glob: |
+              out/*.deb
+              out/*.rpm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            renderer/package-lock.json
+
+      # electron-builder délègue la génération du .rpm à `rpmbuild`, absent de
+      # l'image ubuntu par défaut.
+      - name: Install Linux packaging tools
+        if: matrix.os_label == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y rpm
+
+      # electron-builder empaquette le contenu de `dist/`, dont le nom de produit
+      # et la version proviennent de `package.json` : on l'aligne avant tout build.
+      - name: Stamp version
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('node:fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = process.env.APP_VERSION;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 4) + '\n');
+          "
+          node -p "'Stamped version: ' + require('./package.json').version"
+        env:
+          APP_VERSION: ${{ needs.version.outputs.version }}
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install renderer dependencies
+        working-directory: renderer
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # Permet à un fork de servir ses propres releases sans toucher au code.
+          UPDATE_REPOSITORY: ${{ github.repository }}
+
+      - name: Package
+        run: npm run make
+        env:
+          UPDATE_REPOSITORY: ${{ github.repository }}
+
+      # Le manifeste est produit ici, où l'artefact et son empreinte sont connus.
+      - name: Generate update manifest
+        shell: bash
+        env:
+          APP_VERSION: ${{ needs.version.outputs.version }}
+          OS_LABEL: ${{ matrix.os_label }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          # L'installeur Windows est le seul artefact que l'application sait
+          # appliquer seule ; sous Linux le .deb sert de référence au manifeste.
+          if [ "$OS_LABEL" = "Windows" ]; then
+            INSTALLER=$(ls out/*Setup*.exe | head -n 1)
+          else
+            INSTALLER=$(ls out/*.deb | head -n 1)
+          fi
+
+          export FILENAME=$(basename "$INSTALLER")
+          export SHA512=$(sha512sum "$INSTALLER" | cut -d ' ' -f 1)
+          export RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          export URL="https://github.com/${REPOSITORY}/releases/download/${TAG}/${FILENAME}"
+          export MANIFEST="out/latest-${OS_LABEL}.json"
+
+          node -e "
+            const fs = require('node:fs');
+            fs.writeFileSync(process.env.MANIFEST, JSON.stringify({
+              version: process.env.APP_VERSION,
+              releaseDate: process.env.RELEASE_DATE,
+              path: process.env.FILENAME,
+              url: process.env.URL,
+              sha512: process.env.SHA512,
+            }, null, 4) + '\n');
+          "
+          cat "$MANIFEST"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os_label }}
+          if-no-files-found: error
+          path: |
+            ${{ matrix.artifact_glob }}
+            out/latest-${{ matrix.os_label }}.json
+
+  release:
+    name: Publish release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -R artifacts
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          make_latest: true
+          files: artifacts/**/*

@@ -418,4 +418,20 @@ export const fr: Record<string, string> = {
     // --- Entity Search ---
     "entitySearch.placeholder": "Rechercher des tables...",
     "entitySearch.placeholderWithProcs": "Rechercher des tables ou procédures...",
+
+    // --- Mises à jour ---
+    "menu.checkForUpdates": "Rechercher des mises à jour",
+    "update.availableTitle": "La version {version} est disponible",
+    "update.availableMessage": "Vous utilisez la version {current}. La version {version} peut être installée maintenant.",
+    "update.later": "Plus tard",
+    "update.install": "Installer maintenant",
+    "update.download": "Télécharger",
+    "update.downloading": "Téléchargement de la mise à jour...",
+    "update.downloadingPercent": "Téléchargement de la mise à jour... {percent} %",
+    "update.upToDate": "Quark est à jour (version {version}).",
+    "update.checkFailedTitle": "Échec de la recherche de mise à jour",
+    "update.checkFailedMessage": "Le serveur de mise à jour est injoignable. Vérifiez votre connexion Internet et réessayez.",
+    "update.failedTitle": "Échec de la mise à jour",
+    "update.failedMessage": "La mise à jour n'a pas pu être appliquée. Vous pouvez la télécharger manuellement depuis la page des releases.",
+    "update.openReleases": "Ouvrir la page des releases",
 };

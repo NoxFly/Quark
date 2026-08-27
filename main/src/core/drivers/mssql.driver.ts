@@ -215,7 +215,7 @@ export class MssqlDriver extends NetworkSqlDriver {
     /**
      * Override pour convertir les ? en @p0, @p1, ... (paramètres nommés MSSQL).
      */
-    private override extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
+    protected override extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
         const trimmed = filter.trim();
 
         // Vérifier si le filtre commence par ORDER BY

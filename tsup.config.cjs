@@ -30,6 +30,9 @@ module.exports = defineConfig([
         },
         env: {
             NODE_ENV: mode,
+            // Dépôt GitHub interrogé par le système de mise à jour. Fourni par la CI
+            // (`${{ github.repository }}`) pour qu'un fork serve ses propres releases.
+            UPDATE_REPOSITORY: process.env.UPDATE_REPOSITORY ?? "NoxFly/quark",
         },
     },
     {

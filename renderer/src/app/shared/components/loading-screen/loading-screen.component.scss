@@ -4,7 +4,10 @@
 app-loading-screen {
     @include flex($dir: column);
 
-    --loading-bg: var(--window-background-color);
+    // `--window-background-color` n'existe pas dans le thème : la déclaration était
+    // invalide et laissait le calque transparent — d'où une fenêtre entièrement
+    // blanche quand l'initialisation n'aboutit pas.
+    --loading-bg: var(--surface);
     --spinner-size: 30px;
 
     position: fixed;
@@ -13,7 +16,7 @@ app-loading-screen {
     width: 100%;
     height: 100%;
     z-index: 999;
-    color: var(--loading-bg);
+    color: var(--text);
     background: var(--loading-bg);
     backdrop-filter: blur(10px);
     user-select: none;
@@ -28,7 +31,6 @@ app-loading-screen {
 
     .message {
         opacity: .8;
-        color: #333;
     }
 
     &.fade-in {

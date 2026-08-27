@@ -1,6 +1,7 @@
 
-import { bootstrapApplication, Logger } from "@noxfly/noxus/main";
+import { bootstrapApplication, inject, Logger } from "@noxfly/noxus/main";
 import { app } from "electron/main";
+import { extname, join } from "node:path";
 import { OSType } from "src/core/env.dto";
 import { environment } from "src/core/environment";
 import { routes } from "src/modules/app.routes";
@@ -16,7 +17,7 @@ function extractFileArgument(argv: string[]): string | null {
     const args = argv.slice(app.isPackaged ? 1 : 2);
     for (const arg of args) {
         if (!arg.startsWith("--") && !arg.startsWith("-")) {
-            const ext = require("node:path").extname(arg).toLowerCase();
+            const ext = extname(arg).toLowerCase();
             if (SQLITE_EXTENSIONS.has(ext)) {
                 return arg;
             }
@@ -34,7 +35,12 @@ export async function startApplication(): Promise<void> {
         return;
     }
 
+    // Une application packagée n'a pas de console : sans fichier de log, un
+    // incident chez un utilisateur ne laisse aucune trace exploitable.
+    Logger.enableFileLogging(join(app.getPath("userData"), "logs", "quark.log"));
+
     Logger.info(`Running in ${environment.env} on ${environment.os} (${process.arch})`);
+    Logger.info(`Version ${environment.product.version}, userData: ${app.getPath("userData")}`);
 
     if (environment.os === OSType.Windows) {
         app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
@@ -65,48 +71,33 @@ export async function startApplication(): Promise<void> {
     // const { errorFeedbackMiddleware } = await import("./core/middlewares/error-feedback.middleware");
     // noxApp.use(errorFeedbackMiddleware);
 
-    noxApp.start();
+    const application = inject(Application);
 
-    // Gérer l'ouverture d'un fichier passé en argument initial (Windows/Linux double-clic)
+    // Le fichier de lancement est mis en attente AVANT `start()` : le renderer le
+    // récupère lui-même via `load-app`, une fois son pont IPC établi. L'ancienne
+    // approche (envoi différé de 1 s après la création de la fenêtre) perdait
+    // silencieusement le fichier sur les machines lentes à démarrer.
     const initialFile = extractFileArgument(process.argv);
+
     if (initialFile) {
-        // L'application est prête — envoyer le fichier à la première fenêtre
-        app.once("browser-window-created", () => {
-            setTimeout(() => {
-                const { BrowserWindow } = require("electron/main");
-                const wins = BrowserWindow.getAllWindows();
-                if (wins.length > 0) {
-                    wins[0].webContents.send("open-file", initialFile);
-                }
-            }, 1000);
-        });
+        application.setPendingFile(initialFile);
     }
+
+    noxApp.start();
 
     // Gérer l'ouverture d'un fichier depuis une seconde instance (Windows/Linux)
     app.on("second-instance", (_event, argv) => {
         const filePath = extractFileArgument(argv);
+
         if (filePath) {
-            const { BrowserWindow } = require("electron/main");
-            const wins = BrowserWindow.getAllWindows();
-            if (wins.length > 0) {
-                const win = wins[0];
-                if (win.isMinimized()) {
-                    win.restore();
-                }
-                win.focus();
-                win.webContents.send("open-file", filePath);
-            }
+            application.openExternalFile(filePath);
         }
     });
 
     // Gérer l'ouverture d'un fichier sur macOS (événement "open-file")
     app.on("open-file", (event, filePath) => {
         event.preventDefault();
-        const { BrowserWindow } = require("electron/main");
-        const wins = BrowserWindow.getAllWindows();
-        if (wins.length > 0) {
-            wins[0].webContents.send("open-file", filePath);
-        }
+        application.openExternalFile(filePath);
     });
 }
 

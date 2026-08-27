@@ -52,3 +52,28 @@ export function getDate(date?: Date): string {
 
     return `${yyyy}-${mm}-${dd}`;
 }
+
+/**
+ * Rejette si l'opération n'a pas abouti dans le délai imparti.
+ *
+ * Utilisé sur le chemin d'initialisation : le pont Noxus n'expose aucune échéance
+ * sur sa poignée de main, et une attente sans fin y laisse l'application derrière
+ * son écran de chargement plein écran — un écran blanc, sans message ni recours.
+ *
+ * @param operation - Opération à borner.
+ * @param timeoutMs - Échéance en millisecondes.
+ * @param label - Libellé utilisé dans le message d'erreur.
+ * @returns Le résultat de l'opération.
+ * @throws Error si l'échéance est dépassée.
+ * @example
+ * await withTimeout(this.noxus.init(), 15000, "IPC bridge handshake");
+ */
+export function withTimeout<T>(operation: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const deadline = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+
+    return Promise.race([operation, deadline]).finally(() => clearTimeout(timer)) as Promise<T>;
+}

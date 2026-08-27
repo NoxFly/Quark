@@ -40,6 +40,24 @@ Les drivers implémentent `DatabaseDriver` (`main/src/core/drivers/`). Les drive
 
 Système distinct de l'historique « bases récentes ». Les profils de connexion (identifiants inclus) sont persistés dans `connections.xml` (userData), chiffré AES-256-GCM par une clé dérivée (scrypt) d'un **mot de passe maître** déverrouillé une fois par session. `ConnectionStore` (`main/src/core/services/connection-store.ts`) gère le coffre ; `connection-crypto.ts` fournit le chiffrement et l'enveloppe XML. Les profils peuvent être **exportés** en fichier XML chiffré par une **passphrase** indépendante et **importés** ailleurs, pour partager l'accès à une base sans divulguer les identifiants (mots de passe write-only, jamais réaffichés). Canaux IPC : `conn-status`, `conn-initialize`, `conn-unlock`, `conn-lock`, `conn-list`, `conn-create`, `conn-update`, `conn-delete`, `conn-connect`, `conn-export`, `conn-import`. Côté renderer : `ConnectionsService`, modal `connections-manager` (File > Connections) et formulaire réutilisable `connection-form`. Types partagés dans `shared/connection.d.ts`.
 
+### Mise à jour automatique
+
+`UpdaterService` (`main/src/modules/updater/`) recherche, télécharge, vérifie et applique les mises à jour, sans configuration utilisateur. Le manifeste `latest-<os>.json` (`shared/update.d.ts` : `UpdateManifest`) est publié comme asset de la dernière release GitHub et lu à l'URL stable `https://github.com/<repo>/releases/latest/download/latest-<os>.json` — `<repo>` est injecté à la compilation par tsup via `UPDATE_REPOSITORY` (défaut `NoxFly/quark`, fourni par la CI) et exposé dans `environment.update`. Une première recherche a lieu 15 s après le démarrage, puis toutes les 6 h (production uniquement) ; le main pousse alors `update-available` au renderer. L'installeur est vérifié par empreinte SHA-512 avant exécution, puis lancé en mode silencieux (`/S`, NSIS) sur Windows — ailleurs il est seulement révélé dans l'explorateur (le paquet deb/rpm exige une élévation). Routes Noxus : `update/check`, `update/info`, `update/apply`, `update/open-releases`. Canaux IPC poussés : `update-available`, `update-progress`. Côté renderer : `UpdateService` (proposition via `AlertController`, progression via `LoadingController`) et l'entrée « Check for updates » du menu Aide. La comparaison de versions repose sur `Version` (`main/src/core/version.ts`), qui gère le format `major.minor.patch[+build.<n>|-<canal>.<n>]`.
+
+Le workflow `.github/workflows/release.yml` publie une release à chaque push sur `main` : version `X.Y.Z+build.<run>`, build Windows + Linux, génération du manifeste et création de la release (tag `vX.Y.Z-build.<run>`).
+
+### Robustesse du démarrage
+
+L'écran de chargement est un calque opaque plein écran (z-index 999) qui recouvre jusqu'à la titlebar : toute attente non bornée pendant l'initialisation se présente à l'utilisateur comme une fenêtre entièrement blanche. En conséquence :
+
+- `AppComponent.load()` borne chaque étape (`withTimeout`, `shared/helpers/global.helper.ts`) et rattrape les erreurs dans un `StartupErrorComponent` actionnable (réessayer / recharger) ;
+- `main.ts` rattrape un échec de bootstrap Angular et affiche un message minimal sans framework ;
+- côté main, `app/state` et `get-window-state` bornent la lecture du schéma (`withTimeout`, `main/src/core/helpers/async.helper.ts`) : un driver bloqué ne doit jamais retenir le démarrage ;
+- `Window` journalise et signale `did-fail-load`, `render-process-gone`, `preload-error`, `unresponsive`, refuse toute navigation hors du document de l'application, et affiche la fenêtre au bout de 8 s même si `ready-to-show` n'a pas été émis ;
+- en production le document est chargé via `loadFile` (et non une URL `file://` concaténée), pour supporter les chemins d'installation contenant espaces, accents ou `#` ;
+- le fichier passé en ligne de commande est mis en attente (`Application.setPendingFile`) et remis au renderer via `load-app`, plutôt que poussé sur un minuteur qui pouvait expirer avant lui ;
+- les logs du main sont écrits dans `<userData>/logs/quark.log` (`Logger.enableFileLogging`) : une application packagée n'a pas de console, et sans ce fichier un incident chez un utilisateur ne laisse aucune trace.
+
 ### Stored Procedures (MSSQL / Azure)
 
 Le driver MSSQL expose des méthodes pour lister, détailler, exécuter, modifier et supprimer les procédures stockées via `tedious`. Les routes sont exposées dans `DbController` (`db/stored-procedures`, `db/stored-procedure-detail`, `db/stored-procedure-exec`, `db/stored-procedure-modify`, `db/stored-procedure-drop`). Côté renderer, `StoredProceduresService` gère l'état et la communication ; la sidebar affiche une section « Stored Procedures » conditionnelle (basée sur `DriverCapabilities.storedProcedures`). La page dédiée (`views/dashboard/stored-procedure/`) intègre un éditeur Monaco pour la définition et un formulaire dynamique pour les paramètres d'entrée.
@@ -49,8 +67,12 @@ Le driver MSSQL expose des méthodes pour lister, détailler, exécuter, modifie
 ```bash
 npm run dev          # build main (dev) + lance Electron (source maps activées)
 npm run build        # build main (prod) + build renderer (prod)
-npm run typecheck    # tsc --noEmit
-npm run check        # biome check --write . (lint + format)
+npm run typecheck    # tsc --noEmit (main + shared)
+npm run check        # biome check --write . — NE VÉRIFIE RIEN : biome.json a
+                     # files.includes = ["src/**/*.ts"], qui ne matche ni main/src
+                     # ni renderer/src. Corriger l'inclusion réintroduit ~90 écarts
+                     # de format, car la config Biome n'est pas alignée sur les
+                     # conventions du repo (Stroustrup, parenthèses d'arrow).
 npm run make         # electron-builder → installeur distributable
 ```
 

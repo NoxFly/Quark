@@ -27,6 +27,11 @@ import type { DatabaseDriverType } from "@shared/driver";
 import type { AzureAuthMode, ConnectionProfileInput } from "@shared/connection";
 import { getAllDriverInfos } from "src/core/drivers/driver-registry";
 import { AzureSqlDriver } from "src/core/drivers/azure-sql.driver";
+import { withTimeout } from "src/core/helpers/async.helper";
+import { UpdaterService } from "src/modules/updater/updater.service";
+
+/** Échéance de lecture du schéma sur le chemin de démarrage du renderer. */
+const SCHEMA_LOAD_TIMEOUT_MS = 10_000;
 
 @Injectable({ lifetime: "singleton" })
 export class Application implements IApp {
@@ -34,6 +39,17 @@ export class Application implements IApp {
     private readonly wm = inject(WindowManager);
     private readonly recentDatabases = new RecentDatabases();
     private readonly connectionStore = new ConnectionStore();
+    private readonly updater = inject(UpdaterService);
+
+    /**
+     * Fichier passé en ligne de commande (double-clic sur une base) en attente
+     * d'être remis au renderer.
+     *
+     * Il est consommé par `load-app`, que le renderer appelle une fois son pont
+     * IPC prêt : pousser l'événement `open-file` sur un minuteur arbitraire le
+     * perdait silencieusement sur les machines lentes à démarrer.
+     */
+    private pendingFile: string | null = null;
 
     /**
      *
@@ -98,6 +114,33 @@ export class Application implements IApp {
     }
 
     /**
+     * Met un fichier en attente pour le premier renderer qui terminera son
+     * initialisation. Utilisé au lancement, avant qu'aucune fenêtre ne soit prête.
+     * @param filePath - Chemin absolu de la base à ouvrir.
+     */
+    public setPendingFile(filePath: string): void {
+        this.pendingFile = filePath;
+    }
+
+    /**
+     * Pousse un fichier vers une fenêtre déjà ouverte (seconde instance, ou
+     * événement `open-file` de macOS). Si aucune fenêtre n'est disponible, le
+     * chemin est mis en attente.
+     * @param filePath - Chemin absolu de la base à ouvrir.
+     */
+    public openExternalFile(filePath: string): void {
+        const [target] = this.windows.values();
+
+        if (!target) {
+            this.setPendingFile(filePath);
+            return;
+        }
+
+        target.focus();
+        target.sendToRenderer("open-file", filePath);
+    }
+
+    /**
      *
      */
     public async onReady(): Promise<void> {
@@ -136,11 +179,17 @@ export class Application implements IApp {
 
         const baseWindow = await Window.create(this.wm);
         this.windows.set(baseWindow.id, baseWindow);
+
+        // La recherche de mise à jour est autonome : elle démarre ici, se répète
+        // périodiquement et notifie le renderer si une version plus récente existe.
+        this.updater.startAutoCheck();
     }
 
     public async onActivated(): Promise<void> {}
 
     public async dispose(): Promise<void> {
+        this.updater.stopAutoCheck();
+
         for (const window of this.windows.values()) {
             await window.database.close();
         }
@@ -182,10 +231,14 @@ export class Application implements IApp {
 
         ipcMain.handle("load-app", (_event) => {
             const isFirstWindow = this.windows.size <= 1;
+            const pendingFile = this.pendingFile;
+            this.pendingFile = null;
+
             return {
                 windowType: isFirstWindow ? "primary" : "secondary",
                 appName: environment.product.displayName,
                 appVersion: environment.product.version,
+                pendingFile,
             };
         });
 
@@ -225,10 +278,16 @@ export class Application implements IApp {
             }
 
             const db = window.database;
+            // Même échéance que `app/state` : cette requête est sur le chemin de
+            // démarrage du renderer, elle ne doit jamais pouvoir bloquer sans fin.
+            const schema = db.isOpen
+                ? await withTimeout(db.getSchema(), SCHEMA_LOAD_TIMEOUT_MS, null, "get-window-state getSchema")
+                : null;
+
             return {
                 inTransaction: db.isInTransaction,
                 selectedTable: null, // La table sélectionnée est un état renderer uniquement
-                database: db.isOpen ? await db.getSchema() : null,
+                database: schema,
                 filePath: db.path,
                 driverType: db.driverType,
                 driverInfo: db.info,

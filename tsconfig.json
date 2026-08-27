@@ -16,14 +16,14 @@
         "noUncheckedIndexedAccess": false,
         "paths": {
             "*": ["./main/*"],
-            "@shared/*": ["../shared/*"],
+            "@shared/*": ["./shared/*"],
         },
     },
     "include": [
         "package.json",
         "main/src/**/*.ts",
         "main/src/**/*.d.ts",
-        "../shared/**/*.d.ts",
+        "shared/**/*.d.ts",
         "node_modules/electron/electron.d.ts"
     ],
 }
