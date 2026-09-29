@@ -34,8 +34,8 @@ import type { SqlHistoryEntry, SqlHistoryItemView } from "src/app/core/models/sq
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
+import { SqlCompletionService } from "src/app/core/services/sql-completion.service";
 import { SqlHistoryService } from "src/app/core/services/sql-history.service";
-import { StateService } from "src/app/core/services/state.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { compactQuery, formatExecutionTime } from "src/app/shared/helpers/sql-history.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
@@ -80,7 +80,7 @@ export class SqlEditorPage {
     protected readonly dbService = inject(DatabaseService);
     protected readonly i18n = inject(I18nService);
     protected readonly history = inject(SqlHistoryService);
-    private readonly state = inject(StateService);
+    private readonly sqlCompletion = inject(SqlCompletionService);
     private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly themeService = inject(ThemeService);
     private readonly destroyRef = inject(DestroyRef);
@@ -108,7 +108,7 @@ export class SqlEditorPage {
     protected readonly historyVisible = signal<boolean>(false);
 
     private editor: import("monaco-editor").editor.IStandaloneCodeEditor | null = null;
-    private completionDisposable: import("monaco-editor").IDisposable | null = null;
+    private completion: import("monaco-editor").IDisposable | null = null;
 
     /**
      * L'utilisateur a redimensionné l'éditeur à la main : sa hauteur ne suit plus
@@ -220,7 +220,7 @@ export class SqlEditorPage {
 
         this.destroyRef.onDestroy(() => {
             this.stopEditorResize?.();
-            this.completionDisposable?.dispose();
+            this.completion?.dispose();
             this.editor?.dispose();
         });
     }
@@ -540,7 +540,7 @@ export class SqlEditorPage {
     }
 
     /**
-     * Crée l'instance Monaco Editor et configure l'autocomplétion DB.
+     * Crée l'instance Monaco Editor et y active l'autocomplétion SQL.
      */
     private createEditor(container: HTMLElement): void {
         const theme = this.monacoPreload.applyAppTheme();
@@ -563,8 +563,6 @@ export class SqlEditorPage {
             automaticLayout: true,
             wordWrap: "on",
             tabSize: 4,
-            suggestOnTriggerCharacters: true,
-            quickSuggestions: true,
             padding: { top: 12, bottom: 12 },
             overviewRulerLanes: 0,
             hideCursorInOverviewRuler: true,
@@ -608,64 +606,6 @@ export class SqlEditorPage {
             this.hasInput.set((this.editor?.getValue().trim().length ?? 0) > 0);
         });
 
-        this.registerCompletionProvider();
-    }
-
-    /**
-     * Enregistre un fournisseur d'autocomplétion pour les noms de tables et de colonnes
-     * à partir du schéma de la base de données.
-     */
-    private registerCompletionProvider(): void {
-        this.completionDisposable = monaco.languages.registerCompletionItemProvider("sql", {
-            provideCompletionItems: (_model, position) => {
-                const db = this.state.database();
-                if (!db) {
-                    return { suggestions: [] };
-                }
-
-                const word = _model.getWordUntilPosition(position);
-                const range = {
-                    startLineNumber: position.lineNumber,
-                    endLineNumber: position.lineNumber,
-                    startColumn: word.startColumn,
-                    endColumn: word.endColumn,
-                };
-
-                const suggestions: import("monaco-editor").languages.CompletionItem[] = [];
-
-                // Ajouter les noms de tables
-                for (const table of db.tables) {
-                    suggestions.push({
-                        label: table.name,
-                        kind: monaco.languages.CompletionItemKind.Class,
-                        insertText: table.name,
-                        detail: `Table (${table.fields.length} columns)`,
-                        range,
-                    });
-
-                    // Ajouter les colonnes de chaque table
-                    for (const field of table.fields) {
-                        suggestions.push({
-                            label: `${table.name}.${field.name}`,
-                            kind: monaco.languages.CompletionItemKind.Field,
-                            insertText: field.name,
-                            detail: `${field.type}${field.pk ? " PK" : ""}${field.fk ? ` FK → ${field.fk.table}` : ""}`,
-                            range,
-                        });
-
-                        // Aussi fournir le nom de colonne seul
-                        suggestions.push({
-                            label: field.name,
-                            kind: monaco.languages.CompletionItemKind.Field,
-                            insertText: field.name,
-                            detail: `${table.name}.${field.name} (${field.type})`,
-                            range,
-                        });
-                    }
-                }
-
-                return { suggestions };
-            },
-        });
+        this.completion = this.sqlCompletion.attach(this.editor);
     }
 }

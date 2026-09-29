@@ -28,6 +28,7 @@ import {
 } from "@angular/core";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
+import { SqlCompletionService } from "src/app/core/services/sql-completion.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { ThemeService } from "src/app/core/services/theme.service";
@@ -58,6 +59,7 @@ export class StoredProcedurePage {
     protected readonly storedProcService = inject(StoredProceduresService);
     protected readonly dbService = inject(DatabaseService);
     private readonly monacoPreload = inject(MonacoPreloadService);
+    private readonly sqlCompletion = inject(SqlCompletionService);
     private readonly themeService = inject(ThemeService);
     private readonly destroyRef = inject(DestroyRef);
 
@@ -116,6 +118,7 @@ export class StoredProcedurePage {
     });
 
     private editor: import("monaco-editor").editor.IStandaloneCodeEditor | null = null;
+    private completion: import("monaco-editor").IDisposable | null = null;
 
     public constructor() {
         // Créer l'éditeur Monaco dès que le conteneur devient disponible dans le DOM.
@@ -146,6 +149,7 @@ export class StoredProcedurePage {
         });
 
         this.destroyRef.onDestroy(() => {
+            this.completion?.dispose();
             this.editor?.dispose();
         });
 
@@ -500,5 +504,7 @@ export class StoredProcedurePage {
         this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
             void this.execute();
         });
+
+        this.completion = this.sqlCompletion.attach(this.editor);
     }
 }
