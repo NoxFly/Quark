@@ -75,6 +75,47 @@
     font-weight: 600;
 }
 
+// Même contenu que la confirmation de la titlebar, inliné et sans bouton
+// « Plus tard » (voir le commentaire du template).
+.update-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--success-bg);
+    border: 1px solid var(--success);
+    border-radius: var(--radius-m);
+    max-width: 720px;
+
+    > svg {
+        flex: none;
+        color: var(--success);
+    }
+
+    .text {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .title {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .description {
+        font-size: 11.5px;
+        color: var(--text-secondary);
+    }
+
+    ui-button {
+        flex: none;
+    }
+}
+
 .sections {
     max-width: 720px;
     display: flex;

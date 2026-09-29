@@ -28,9 +28,6 @@ import { environment } from "src/core/environment";
 import { SettingsStore } from "src/core/services/settings-store";
 import { Version } from "src/core/version";
 
-/** Délai avant la première recherche : juste le temps que la fenêtre s'affiche. */
-const FIRST_CHECK_DELAY_MS = 5_000;
-
 /** Intervalle entre deux recherches automatiques. */
 const CHECK_INTERVAL_MS = 60 * 60 * 1_000;
 
@@ -98,9 +95,9 @@ export class UpdaterService {
     private installing = false;
 
     /**
-     * Démarre les recherches automatiques : une au démarrage, puis toutes les
-     * heures. Sans effet hors production, où aucune release ne correspond à la
-     * version locale.
+     * Démarre les recherches automatiques : une immédiatement, en parallèle du
+     * reste du démarrage (sans l'attendre), puis toutes les heures. Sans effet
+     * hors production, où aucune release ne correspond à la version locale.
      */
     public startAutoCheck(host: UpdaterHost): void {
         if (environment.env !== AppEnv.PRODUCTION) {
@@ -118,7 +115,8 @@ export class UpdaterService {
         // l'est à la fermeture, sans relancer l'application.
         app.on("before-quit", () => this.installOnQuit());
 
-        this.scheduleCheck(FIRST_CHECK_DELAY_MS);
+        // Fire-and-forget : ne bloque ni `startAutoCheck` ni son appelant.
+        void this.runScheduledCheck();
     }
 
     /**
@@ -264,9 +262,15 @@ export class UpdaterService {
      * existe, et ne fait que journaliser un échec (réseau coupé, exécution hors
      * ligne — rien qui doive interrompre l'utilisateur). Un échec est retenté
      * plus tôt que l'intervalle normal.
+     *
+     * `update-checking` encadre la requête réseau (avant / après, succès ou échec)
+     * pour que le renderer puisse afficher un indicateur de recherche en cours,
+     * y compris pour la toute première recherche, lancée dès le démarrage.
      */
     private async runScheduledCheck(): Promise<void> {
         let next = CHECK_INTERVAL_MS;
+
+        this.broadcast("update-checking", true);
 
         try {
             const info = await this.check();
@@ -282,6 +286,9 @@ export class UpdaterService {
         catch (error) {
             next = RETRY_DELAY_MS;
             Logger.warn(`Automatic update check failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        finally {
+            this.broadcast("update-checking", false);
         }
 
         this.scheduleCheck(next);

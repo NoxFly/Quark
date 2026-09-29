@@ -603,6 +603,7 @@ export const fr: Record<string, string> = {
     // --- Mises à jour ---
     "menu.checkForUpdates": "Rechercher des mises à jour",
     "menu.autoUpdate": "Mise à jour automatique",
+    "update.checking": "Recherche de mise à jour…",
     "update.availableTitle": "La version {version} est disponible",
     "update.availableMessage": "Vous utilisez la version {current}. La version {version} peut être installée maintenant.",
     "update.later": "Plus tard",

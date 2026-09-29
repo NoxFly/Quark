@@ -44,6 +44,12 @@ export class UpdateService {
     /** Dernière information de mise à jour connue. */
     public readonly info = signal<UpdateInfo | null>(null);
 
+    /**
+     * Une recherche de mise à jour est en cours (automatique, au démarrage ou
+     * périodique, ou manuelle via `checkNow`). Pilote le spinner de la titlebar.
+     */
+    public readonly checking = signal<boolean>(false);
+
     /** Une mise à jour est en cours de téléchargement / d'installation. */
     public readonly applying = signal<boolean>(false);
 
@@ -68,6 +74,7 @@ export class UpdateService {
             }
         });
 
+        this.noxus.ipc.onUpdateChecking(checking => this.checking.set(checking));
         this.noxus.ipc.onUpdateProgress(progress => this.showProgress(progress));
 
         void this.loadSettings();
@@ -119,6 +126,8 @@ export class UpdateService {
      * l'application est déjà à jour ou quand la vérification échoue.
      */
     public async checkNow(): Promise<void> {
+        this.checking.set(true);
+
         try {
             const info = await this.noxus.request<UpdateInfo>({ method: "GET", path: "update/check" });
             this.info.set(info);
@@ -144,19 +153,30 @@ export class UpdateService {
                 actions: [{ text: "OK", role: "cancel" }],
             });
         }
+        finally {
+            this.checking.set(false);
+        }
+    }
+
+    /**
+     * Libellé du bouton qui déclenche l'installation, selon que l'application
+     * sache l'appliquer elle-même ou doive seulement télécharger l'installeur
+     * (paquet deb/rpm, qui exige une élévation). Public : réutilisé par le
+     * bandeau intégré de la page Paramètres.
+     */
+    public installLabel(info: UpdateInfo): string {
+        return info.canAutoInstall ? this.i18n.t("update.install") : this.i18n.t("update.download");
     }
 
     /**
      * Propose la mise à jour détectée et l'applique si l'utilisateur accepte.
+     * Public : réutilisée quand l'utilisateur clique la flèche de téléchargement
+     * de la titlebar pour rouvrir la même confirmation qu'à la détection.
      */
-    private async promptUpdate(info: UpdateInfo): Promise<void> {
+    public async promptUpdate(info: UpdateInfo): Promise<void> {
         if (this.applying()) {
             return;
         }
-
-        const installLabel = info.canAutoInstall
-            ? this.i18n.t("update.install")
-            : this.i18n.t("update.download");
 
         await this.alertCtrl.create({
             title: this.i18n.t("update.availableTitle", { version: info.version }),
@@ -169,7 +189,7 @@ export class UpdateService {
             actions: [
                 { text: this.i18n.t("update.later"), role: "cancel" },
                 {
-                    text: installLabel,
+                    text: this.installLabel(info),
                     role: "confirm",
                     color: "primary",
                     handler: self => {
@@ -179,6 +199,15 @@ export class UpdateService {
                 },
             ],
         });
+    }
+
+    /**
+     * Télécharge, vérifie et applique la mise à jour détectée. Public : appelée
+     * directement par le bandeau intégré de la page Paramètres, qui n'a pas de
+     * bouton « Plus tard » et ne passe donc pas par `promptUpdate`.
+     */
+    public async install(): Promise<void> {
+        await this.applyUpdate();
     }
 
     /**

@@ -90,6 +90,12 @@ export class SettingsPage implements OnInit {
     /** Dernière version publiée connue, si une recherche a déjà eu lieu. */
     protected readonly latestVersion = computed<string | null>(() => this.updateService.info()?.version ?? null);
 
+    /** Mise à jour détectée, ou `null` sinon — pilote le bandeau intégré. */
+    protected readonly updateAvailable = computed(() => {
+        const info = this.updateService.info();
+        return info?.isNewer ? info : null;
+    });
+
     public ngOnInit(): void {
         // L'état du coffre n'est chargé qu'à l'ouverture du gestionnaire de connexions :
         // on le relit pour afficher le vrai état de l'interrupteur « Mot de passe maître ».
@@ -100,6 +106,15 @@ export class SettingsPage implements OnInit {
 
     protected back(): void {
         this.shell.closeSettings();
+    }
+
+    /**
+     * Installe la mise à jour détectée depuis le bandeau intégré, sans passer
+     * par la confirmation de la titlebar (qui a un bouton « Plus tard » que ce
+     * bandeau n'a pas).
+     */
+    protected installUpdate(): void {
+        void this.updateService.install();
     }
 
     protected label(option: SegmentOption<string | number>): string {
