@@ -15,14 +15,22 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, inject, type OnDestroy, type OnInit, signal } from "@angular/core";
+import type { DatabaseDriverType } from "@shared/driver";
 import type { DriverPresentation } from "src/app/core/models/driver-presentation.model";
+import type { NewConnectionDraft } from "src/app/core/models/new-connection.model";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { HOME_DRIVERS } from "src/app/shared/helpers/driver-presentation.helper";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 import { HomeSidebarComponent } from "src/app/views/open-database/components/home-sidebar/home-sidebar.component";
 import { NewConnectionFormComponent } from "src/app/views/open-database/components/new-connection-form/new-connection-form.component";
+
+/** Détail de l'événement `open-connection-form` (action « Modifier » de `HomeSidebarComponent`). */
+interface OpenConnectionFormDetail {
+    driverType: DatabaseDriverType;
+    patch: Partial<NewConnectionDraft>;
+}
 
 /**
  * Page d'accueil (aucune base ouverte) : bases récentes et gestionnaire à gauche,
@@ -44,7 +52,7 @@ import { NewConnectionFormComponent } from "src/app/views/open-database/componen
         "(drop)": "onDrop($event)",
     },
 })
-export class OpenDatabasePage {
+export class OpenDatabasePage implements OnInit, OnDestroy {
     private readonly dbService = inject(DatabaseService);
     private readonly noxus = inject(NoxusService);
 
@@ -53,10 +61,38 @@ export class OpenDatabasePage {
     protected readonly isDragging = signal<boolean>(false);
 
     /**
-     * Sélectionne un type de base et affiche son formulaire.
+     * Préremplissage ponctuel du formulaire, posé par `open-connection-form` en
+     * même temps que `selected` et consommé par `app-new-connection-form`.
+     */
+    protected readonly prefill = signal<Partial<NewConnectionDraft> | null>(null);
+
+    private readonly prefillHandler = (event: Event): void => {
+        const { driverType, patch } = (event as CustomEvent<OpenConnectionFormDetail>).detail;
+        const driver = this.drivers.find(d => d.type === driverType);
+
+        if (!driver) {
+            return;
+        }
+
+        this.selected.set(driver);
+        this.prefill.set(patch);
+    };
+
+    public ngOnInit(): void {
+        document.addEventListener("open-connection-form", this.prefillHandler);
+    }
+
+    public ngOnDestroy(): void {
+        document.removeEventListener("open-connection-form", this.prefillHandler);
+    }
+
+    /**
+     * Sélectionne un type de base et affiche son formulaire vierge.
+     * Un choix manuel efface un éventuel préremplissage laissé par « Modifier ».
      */
     protected select(driver: DriverPresentation): void {
         this.selected.set(driver);
+        this.prefill.set(null);
     }
 
     protected onDragOver(event: DragEvent): void {

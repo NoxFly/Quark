@@ -10,15 +10,30 @@
     <div class="section-title">{{ "home.recent" | translate }}</div>
     <div class="recent-list">
         @for (entry of recents(); track entry.lastOpened) {
-            <button type="button" class="recent-row" (click)="openRecent(entry)">
-                <app-recent-database-item [entry]="entry" />
-            </button>
+            <div class="recent-row-wrap">
+                <button
+                    type="button"
+                    class="recent-row"
+                    (click)="openRecent(entry)"
+                    (contextmenu)="onRecentContextMenu($event, entry)"
+                >
+                    <app-recent-database-item [entry]="entry" />
+                </button>
+                <button
+                    type="button"
+                    class="recent-remove"
+                    [title]="'home.recentRemove' | translate"
+                    (click)="removeRecent(entry, $event)"
+                >✕</button>
+            </div>
         }
         @empty {
             <div class="recent-empty">{{ "home.recentEmpty" | translate }}</div>
         }
     </div>
 </div>
+
+<app-context-menu />
 
 <div>
     <div class="section-title">{{ "home.savedConnections" | translate }}</div>

@@ -23,7 +23,8 @@ import type { R_RemoteSqliteBody } from "@shared/types";
 import type { DriverConnectionTarget, NetworkConnectionRequest } from "src/core/drivers/connection-target.types";
 
 /** Base MongoDB utilisée quand ni le formulaire ni l'URI n'en désignent une (défaut du driver). */
-const MONGO_DEFAULT_DATABASE = "test";
+/** Exporté : réutilisé pour l'historique des bases récentes (`DbService.openNetworkConnection`). */
+export const MONGO_DEFAULT_DATABASE = "test";
 
 /** Schémas acceptés pour une base SQLite distante (client libSQL « web »). */
 const REMOTE_SQLITE_SCHEMES = new Set(["libsql:", "https:", "http:", "wss:", "ws:"]);

@@ -54,6 +54,7 @@ export const APP_SHORTCUTS: readonly ShortcutDefinition[] = [
     { keys: "Ctrl+Enter", labelKey: "shortcuts.commitTransaction" },
     { keys: "Ctrl+Shift+Z", labelKey: "shortcuts.rollbackTransaction" },
     { keys: "F11", labelKey: "shortcuts.fullscreen" },
+    { keys: "Ctrl+,", labelKey: "shortcuts.settings" },
     { keys: "Ctrl+K Ctrl+T", labelKey: "shortcuts.changeTheme" },
     { keys: "Ctrl+/", labelKey: "shortcuts.showShortcuts" },
     { keys: "Ctrl+Alt+R", labelKey: "shortcuts.reload" },

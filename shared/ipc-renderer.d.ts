@@ -88,6 +88,10 @@ export interface IpcRendererBridge {
     dropTable(tableName: string): Promise<void>;
     getTablesSql(): Promise<{ name: string; sql: string }[]>;
     getRecentDatabases(): Promise<RecentDatabaseEntry[]>;
+    /** Retire une entrée de l'historique des bases récentes (menu contextuel). */
+    removeRecentDatabase(entry: RecentDatabaseEntry): Promise<void>;
+    /** Révèle un fichier dans l'explorateur du système (menu contextuel d'une base récente). */
+    revealInExplorer(filePath: string): Promise<void>;
     setDriverType(type: import("./driver").DatabaseDriverType): Promise<void>;
     connectNetwork(body: import("./types").R_NetworkConnectBody): Promise<import("./types").R_ConnectNetworkResponse>;
     /** Ouvre une base SQLite distante (libSQL / Turso) dans la fenêtre. */
@@ -164,6 +168,13 @@ export interface RecentDatabaseEntry {
     port?: number;
     username?: string;
     database?: string;
+    /**
+     * Connexion réseau établie par chaîne de connexion plutôt que par champs
+     * séparés (MongoDB : le formulaire ne collecte qu'une URI). Sans ce champ,
+     * `host`/`port` restent vides et rouvrir l'entrée échouerait ; le sous-titre
+     * affiché en est aussi dérivé (identifiants toujours exclus).
+     */
+    uri?: string;
     // Base SQLite distante (le jeton n'est pas conservé)
     url?: string;
 }

@@ -62,10 +62,24 @@
     gap: 2px;
 }
 
+// Un <button> ne peut pas contenir d'autre <button> (HTML invalide, le navigateur
+// le referme aussitôt) : la ligne et sa croix de suppression sont deux boutons
+// frères dans ce conteneur positionné, pas l'un dans l'autre.
+.recent-row-wrap {
+    position: relative;
+
+    &:hover .recent-remove,
+    .recent-remove:focus-visible {
+        opacity: 1;
+    }
+}
+
 .recent-row {
     display: block;
     width: 100%;
-    padding: 7px 8px;
+    // Réservé en permanence pour la croix : elle n'entre jamais en collision avec
+    // le texte tronqué, y compris avant son apparition au survol.
+    padding: 7px 28px 7px 8px;
     border: none;
     border-radius: var(--radius-m);
     background: transparent;
@@ -79,6 +93,36 @@
     &:focus-visible {
         outline: 2px solid var(--accent-ring);
         outline-offset: -2px;
+    }
+}
+
+.recent-remove {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    padding: 0;
+    border: none;
+    // Arrondi assorti au coin droit de la ligne, carré côté texte.
+    border-radius: 0 var(--radius-m) var(--radius-m) 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .1s, background .1s, color .1s;
+
+    // Reste gris (pas de rouge, ce n'est pas une action destructrice depuis cette
+    // croix) : un cran plus soutenu que le survol de la ligne, pour rester visible
+    // par-dessus.
+    &:hover {
+        background: var(--bg-hover-strong);
+        color: var(--text);
     }
 }
 

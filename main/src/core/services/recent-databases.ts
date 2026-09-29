@@ -69,28 +69,42 @@ export class RecentDatabases {
     /**
      * Ajoute ou met à jour une connexion réseau dans l'historique.
      * Le mot de passe n'est jamais stocké.
+     *
+     * `port`/`username` sont optionnels pour une connexion établie par chaîne de
+     * connexion (MongoDB) plutôt que par champs séparés : `host` porte alors la
+     * liste d'hôtes de l'URI (« host1:27017,host2:27017 »), déjà complète, sans port
+     * à concaténer par-dessus — la propager dans `port` doublonnerait le port dans
+     * le sous-titre affiché (« host:27017:0 »). `uri` est conservé pour permettre une
+     * reconnexion fidèle depuis l'historique (sans lui, `host`/`port` vides feraient
+     * échouer la reconnexion).
      * @param params - Paramètres de connexion réseau (sans mot de passe).
      */
     public addNetwork(params: {
         driverType: DatabaseDriverType;
         host: string;
-        port: number;
-        username: string;
+        port?: number;
+        username?: string;
         database: string;
+        uri?: string;
         hasEmptyPassword?: boolean;
     }): void {
         const requiresPassword = !params.hasEmptyPassword;
+        const displaySubtitle = params.port
+            ? (params.username ? `${params.username}@${params.host}:${params.port}` : `${params.host}:${params.port}`)
+            : params.host;
+
         this.upsert({
             connectionType: "network",
             driverType: params.driverType,
             displayName: params.database,
-            displaySubtitle: `${params.username}@${params.host}:${params.port}`,
+            displaySubtitle,
             lastOpened: Date.now(),
             requiresPassword,
             host: params.host,
             port: params.port,
             username: params.username,
             database: params.database,
+            uri: params.uri,
         });
     }
 
@@ -119,6 +133,20 @@ export class RecentDatabases {
             requiresPassword: hasToken,
             url,
         });
+    }
+
+    /**
+     * Retire une entrée de l'historique (menu contextuel « Supprimer »).
+     * Même critère de correspondance que `upsert` : chemin de fichier, URL distante,
+     * ou triplet hôte/port/base/utilisateur pour une connexion réseau.
+     */
+    public remove(entry: RecentDatabaseEntry): void {
+        const before = this.entries.length;
+        this.entries = this.entries.filter(e => !this.isSameEntry(e, entry));
+
+        if (this.entries.length !== before) {
+            this.save();
+        }
     }
 
     /**
@@ -171,13 +199,27 @@ export class RecentDatabases {
                 const raw = readFileSync(this.filePath, "utf-8");
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed)) {
-                    this.entries = parsed.slice(0, MAX_RECENT);
+                    const sliced: RecentDatabaseEntry[] = parsed.slice(0, MAX_RECENT);
+                    this.entries = sliced.filter(e => !this.isUnusable(e));
+
+                    if (this.entries.length !== sliced.length) {
+                        this.save();
+                    }
                 }
             }
         }
         catch {
             this.entries = [];
         }
+    }
+
+    /**
+     * Une entrée réseau sans hôte ni chaîne de connexion (« @:0 ») vient d'avant le
+     * correctif MongoDB : ni affichable ni réouvrable, elle est purgée au chargement
+     * plutôt que de rester coincée dans l'historique jusqu'à une reconnexion manuelle.
+     */
+    private isUnusable(entry: RecentDatabaseEntry): boolean {
+        return entry.connectionType === "network" && !entry.host && !entry.uri;
     }
 
     /**
