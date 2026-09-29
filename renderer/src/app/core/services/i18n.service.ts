@@ -130,7 +130,9 @@ export class I18nService {
     }
 
     /**
-     * Charge la locale depuis le localStorage ou utilise la langue du navigateur.
+     * Charge la locale depuis le localStorage, sinon l'anglais par défaut.
+     * Pas de détection de la langue du navigateur : la langue par défaut de
+     * l'application est l'anglais, choisie explicitement par l'utilisateur sinon.
      */
     private loadLocale(): SupportedLocale {
         try {
@@ -141,12 +143,6 @@ export class I18nService {
         }
         catch {
             // Ignore
-        }
-
-        // Détecter la langue du navigateur
-        const browserLang = navigator.language.split("-")[0] ?? "";
-        if (browserLang in translations) {
-            return browserLang as SupportedLocale;
         }
 
         return "en";
