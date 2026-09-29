@@ -565,6 +565,10 @@ export class Window {
 
     /**
      * Met à jour le titre de la fenêtre.
+     *
+     * Sans base ouverte, le titre natif (barre des tâches, Alt+Tab) retombe sur le
+     * nom de l'application plutôt qu'une chaîne vide : une fenêtre sans titre se
+     * repère mal parmi les autres fenêtres ouvertes.
      */
     private updateTitle(): void {
         if (!this.win) {
@@ -572,9 +576,9 @@ export class Window {
         }
 
         const dbPath = this.database.path;
-        const title = dbPath ? basename(dbPath) : "";
+        const title = dbPath ? basename(dbPath) : environment.product.displayName;
         this.win.setTitle(title);
-        this.sendToRenderer("title-changed", title);
+        this.sendToRenderer("title-changed", dbPath ? title : "");
     }
 
     /**

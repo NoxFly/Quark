@@ -396,6 +396,7 @@ export class AppComponent {
         "Ctrl+W": () => this.run(() => void this.shell.closeActiveTab()),
         "F11": () => this.run(() => this.shell.toggleFullscreen()),
         "Ctrl+/": () => this.run(() => void this.shell.openShortcuts()),
+        "Ctrl+,": () => this.run(() => this.shell.toggleSettings()),
         "Ctrl+P": () => this.whenConnected(() => document.dispatchEvent(new CustomEvent("open-entity-search"))),
         "Ctrl+Shift+S": () => this.whenConnected(() => this.shell.openSqlEditor()),
         "Ctrl+Shift+Q": () => this.whenConnected(() => this.shell.openSqlEditor()),

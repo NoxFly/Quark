@@ -16,6 +16,7 @@
  */
 
 import { Controller, Get, inject, Post, type Request } from "@noxfly/noxus/main";
+import { shell } from "electron/common";
 import type { ConnectionTestResult } from "@shared/connection";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
@@ -156,6 +157,18 @@ export class DbController {
     @Get("recent")
     public getRecent(): RecentDatabaseEntry[] {
         return this.application.getRecentDatabases();
+    }
+
+    @Post("recent/remove")
+    public removeRecent(request: Request): void {
+        this.application.removeRecentDatabase(request.body as RecentDatabaseEntry);
+    }
+
+    /** Révèle un fichier dans l'explorateur du système (menu contextuel d'une base récente). */
+    @Post("reveal-in-explorer")
+    public revealInExplorer(request: Request): void {
+        const { filePath } = request.body as { filePath: string };
+        shell.showItemInFolder(filePath);
     }
 
     @Get("driver-infos")

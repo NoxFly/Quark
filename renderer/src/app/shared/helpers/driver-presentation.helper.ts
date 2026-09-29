@@ -18,9 +18,9 @@
 import type { DatabaseDriverType } from "@shared/driver";
 import type { DriverPresentation } from "src/app/core/models/driver-presentation.model";
 
-/** Logo de chaque driver (`null` : monogramme). SQLite et libSQL n'ont pas de logo. */
+/** Logo de chaque driver (`null` : monogramme). libSQL (mode « URL distante » de SQLite) reste sans logo dédié. */
 export const DRIVER_LOGOS: Record<DatabaseDriverType, string | null> = {
-    sqlite: null,
+    sqlite: "images/logo-sqlite.png",
     libsql: null,
     mysql: "images/logo-mysql-mariadb.png",
     postgresql: "images/logo-postgresql.png",

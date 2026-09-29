@@ -22,6 +22,7 @@ import type {
     ConnectionTag,
 } from "@shared/connection";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
+import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import type { R_TestConnectionBody } from "@shared/types";
 import type {
     ConnectionAddress,
@@ -503,5 +504,45 @@ export function buildTestBody(draft: ConnectionDraft, timeoutSeconds: number, pr
         ssl: input.ssl,
         timeoutSeconds,
         profileId,
+    };
+}
+
+/**
+ * @description Convertit une base récente en profil à créer dans le gestionnaire de
+ * connexions (action « Enregistrer dans le gestionnaire » du menu contextuel). Le
+ * mot de passe n'est jamais connu de l'historique : le profil créé n'en a pas, à
+ * ajouter ensuite par « Modifier ».
+ * @param entry Base récente.
+ * @returns Profil prêt pour `ConnectionsService.create`.
+ */
+export function profileInputFromRecent(entry: RecentDatabaseEntry): ConnectionProfileInput {
+    if (entry.connectionType === "file") {
+        return {
+            name: entry.displayName,
+            driverType: "sqlite",
+            connectionType: "file",
+            sqliteMode: "file",
+            filePath: entry.filePath ?? "",
+        };
+    }
+
+    if (entry.connectionType === "remote") {
+        return {
+            name: entry.displayName,
+            driverType: "libsql",
+            connectionType: "network",
+            sqliteMode: "url",
+            url: entry.url ?? "",
+        };
+    }
+
+    return {
+        name: entry.displayName,
+        driverType: entry.driverType,
+        connectionType: "network",
+        host: entry.host,
+        port: entry.port,
+        username: entry.username,
+        database: entry.database,
     };
 }

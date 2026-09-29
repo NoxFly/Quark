@@ -34,6 +34,8 @@ import {
     buildNetworkTarget,
     buildRemoteSqliteTarget,
     describeConnectionError,
+    MONGO_DEFAULT_DATABASE,
+    parseMongoUri,
 } from "src/core/drivers/connection-target.helper";
 import type { DriverConnectionTarget, NetworkConnectionRequest } from "src/core/drivers/connection-target.types";
 import { RememberedPasswords } from "src/core/services/remembered-passwords";
@@ -179,18 +181,38 @@ export class DbService {
     /**
      * Ouvre une connexion réseau et l'enregistre dans l'historique (sans le mot
      * de passe). Partagé entre la connexion manuelle et les profils sauvegardés.
+     *
+     * Une connexion MongoDB passe toujours par une chaîne de connexion (le
+     * formulaire ne collecte pas d'hôte/port séparés pour ce driver) : `host`/`port`
+     * y sont donc systématiquement vides et l'enregistrer tel quel donnait une
+     * entrée d'historique illisible (« @:0 ») et surtout impossible à rouvrir. La
+     * chaîne est reparsée ici (même analyseur que `buildNetworkTarget`, pour rester
+     * cohérent avec la connexion qui vient de réussir) pour enregistrer les
+     * véritables hôtes et la base, et conserver l'URI afin qu'une réouverture
+     * ultérieure depuis l'historique s'y reconnecte directement.
      */
     public async openNetworkConnection(window: Window, params: NetworkConnectionRequest): Promise<void> {
         await this.openTarget(window, buildNetworkTarget(params));
 
-        this.application.rememberRecentNetwork({
-            driverType: params.driverType,
-            host: params.host,
-            port: params.port,
-            username: params.username,
-            database: params.database,
-            hasEmptyPassword: params.password.length === 0,
-        });
+        const mongoUri = params.driverType === "mongodb" ? params.uri?.trim() : undefined;
+        const parsedMongo = mongoUri ? parseMongoUri(mongoUri) : null;
+
+        this.application.rememberRecentNetwork(parsedMongo
+            ? {
+                driverType: params.driverType,
+                host: parsedMongo.hosts,
+                database: params.database || parsedMongo.database || MONGO_DEFAULT_DATABASE,
+                uri: mongoUri,
+                hasEmptyPassword: params.password.length === 0,
+            }
+            : {
+                driverType: params.driverType,
+                host: params.host,
+                port: params.port,
+                username: params.username,
+                database: params.database,
+                hasEmptyPassword: params.password.length === 0,
+            });
     }
 
     /**

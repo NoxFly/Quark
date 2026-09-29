@@ -84,6 +84,8 @@ export function createIpcBridge(client: NoxusRequester): IpcRendererBridge {
         testConnection: body => post("db/test-connection", body, NO_TIMEOUT),
         getSchema: () => get("db/schema", undefined, NO_TIMEOUT),
         getRecentDatabases: () => get("db/recent"),
+        removeRecentDatabase: entry => post("db/recent/remove", entry),
+        revealInExplorer: filePath => post("db/reveal-in-explorer", { filePath }),
         getAllDriverInfos: () => get("db/driver-infos"),
 
         getTableData: body => get("db/table-data", body, NO_TIMEOUT),

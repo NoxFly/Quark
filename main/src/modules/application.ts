@@ -300,6 +300,10 @@ export class Application implements IApp {
         return this.recentDatabases.getAll();
     }
 
+    public removeRecentDatabase(entry: RecentDatabaseEntry): void {
+        this.recentDatabases.remove(entry);
+    }
+
     /**
      * Informations de démarrage remises au renderer d'une fenêtre.
      * La base en attente est consommée : un rechargement ne la rouvre pas.

@@ -65,6 +65,12 @@ export class NewConnectionFormComponent {
 
     public readonly driver = input.required<DriverPresentation>();
 
+    /**
+     * Préremplissage ponctuel (action « Modifier » sur une base récente en échec,
+     * depuis `HomeSidebarComponent` via l'événement `open-connection-form`).
+     */
+    public readonly initialDraft = input<Partial<NewConnectionDraft> | null>(null);
+
     protected readonly draft = signal<NewConnectionDraft>(createDraft(null, this.settings.settings().sslByDefault));
     protected readonly connecting = signal<boolean>(false);
     protected readonly testing = signal<boolean>(false);
@@ -83,11 +89,15 @@ export class NewConnectionFormComponent {
     protected readonly vaultInitialized = computed<boolean>(() => this.connections.status().initialized);
 
     public constructor() {
-        // Un autre type de base repart d'un formulaire vierge (port par défaut du driver).
+        // Un autre type de base repart d'un formulaire vierge (port par défaut du
+        // driver), fusionné avec un éventuel préremplissage ponctuel : les deux
+        // signaux sont posés ensemble par `OpenDatabasePage` (action « Modifier »),
+        // un seul effet évite tout ordre d'exécution à garantir entre deux effets.
         effect(() => {
             const driver = this.driver();
+            const prefill = this.initialDraft();
             untracked(() => {
-                this.draft.set(createDraft(driver.defaultPort, this.settings.settings().sslByDefault));
+                this.draft.set({ ...createDraft(driver.defaultPort, this.settings.settings().sslByDefault), ...prefill });
                 this.error.set(null);
             });
         });

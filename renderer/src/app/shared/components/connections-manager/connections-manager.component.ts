@@ -224,10 +224,25 @@ export class ConnectionsManagerComponent implements OnInit {
     }
 
     /**
-     * Annule le formulaire ou l'édition de dossier et revient au contexte précédent.
+     * Annule le formulaire de profil ou de dossier et revient au contexte précédent.
+     *
+     * Un dossier n'a qu'un seul mode (pas de distinction vue / édition comme un
+     * profil) : le sélectionner dans l'arbre ouvre directement son formulaire de
+     * renommage, en mode `"folder"`. Annuler CE formulaire doit donc désélectionner
+     * le dossier plutôt que réafficher le même mode — sinon rien ne changeait
+     * visiblement à l'écran (l'ancien calcul renvoyait "folder" alors qu'on y était
+     * déjà). En revanche, annuler un formulaire de profil ouvert par-dessus un
+     * dossier sélectionné (« + Connexion » depuis ce dossier) doit bien y revenir :
+     * seule l'origine de l'annulation (le mode courant) distingue les deux cas.
      */
     protected cancelPane(): void {
-        const backToFolder = this.selectedFolderId() !== null && this.selectedProfileId() === null;
+        const cancellingFolderForm = this.mode() === "folder";
+
+        if (cancellingFolderForm) {
+            this.selectedFolderId.set(null);
+        }
+
+        const backToFolder = !cancellingFolderForm && this.selectedFolderId() !== null && this.selectedProfileId() === null;
         this.mode.set(backToFolder ? "folder" : "view");
     }
 

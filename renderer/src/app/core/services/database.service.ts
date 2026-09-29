@@ -110,14 +110,32 @@ export class DatabaseService {
     }
 
     /**
-     * Ouvre un fichier de base de données.
+     * Ouvre un fichier de base de données. Un échec est journalisé et avalé : les
+     * appelants qui doivent réagir à une erreur (ex. reconnexion depuis l'historique,
+     * qui propose de supprimer l'entrée si le fichier n'existe plus) utilisent
+     * `openFileOrThrow`.
      * @param driverType - Driver à activer avant l'ouverture. Les appelants qui
      * connaissent le driver (ex: historique) doivent le fournir explicitement.
      * Les ouvertures via dialog ou drag-and-drop sont toujours SQLite.
      */
     public async openFile(filePath: string, driverType: import("@shared/driver").DatabaseDriverType = "sqlite"): Promise<void> {
         try {
-            this.loading.set(true);
+            await this.openFileOrThrow(filePath, driverType);
+        }
+        catch (err) {
+            console.error("Failed to open file:", err);
+        }
+    }
+
+    /**
+     * Ouvre un fichier de base de données ; propage l'erreur au lieu de l'avaler.
+     * @param driverType - Voir `openFile`.
+     * @throws Si le fichier n'existe pas, n'est pas lisible, ou n'est pas une base valide.
+     */
+    public async openFileOrThrow(filePath: string, driverType: import("@shared/driver").DatabaseDriverType = "sqlite"): Promise<void> {
+        this.loading.set(true);
+
+        try {
             // Réinitialise le driver avant d'ouvrir le fichier pour éviter qu'un
             // driver réseau précédemment actif parse le chemin comme une URI réseau.
             await this.noxus.ipc.setDriverType(driverType);
@@ -131,9 +149,6 @@ export class DatabaseService {
             if (response.database) {
                 this.onDatabaseOpened(response.database);
             }
-        }
-        catch (err) {
-            console.error("Failed to open file:", err);
         }
         finally {
             this.loading.set(false);
@@ -994,10 +1009,12 @@ export class DatabaseService {
      * la demande de mot de passe (`open-password-prompt`).
      * @param entry Entrée de l'historique.
      * @param timeoutSeconds Délai de connexion des bases réseau.
+     * @throws Si la connexion échoue (fichier introuvable, hôte injoignable, identifiants
+     * refusés…) — l'appelant (page d'accueil) affiche alors une confirmation adaptée.
      */
     public async openRecentDatabase(entry: RecentDatabaseEntry, timeoutSeconds?: number): Promise<void> {
         if (entry.connectionType === "file") {
-            await this.openFile(entry.filePath ?? "", entry.driverType);
+            await this.openFileOrThrow(entry.filePath ?? "", entry.driverType);
             return;
         }
 
@@ -1018,6 +1035,9 @@ export class DatabaseService {
             username: entry.username ?? "",
             password: "",
             database: entry.database ?? "",
+            // Une entrée MongoDB n'a pas d'hôte/port exploitables : `uri` porte la
+            // véritable chaîne de connexion (voir `DbService.openNetworkConnection`).
+            uri: entry.uri,
             timeoutSeconds,
         });
     }

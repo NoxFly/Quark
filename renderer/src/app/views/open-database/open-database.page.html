@@ -36,7 +36,7 @@
     </div>
 
     @if (current) {
-        <app-new-connection-form [driver]="current" />
+        <app-new-connection-form [driver]="current" [initialDraft]="prefill()" />
     }
 </div>
 
