@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 /**
@@ -24,7 +35,6 @@ export const en: Record<string, string> = {
     "menu.startTransaction": "Start transaction",
     "menu.commitTransaction": "Commit transaction",
     "menu.rollbackTransaction": "Rollback transaction",
-    "menu.transactionDiff": "View pending changes",
     "menu.deleteSelection": "Delete selection",
     "menu.importData": "Import data",
     "menu.view": "View",
@@ -190,6 +200,9 @@ export const en: Record<string, string> = {
     "editor.cancel": "Cancel",
     "editor.save": "Save",
     "editor.saving": "Saving...",
+    "editor.autoAssigned": "Assigned automatically",
+    "editor.autoFilledHint": "Filled automatically",
+    "editor.regenerateUuid": "Generate a new identifier",
 
     // --- Statusbar ---
     "statusbar.rows": "{loaded} / {total} rows",
@@ -218,6 +231,7 @@ export const en: Record<string, string> = {
     "sqlEditor.placeholder": "Enter SQL query...",
     "sqlEditor.hint": "Ctrl+Enter to execute  •  Ctrl+↑/↓ for history",
     "sqlEditor.rowCount": "{count} rows",
+    "sqlEditor.resultTruncated": "Result truncated to the first {count} rows",
     "sqlEditor.rowsAffected": "{count} rows affected",
     "sqlEditor.lastInsertId": "Last insert ID: {id}",
     "sqlEditor.emptyHint": "Execute a query to see results",
@@ -316,11 +330,6 @@ export const en: Record<string, string> = {
     "changePassword.removedSuccess": "Encryption removed successfully.",
 
     // --- Transaction diff ---
-    "transactionDiff.title": "Transaction changes",
-    "transactionDiff.subtitle": "{count} change(s) pending",
-    "transactionDiff.noChanges": "No changes recorded yet.",
-    "transactionDiff.inserted": "New row inserted",
-    "transactionDiff.deleted": "Row deleted",
 
     // --- Tabs bar ---
     "tabs.close": "Close tab",
@@ -419,15 +428,55 @@ export const en: Record<string, string> = {
     "entitySearch.placeholder": "Search tables...",
     "entitySearch.placeholderWithProcs": "Search tables or procedures...",
 
+    // --- Session diff ---
+    "menu.sessionDiff": "Session changes",
+    "tabs.sessionDiff": "Session changes",
+    "sessionDiff.title": "Session changes",
+    "sessionDiff.since": "since {time}",
+    "sessionDiff.changedRows": "{count} rows",
+    "sessionDiff.tablesTouched": "{count} tables",
+    "sessionDiff.opaqueCount": "{count} untracked operations",
+    "sessionDiff.filterPlaceholder": "Filter tables...",
+    "sessionDiff.viewMode": "Layout",
+    "sessionDiff.viewGrid": "Grid view",
+    "sessionDiff.viewCards": "Card view",
+    "sessionDiff.refresh": "Reload the diff",
+    "sessionDiff.clear": "Reset the diff baseline",
+    "sessionDiff.clearTitle": "Reset the diff baseline?",
+    "sessionDiff.clearMessage": "This clears the change log only. Nothing is undone in the database: the current state becomes the new reference point.",
+    "sessionDiff.clearConfirm": "Reset",
+    "sessionDiff.cancel": "Cancel",
+    "sessionDiff.loading": "Loading the session diff...",
+    "sessionDiff.noConnection": "Open a database to track its changes.",
+    "sessionDiff.noChanges": "No change since this database was opened.",
+    "sessionDiff.capped": "The tracking limit was reached: some later changes are not detailed.",
+    "sessionDiff.beforePane": "At opening",
+    "sessionDiff.afterPane": "Now",
+    "sessionDiff.rowDidNotExist": "Row did not exist",
+    "sessionDiff.rowDeleted": "Row deleted",
+    "sessionDiff.showMore": "Show {count} more rows",
+    "sessionDiff.kind.insert": "Added",
+    "sessionDiff.kind.update": "Modified",
+    "sessionDiff.kind.delete": "Deleted",
+    "sessionDiff.opaqueTitle": "Untracked operations",
+    "sessionDiff.opaqueHint": "These operations changed the database without a row-level trace.",
+    "sessionDiff.rowsAffected": "{count} rows affected",
+    "sessionDiff.category.sql": "SQL",
+    "sessionDiff.category.schema": "Schema",
+    "sessionDiff.category.import": "Import",
+    "sessionDiff.category.bulk": "Bulk",
+
     // --- Updates ---
     "menu.checkForUpdates": "Check for updates",
+    "menu.autoUpdate": "Automatic updates",
     "update.availableTitle": "Version {version} is available",
     "update.availableMessage": "You are running {current}. Version {version} can be installed now.",
     "update.later": "Later",
-    "update.install": "Install now",
+    "update.install": "Install and restart",
     "update.download": "Download",
     "update.downloading": "Downloading the update...",
     "update.downloadingPercent": "Downloading the update... {percent}%",
+    "update.autoInstallScheduled": "Version {version} will be installed automatically, then Quark will restart, as soon as you are not using it.",
     "update.upToDate": "Quark is up to date (version {version}).",
     "update.checkFailedTitle": "Update check failed",
     "update.checkFailedMessage": "Could not reach the update server. Check your internet connection and try again.",

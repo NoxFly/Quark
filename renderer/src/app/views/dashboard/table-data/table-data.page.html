@@ -89,8 +89,13 @@
             </tr>
         </thead>
         <tbody>
-            @for (record of records(); track trackRecord($index, record)) {
+            <!-- Lignes d'espacement : elles tiennent la place des lignes hors écran. -->
+            <tr class="virtual-spacer" aria-hidden="true" [style.height.px]="virtual.paddingTop()">
+                <td [attr.colspan]="fields().length + 1"></td>
+            </tr>
+            @for (record of visibleRecords(); track trackRecord(virtual.range().start + $index, record)) {
                 <tr
+                    class="data-row"
                     [class.selected]="isRowSelected($any(record['rowid']))"
                     [class.cursor]="isCursorRow($any(record['rowid']))"
                     [attr.data-rowid]="record['rowid']"
@@ -138,6 +143,9 @@
                     }
                 </tr>
             }
+            <tr class="virtual-spacer" aria-hidden="true" [style.height.px]="virtual.paddingBottom()">
+                <td [attr.colspan]="fields().length + 1"></td>
+            </tr>
         </tbody>
     </table>
 

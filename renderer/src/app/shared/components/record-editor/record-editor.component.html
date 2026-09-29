@@ -29,15 +29,31 @@
                         }
                     </span>
                 </label>
-                <ui-input
-                    [id]="'field-' + field.def.name"
-                    type="text"
-                    class="field-input"
-                    [ngModel]="field.value"
-                    (ngModelChange)="onFieldChange(i, $event)"
-                    [isDisabled]="field.disabled"
-                    [placeholder]="getPlaceholder(field.def)"
-                />
+                <div class="field-control">
+                    <ui-input
+                        [id]="'field-' + field.def.name"
+                        type="text"
+                        class="field-input"
+                        [ngModel]="field.value"
+                        (ngModelChange)="onFieldChange(i, $event)"
+                        [isDisabled]="field.disabled"
+                        [placeholder]="field.placeholder"
+                    />
+
+                    @if (field.autoFilled && !field.disabled) {
+                        <button
+                            type="button"
+                            class="field-regenerate"
+                            (click)="regenerateUuid(i)"
+                            [tooltip]="i18n.t('editor.regenerateUuid')">
+                            <span class="segoe-icon">&#xE72C;</span>
+                        </button>
+                    }
+                </div>
+
+                @if (field.autoFilled) {
+                    <span class="field-hint">{{ i18n.t('editor.autoFilledHint') }}</span>
+                }
             </div>
         }
     </div>

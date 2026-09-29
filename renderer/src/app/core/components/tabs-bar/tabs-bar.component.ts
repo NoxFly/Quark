@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from "@angular/core";
@@ -9,9 +20,8 @@ import { Router } from "@angular/router";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
-import { TabsService } from "src/app/core/services/tabs.service";
-import { SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
-import type { TableTab } from "src/app/core/services/tabs.service";
+import { getSpecialTab, TabsService } from "src/app/core/services/tabs.service";
+import type { SpecialTab, TableTab } from "src/app/core/services/tabs.service";
 import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
@@ -48,20 +58,32 @@ export class TabsBarComponent {
      * Bascule sur un onglet.
      */
     protected async switchTab(index: number, tab: TableTab): Promise<void> {
-        if (tab.tableName === SQL_EDITOR_TAB_ID) {
+        const special = this.specialTab(tab);
+
+        if (special) {
             this.tabsService.switchTab(index);
             this.dbService.selectedTable.set(null);
-            this.router.navigate(["/dashboard/sql-editor"]);
+            this.router.navigate([special.route]);
             return;
         }
+
         await this.dbService.selectTable(tab.tableName);
     }
 
     /**
-     * Retourne true si l'onglet est l'éditeur SQL.
+     * Retourne la définition de l'onglet spécial, ou `null` pour un onglet de table.
      */
-    protected isSqlEditorTab(tab: TableTab): boolean {
-        return tab.tableName === SQL_EDITOR_TAB_ID;
+    protected specialTab(tab: TableTab): SpecialTab | null {
+        return getSpecialTab(tab.tableName);
+    }
+
+    /**
+     * Retourne le libellé affiché pour un onglet.
+     */
+    protected tabLabel(tab: TableTab): string {
+        const special = this.specialTab(tab);
+
+        return special ? this.i18n.t(special.labelKey) : tab.tableName;
     }
 
     /**
@@ -73,7 +95,7 @@ export class TabsBarComponent {
         const nextTable = this.tabsService.closeTab(index);
 
         if (nextTable) {
-            await this.dbService.selectTable(nextTable);
+            await this.dbService.activateTab(nextTable);
         }
         else {
             this.router.navigate(["/dashboard/no-table"]);
@@ -101,7 +123,8 @@ export class TabsBarComponent {
             return;
         }
         this.tabsService.closeAll();
-        await this.dbService.selectTable(tab.tableName);
+        this.tabsService.openTab(tab.tableName);
+        await this.dbService.activateTab(tab.tableName);
     }
 
     /**

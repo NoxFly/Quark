@@ -42,6 +42,9 @@
                     <span class="meta-rows">
                         {{ i18n.t('sqlEditor.rowCount', { count: totalResultRows() }) }}
                     </span>
+                    @if (result()!.truncated) {
+                        <span class="meta-truncated">{{ i18n.t('sqlEditor.resultTruncated', { count: totalResultRows() }) }}</span>
+                    }
                 }
                 @else {
                     <span class="meta-rows">{{ i18n.t('sqlEditor.rowsAffected', { count: result()!.rowsAffected }) }}</span>
@@ -55,7 +58,7 @@
             </div>
 
             @if (isSelectResult()) {
-                <div class="results-table-wrapper">
+                <div class="results-table-wrapper" #resultsContainer (scroll)="onResultsScroll($event)">
                     <table class="results-table">
                         <thead>
                             <tr>
@@ -65,13 +68,20 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @for (row of resultRows(); track $index) {
-                                <tr>
+                            <!-- Lignes d'espacement : elles tiennent la place des lignes hors écran. -->
+                            <tr class="virtual-spacer" aria-hidden="true" [style.height.px]="virtual.paddingTop()">
+                                <td [attr.colspan]="resultColumns().length"></td>
+                            </tr>
+                            @for (row of visibleRows(); track virtual.range().start + $index) {
+                                <tr class="data-row">
                                     @for (cell of row; track $index) {
                                         <td [class.null-cell]="isNull(cell)">{{ formatCell(cell) }}</td>
                                     }
                                 </tr>
                             }
+                            <tr class="virtual-spacer" aria-hidden="true" [style.height.px]="virtual.paddingBottom()">
+                                <td [attr.colspan]="resultColumns().length"></td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

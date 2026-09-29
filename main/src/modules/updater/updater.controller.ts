@@ -1,11 +1,22 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { Controller, Get, inject, Post } from "@noxfly/noxus/main";
-import type { UpdateInfo } from "@shared/update";
+import { Controller, Get, inject, Post, type Request } from "@noxfly/noxus/main";
+import type { UpdateInfo, UpdateSettings } from "@shared/update";
 import { UpdaterService } from "src/modules/updater/updater.service";
 
 @Controller()
@@ -26,6 +37,20 @@ export class UpdaterController {
     @Get("info")
     public getInfo(): UpdateInfo | null {
         return this.updater.getInfo();
+    }
+
+    @Get("settings")
+    public getSettings(): UpdateSettings {
+        return this.updater.getSettings();
+    }
+
+    /**
+     * Active ou désactive l'installation automatique des mises à jour.
+     */
+    @Post("settings")
+    public setSettings(request: Request): UpdateSettings {
+        const { autoUpdate } = request.body as Pick<UpdateSettings, "autoUpdate">;
+        return this.updater.setAutoUpdate(autoUpdate === true);
     }
 
     /**

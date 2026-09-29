@@ -1,11 +1,22 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import { inject, Injectable, signal } from "@angular/core";
-import type { UpdateInfo, UpdateProgress } from "@shared/update";
+import type { UpdateInfo, UpdateProgress, UpdateSettings } from "@shared/update";
 import { AlertController } from "@ui/alert/alert.controller";
 import { LoadingController } from "@ui/loading/loading.controller";
 import type { LoadingComponent } from "@ui/loading/loading.component";
@@ -16,9 +27,11 @@ import { NoxusService } from "src/app/core/services/noxus.service";
 /**
  * Recherche et application des mises à jour côté renderer.
  *
- * Le main détecte les nouvelles versions de manière autonome et pousse
- * `update-available` ; ce service se charge uniquement de proposer la mise à
- * jour et d'en afficher la progression. L'utilisateur n'a rien à configurer.
+ * Le main détecte les nouvelles versions de manière autonome (au démarrage puis
+ * toutes les heures) et pousse `update-available`. En mode manuel, ce service
+ * propose la mise à jour et en affiche la progression ; en mode automatique, le
+ * main l'installe seul au premier moment d'inactivité, et l'utilisateur n'en est
+ * qu'informé.
  */
 @Injectable({ providedIn: "root" })
 export class UpdateService {
@@ -34,6 +47,9 @@ export class UpdateService {
     /** Une mise à jour est en cours de téléchargement / d'installation. */
     public readonly applying = signal<boolean>(false);
 
+    /** Réglages de mise à jour, lus auprès du main. */
+    public readonly settings = signal<UpdateSettings>({ autoUpdate: false, supported: false });
+
     private loading: LoadingComponent | null = null;
 
     /**
@@ -43,10 +59,58 @@ export class UpdateService {
     public listen(): void {
         this.noxus.ipc.onUpdateAvailable(info => {
             this.info.set(info);
-            void this.promptUpdate(info);
+
+            if (info.autoInstall) {
+                void this.notifyAutoInstall(info);
+            }
+            else {
+                void this.promptUpdate(info);
+            }
         });
 
         this.noxus.ipc.onUpdateProgress(progress => this.showProgress(progress));
+
+        void this.loadSettings();
+    }
+
+    /**
+     * Active ou désactive l'installation automatique des mises à jour.
+     */
+    public async toggleAutoUpdate(): Promise<void> {
+        const autoUpdate = !this.settings().autoUpdate;
+
+        try {
+            this.settings.set(await this.noxus.request<UpdateSettings>({
+                method: "POST",
+                path: "update/settings",
+                body: { autoUpdate },
+            }));
+        }
+        catch (error) {
+            console.error("Failed to save update settings:", error);
+        }
+    }
+
+    private async loadSettings(): Promise<void> {
+        try {
+            this.settings.set(await this.noxus.request<UpdateSettings>({ method: "GET", path: "update/settings" }));
+        }
+        catch (error) {
+            console.error("Failed to load update settings:", error);
+        }
+    }
+
+    /**
+     * Mode automatique : l'installation se fera sans rien demander ; on prévient
+     * seulement, pour qu'un redémarrage ne surprenne pas l'utilisateur.
+     */
+    private async notifyAutoInstall(info: UpdateInfo): Promise<void> {
+        await this.toastCtrl.create({
+            message: this.i18n.t("update.autoInstallScheduled", { version: info.version }),
+            duration: 6000,
+            color: "primary",
+            closable: true,
+        });
     }
 
     /**

@@ -1,10 +1,19 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
-
-
 
 @use 'src/theme/mixins.scss' as *;
 
@@ -194,7 +203,13 @@
         padding-inline: 0;
         height: 100%;
         margin: 0;
+        // `min-width: 0` neutralise la largeur intrinsèque d'un champ flex, qui
+        // l'empêcherait sinon de rétrécir sous sa taille par défaut.
+        min-width: 0;
         flex: 1;
+        // Un champ natif n'hérite pas de la typographie de son parent : sans
+        // cela, la police fixée par le composant appelant n'atteint jamais le texte.
+        font: inherit;
         background: transparent;
         color: inherit;
 
@@ -297,15 +312,23 @@
 
 
 
-    &[disabled="true"] {
+    // L'hôte expose l'état via `data-disabled` : le sélecteur visait `disabled`,
+    // que rien ne pose, et le style désactivé ne s'appliquait donc jamais.
+    &[data-disabled="true"] {
         input, .input-container {
             cursor: not-allowed;
             opacity: 0.8;
             border: none;
             background: none;
             user-select: none;
-            pointer-events: none;
             padding: 0;
+        }
+
+        // `pointer-events` reste sur le seul champ : posé sur le conteneur, il
+        // neutraliserait aussi les commandes qu'il héberge (bascule d'affichage
+        // du mot de passe), qui n'ont pas à disparaître avec la saisie.
+        input {
+            pointer-events: none;
         }
     }
 }

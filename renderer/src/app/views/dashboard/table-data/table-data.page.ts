@@ -1,4 +1,35 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, viewChild } from "@angular/core";
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+import {
+    afterNextRender,
+    afterRenderEffect,
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    ElementRef,
+    inject,
+    Injector,
+    signal,
+    untracked,
+    viewChild,
+} from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
@@ -11,13 +42,16 @@ import { IndexViewerComponent } from "src/app/shared/components/index-viewer/ind
 import { RecordEditorComponent } from "src/app/shared/components/record-editor/record-editor.component";
 import type { RecordEditorMode } from "src/app/shared/components/record-editor/record-editor.component";
 import { SchemaEditorComponent } from "src/app/shared/components/schema-editor/schema-editor.component";
-import { TransactionDiffComponent } from "src/app/shared/components/transaction-diff/transaction-diff.component";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 import type { DbRecord, FieldDef } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
 import { InputComponent } from "@ui/input/input.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+import { VirtualRows } from "src/app/shared/helpers/virtual-rows.helper";
+
+/** Hauteur de ligne attendue (voir `$row-height` dans la feuille de style), avant mesure. */
+const ESTIMATED_ROW_HEIGHT = 30;
 
 /**
  * Page d'affichage des données d'une table avec :
@@ -25,7 +59,7 @@ import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.d
  * - Édition inline des cellules (clic simple)
  * - Tri par colonne
  * - Sélection multiple de lignes
- * - Infinite scroll
+ * - Infinite scroll, lignes virtualisées
  * - Mode transaction
  * - Barre de filtre
  */
@@ -49,6 +83,7 @@ export class TableDataPage {
     protected readonly isNoSql = computed(() => this.state.isNoSqlDatabase());
     protected readonly i18n = inject(I18nService);
     private readonly injector = inject(Injector);
+    private readonly destroyRef = inject(DestroyRef);
     private readonly modalCtrl = inject(ModalController);
 
     protected readonly filterInput = signal<string>("");
@@ -74,6 +109,17 @@ export class TableDataPage {
 
     protected readonly records = computed(() => this.dbService.tableData());
     protected readonly totalCount = computed(() => this.dbService.totalCount());
+
+    /**
+     * Seules les lignes visibles sont rendues : une table de plusieurs milliers
+     * de lignes chargées garde un DOM de quelques dizaines de `<tr>`.
+     */
+    protected readonly virtual = new VirtualRows(computed(() => this.records().length), ESTIMATED_ROW_HEIGHT);
+
+    protected readonly visibleRecords = computed(() => {
+        const { start, end } = this.virtual.range();
+        return this.records().slice(start, end);
+    });
 
     /**
      * Fonction de tracking pour le @for des lignes.
@@ -108,7 +154,36 @@ export class TableDataPage {
         return this.i18n.t("table.filterPlaceholder");
     });
 
-    constructor() {
+    public constructor() {
+        // Les lignes sont mesurées une fois rendues : la hauteur réelle prime
+        // sur l'estimation, qui dépend du thème et de la police.
+        afterRenderEffect(() => {
+            this.visibleRecords();
+            this.virtual.measure(this.scrollContainer()?.nativeElement.querySelector<HTMLElement>("tr.data-row"));
+        });
+
+        // La hauteur visible suit les redimensionnements de la fenêtre.
+        afterNextRender(() => {
+            const container = this.scrollContainer()?.nativeElement;
+
+            if (!container) {
+                return;
+            }
+
+            const observer = new ResizeObserver(() => this.virtual.onScroll(container));
+            observer.observe(container);
+            this.destroyRef.onDestroy(() => observer.disconnect());
+        });
+
+        // Un nouveau jeu de lignes (autre table, filtre, tri) repart du haut.
+        effect(() => {
+            this.tableName();
+            this.dbService.filter();
+            this.orderBy();
+            this.orderDir();
+            untracked(() => this.virtual.reset(this.scrollContainer()?.nativeElement));
+        });
+
         // Réinitialiser le filtre lors du changement de table
         effect(() => {
             this.tableName(); // Lire le signal pour déclencher l'effet
@@ -278,16 +353,18 @@ export class TableDataPage {
             return;
         }
 
-        const row = container.querySelector(`tr[data-rowid="${rowid}"]`);
-        if (row) {
-            row.scrollIntoView({ block: "nearest" });
+        // La ligne peut être hors du DOM (virtualisée) : on défile par index.
+        const index = this.records().findIndex(r => r["rowid"] === rowid);
+        if (index === -1) {
+            return;
         }
+
+        const headerHeight = container.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+        this.virtual.scrollToIndex(container, index, headerHeight);
     }
 
     protected startEdit(rowid: number, column: string, currentValue: unknown): void {
-        console.log(rowid, column, currentValue);
         const current = this.editingCell();
-        console.log(current);
         if (current && current.rowid === rowid && current.column === column) {
             return;
         }
@@ -413,11 +490,10 @@ export class TableDataPage {
     // --- Infinite scroll ---
 
     protected onScroll(event: Event): void {
-        const el = event.target as HTMLDivElement;
-        const threshold = 100;
+        this.virtual.onScroll(event.target as HTMLDivElement);
 
-        if (el.scrollHeight - el.scrollTop - el.clientHeight < threshold) {
-            this.dbService.loadNextPage();
+        if (this.virtual.isNearEnd()) {
+            void this.dbService.loadNextPage();
         }
     }
 
@@ -768,7 +844,7 @@ export class TableDataPage {
 
         // Retirer le rowid interne des records exportés
         const cleaned = data.map(r => {
-            const { rowid, ...rest } = r;
+            const { rowid: _rowid, ...rest } = r;
             return rest;
         });
 
@@ -879,23 +955,6 @@ export class TableDataPage {
         const comp = modal.getComponentInstance<IndexViewerComponent>();
         if (comp) {
             comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
-    }
-
-    /**
-     * Ouvre le modal de diff montrant les mutations en attente dans la transaction courante.
-     */
-    protected async openTransactionDiff(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: TransactionDiffComponent,
-            componentProps: {},
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<TransactionDiffComponent>();
-        if (comp) {
-            comp.dismiss = () => modal.dismiss();
         }
     }
 

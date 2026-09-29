@@ -1,3 +1,20 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 import type { DatabaseDriverType, DriverInfo } from "./driver";
 
 export type AppState = {
@@ -55,6 +72,8 @@ export type R_OpenFileBody = {
 export type R_OpenFileResponse = {
     needsPassword: boolean;
     database: DatabaseSchema | null;
+    /** Le fichier était déjà ouvert dans une autre fenêtre, qui a été remontée. */
+    alreadyOpen?: boolean;
 };
 
 /**
@@ -170,11 +189,31 @@ export type R_SqlExecBody = {
 
 export type R_SqlExecResponse = {
     columns: string[];
+    /**
+     * Lignes du résultat. Via l'IPC, seule la première page est transmise : les
+     * suivantes se lisent par `R_SqlRowsBody` tant que `resultId` est valide.
+     */
     rows: unknown[][];
     rowsAffected: number;
     lastInsertId?: number;
     isSelect: boolean;
     executionTimeMs: number;
+    /** Nombre total de lignes conservées côté hôte (au plus le plafond de résultat). */
+    totalRows?: number;
+    /** Identifiant du résultat conservé par l'hôte des drivers, `null` s'il tient dans la première page. */
+    resultId?: string | null;
+    /** Le résultat a été tronqué au plafond de lignes conservées. */
+    truncated?: boolean;
+};
+
+export type R_SqlRowsBody = {
+    resultId: string;
+    offset: number;
+    limit: number;
+};
+
+export type R_SqlRowsResponse = {
+    rows: unknown[][];
 };
 
 // --- Import ---

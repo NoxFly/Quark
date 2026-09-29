@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 /**
@@ -24,7 +35,6 @@ export const fr: Record<string, string> = {
     "menu.startTransaction": "Démarrer une transaction",
     "menu.commitTransaction": "Valider la transaction",
     "menu.rollbackTransaction": "Annuler la transaction",
-    "menu.transactionDiff": "Voir les modifications en attente",
     "menu.deleteSelection": "Supprimer la sélection",
     "menu.importData": "Importer des données",
     "menu.view": "Affichage",
@@ -190,6 +200,9 @@ export const fr: Record<string, string> = {
     "editor.cancel": "Annuler",
     "editor.save": "Enregistrer",
     "editor.saving": "Enregistrement...",
+    "editor.autoAssigned": "Attribué automatiquement",
+    "editor.autoFilledHint": "Rempli automatiquement",
+    "editor.regenerateUuid": "Générer un nouvel identifiant",
 
     // --- Statusbar ---
     "statusbar.rows": "{loaded} / {total} lignes",
@@ -219,6 +232,7 @@ export const fr: Record<string, string> = {
     "sqlEditor.placeholder": "Entrez une requête SQL...",
     "sqlEditor.hint": "Ctrl+Entrée pour exécuter  •  Ctrl+↑/↓ pour l'historique",
     "sqlEditor.rowCount": "{count} lignes",
+    "sqlEditor.resultTruncated": "Résultat tronqué aux {count} premières lignes",
     "sqlEditor.rowsAffected": "{count} ligne(s) affectée(s)",
     "sqlEditor.lastInsertId": "Dernier ID inséré : {id}",
     "sqlEditor.emptyHint": "Exécutez une requête pour voir les résultats",
@@ -316,11 +330,6 @@ export const fr: Record<string, string> = {
     "changePassword.removedSuccess": "Chiffrement supprimé avec succès.",
 
     // --- Transaction diff ---
-    "transactionDiff.title": "Modifications de la transaction",
-    "transactionDiff.subtitle": "{count} modification(s) en attente",
-    "transactionDiff.noChanges": "Aucune modification enregistrée.",
-    "transactionDiff.inserted": "Nouvelle ligne insérée",
-    "transactionDiff.deleted": "Ligne supprimée",
 
     // --- Tabs bar ---
     "tabs.close": "Fermer l'onglet",
@@ -419,15 +428,55 @@ export const fr: Record<string, string> = {
     "entitySearch.placeholder": "Rechercher des tables...",
     "entitySearch.placeholderWithProcs": "Rechercher des tables ou procédures...",
 
+    // --- Diff de session ---
+    "menu.sessionDiff": "Modifications de la session",
+    "tabs.sessionDiff": "Modifications",
+    "sessionDiff.title": "Modifications de la session",
+    "sessionDiff.since": "depuis {time}",
+    "sessionDiff.changedRows": "{count} lignes",
+    "sessionDiff.tablesTouched": "{count} tables",
+    "sessionDiff.opaqueCount": "{count} opérations non détaillées",
+    "sessionDiff.filterPlaceholder": "Filtrer les tables...",
+    "sessionDiff.viewMode": "Mise en page",
+    "sessionDiff.viewGrid": "Vue grille",
+    "sessionDiff.viewCards": "Vue fiches",
+    "sessionDiff.refresh": "Recharger le diff",
+    "sessionDiff.clear": "Redéfinir le point de référence",
+    "sessionDiff.clearTitle": "Redéfinir le point de référence ?",
+    "sessionDiff.clearMessage": "Cela efface uniquement le journal des modifications. Rien n'est annulé dans la base : l'état actuel devient la nouvelle référence.",
+    "sessionDiff.clearConfirm": "Redéfinir",
+    "sessionDiff.cancel": "Annuler",
+    "sessionDiff.loading": "Chargement du diff de session...",
+    "sessionDiff.noConnection": "Ouvrez une base pour suivre ses modifications.",
+    "sessionDiff.noChanges": "Aucune modification depuis l'ouverture de cette base.",
+    "sessionDiff.capped": "La limite de suivi a été atteinte : certaines modifications ultérieures ne sont pas détaillées.",
+    "sessionDiff.beforePane": "À l'ouverture",
+    "sessionDiff.afterPane": "Maintenant",
+    "sessionDiff.rowDidNotExist": "La ligne n'existait pas",
+    "sessionDiff.rowDeleted": "Ligne supprimée",
+    "sessionDiff.showMore": "Afficher {count} lignes de plus",
+    "sessionDiff.kind.insert": "Ajoutée",
+    "sessionDiff.kind.update": "Modifiée",
+    "sessionDiff.kind.delete": "Supprimée",
+    "sessionDiff.opaqueTitle": "Opérations non détaillées",
+    "sessionDiff.opaqueHint": "Ces opérations ont modifié la base sans trace ligne à ligne.",
+    "sessionDiff.rowsAffected": "{count} lignes affectées",
+    "sessionDiff.category.sql": "SQL",
+    "sessionDiff.category.schema": "Schéma",
+    "sessionDiff.category.import": "Import",
+    "sessionDiff.category.bulk": "Lot",
+
     // --- Mises à jour ---
     "menu.checkForUpdates": "Rechercher des mises à jour",
+    "menu.autoUpdate": "Mises à jour automatiques",
     "update.availableTitle": "La version {version} est disponible",
     "update.availableMessage": "Vous utilisez la version {current}. La version {version} peut être installée maintenant.",
     "update.later": "Plus tard",
-    "update.install": "Installer maintenant",
+    "update.install": "Installer et redémarrer",
     "update.download": "Télécharger",
     "update.downloading": "Téléchargement de la mise à jour...",
     "update.downloadingPercent": "Téléchargement de la mise à jour... {percent} %",
+    "update.autoInstallScheduled": "La version {version} sera installée automatiquement, puis Quark redémarrera, dès que vous ne l'utiliserez plus.",
     "update.upToDate": "Quark est à jour (version {version}).",
     "update.checkFailedTitle": "Échec de la recherche de mise à jour",
     "update.checkFailedMessage": "Le serveur de mise à jour est injoignable. Vérifiez votre connexion Internet et réessayez.",

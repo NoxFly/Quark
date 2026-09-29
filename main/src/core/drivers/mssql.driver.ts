@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import type { DatabaseDriverType } from "@shared/driver";
@@ -17,7 +28,7 @@ import type {
     StoredProcedureParam,
     TableSchema,
 } from "@shared/types";
-import { Logger } from "@noxfly/noxus/main";
+import { Logger } from "@noxfly/noxus";
 import { NetworkSqlDriver, type RawQueryResult } from "src/core/drivers/network-sql.driver";
 import { type ConnectionAuthentication, Connection, Request as TdsRequest, TYPES } from "tedious";
 import type { NetworkConnectionParams } from "src/core/drivers/network-sql.driver";
@@ -742,8 +753,6 @@ export class MssqlDriver extends NetworkSqlDriver {
      */
     public async getStoredProcedureDetail(name: string, schema: string): Promise<StoredProcedureDetail> {
         this.ensureOpen();
-
-        const qualifiedName = `${this.escapeIdentifier(schema)}.${this.escapeIdentifier(name)}`;
 
         // Définition (code source)
         const defResult = await this.query(

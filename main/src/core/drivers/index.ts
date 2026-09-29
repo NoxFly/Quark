@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 export type { DatabaseDriver } from "src/core/drivers/driver.interface";
@@ -13,4 +24,5 @@ export { OracleDriver } from "src/core/drivers/oracle.driver";
 export { MssqlDriver } from "src/core/drivers/mssql.driver";
 export { AzureSqlDriver } from "src/core/drivers/azure-sql.driver";
 export { MongodbDriver } from "src/core/drivers/mongodb.driver";
-export { createDriver, getDriverInfo, getDriverCategory, getAllDriverInfos } from "src/core/drivers/driver-registry";
+export { createDriver } from "src/core/drivers/driver-factory";
+export { getDriverInfo, getDriverCategory, getAllDriverInfos } from "src/core/drivers/driver-registry";

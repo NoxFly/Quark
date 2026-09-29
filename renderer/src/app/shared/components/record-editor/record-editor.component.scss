@@ -1,3 +1,20 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 @use "src/theme/mixins.scss" as *;
 
 .record-editor {
@@ -86,32 +103,47 @@
     }
 }
 
+// `ui-input` est un composant, pas un champ natif : le styler comme tel posait
+// un second cadre autour du sien, et surtout laissait son conteneur interne à sa
+// largeur par défaut (250 px) dans un hôte pleine largeur. La mise en forme passe
+// donc par les variables que le composant expose.
+.field-control {
+    @include flex($hor: flex-start, $gap: 6px);
+}
+
 .field-input {
-    width: 100%;
-    padding: 6px 10px;
+    --width: 100%;
+    --height: 34px;
+
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.85em;
+    font-family: "Cascadia Code", "Fira Code", monospace;
+}
+
+.field-regenerate {
+    @include flex();
+
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
     border: 1px solid rgba(127, 127, 127, 0.25);
     border-radius: 6px;
     background: var(--surface);
     color: var(--text-color);
-    font-size: 0.85em;
-    font-family: "Cascadia Code", "Fira Code", monospace;
-    outline: none;
-    transition: border-color 0.15s;
+    cursor: pointer;
 
-    &:focus {
+    &:hover {
         border-color: var(--interactive);
+        color: var(--interactive);
     }
+}
 
-    &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
-
-    &::placeholder {
-        color: rgba(127, 127, 127, 0.35);
-        font-family: var(--font-family);
-        font-style: italic;
-    }
+.field-hint {
+    font-size: 0.7em;
+    font-style: italic;
+    color: rgba(127, 127, 127, 0.7);
 }
 
 .editor-actions {

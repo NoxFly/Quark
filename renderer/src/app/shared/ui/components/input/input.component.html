@@ -29,6 +29,7 @@
     <input
         [id]="id"
         [type]="type()"
+        [disabled]="isDisabled() !== false"
         [placeholder]="placeholder()"
         [pattern]="pattern()"
         [autocomplete]="autocomplete()"

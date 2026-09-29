@@ -1,22 +1,26 @@
-# SQLiteEditor — Copilot Instructions
+# Quark — Copilot Instructions
 
-Application Electron + Angular 21 permettant d'éditer des bases SQLite. Architecture en deux processus distincts communiquant via IPC.
+Application Electron + Angular 21 de visualisation et d'édition de bases de données (SQLite, MySQL/MariaDB, PostgreSQL, Oracle, SQL Server, Azure SQL, MongoDB). Projet personnel de NoxFly, sous licence **AGPL-3.0-only** (voir `LICENSE`).
+
+Trois processus : le **main** (fenêtres, IPC, coffre, mises à jour), un **hôte de drivers** par fenêtre (utilityProcess) et le **renderer** Angular.
 
 ## Architecture
 
 ```
-main/       ← Processus Electron/Node.js, bundlé par tsup → dist/main.js + dist/preload.js
+main/       ← Processus Electron/Node.js, bundlé par tsup → dist/main.js, dist/driver-host.js, dist/preload.js
 renderer/   ← Angular 21, bundlé par Angular CLI → dist/browser/
 shared/     ← Types TypeScript partagés entre main et renderer (types.d.ts, ipc-renderer.d.ts)
 ```
 
 ### Flux de communication
 
-Le renderer appelle `window.ipcRenderer.invoke(channel, ...args)` (exposé via `contextBridge` dans le preload). Le preload appelle également `exposeNoxusBridge()` pour le transport Noxus. Côté main, le framework **Noxus** route les requêtes vers des `@Controller()` et `@Get("path")`.
+**Toute** la communication renderer ↔ main passe par **Noxus** : aucun `ipcMain.handle`, aucun canal brut. Le preload (`main/src/preload.ts`) n'expose que la poignée de main Noxus (`exposeNoxusBridge()`) et `window.quark.getPathForFile` (chemin d'un fichier déposé, `webUtils`). Noxus transporte requêtes et réponses sur un `MessagePort` transféré une fois à la page : les données ne traversent pas le `contextBridge`, ce qui évite deux copies complètes des gros résultats.
 
-Le main peut pousser des événements au renderer via `ipcMain.emit` sur les canaux `navigate-to` et `display-error-dialog`.
+Côté renderer, `NoxusService.ipc` implémente l'interface `IpcRendererBridge` (`shared/ipc-renderer.d.ts`) au-dessus des routes (`renderer/src/app/core/services/noxus-ipc.bridge.ts`) : les appelants gardent une API à méthodes, et la table méthode → route vit dans ce seul fichier. `NoxusService.request` attend la fin de la poignée de main (la titlebar émet des requêtes avant elle), convertit les réponses d'erreur en `NoxusRequestError` (`status` + message du main) et applique une échéance de 30 s ; les opérations dont la durée dépend de la base (SQL, import/export, ouverture, dialogues natifs) la désactivent (`timeout: 0`). Le journal des réponses de Noxus n'est actif qu'en développement.
 
-**Canaux IPC directs (hors Noxus) :** `load-app`, `request-reload`, `close-app`, `reduce-app`, `toggle-fullscreen`, `get-titlebar-state`.
+Routes (`main/src/modules/app.routes.ts`) : `app/*`, `window/*` (cycle de vie et titlebar), `db/*` (base de la fenêtre), `connections/*` (coffre), `update/*`, `session-diff/*`. Les lectures sont des `GET`, tout ce qui modifie la base ou l'état est un `POST`. Le corps d'une requête est toujours un objet (un argument primitif est enveloppé : `{ table }`, `{ id }`…).
+
+Le main pousse ses événements par le socket Noxus : `Window.sendToRenderer(event, payload)` pour une fenêtre, `NoxSocket.emit` pour toutes (mises à jour). Événements : `navigate-to`, `open-file`, `title-changed`, `display-error-dialog`, `update-available`, `update-progress`, `session-diff-changed`. Le renderer s'y abonne par les `on*` du bridge (un seul abonné par événement, le dernier remplace le précédent).
 
 ### Framework Noxus (`@noxfly/noxus`)
 
@@ -28,23 +32,64 @@ Framework maison qui apporte une DI et un routage NestJS-like dans le main Elect
 
 `AppController` dans `main/src/modules/app/` expose la route `GET app/state`. Ajouter de nouvelles routes : créer un controller dans `modules/`, déclarer dans `app.routes.ts`.
 
-### Services stubs (à implémenter)
+### Hôte des drivers (utilityProcess)
 
-`AppTab` et `Database` (dans `main/src/core/services/`) sont intentionnellement vides — ils seront l'unité d'état par onglet ouvert. `AppService.getState()` retourne un stub hardcodé pour l'instant.
+Les drivers ne tournent **pas** dans le main : chaque `Window` possède un `RemoteDriver` (`main/src/core/driver-host/remote-driver.ts`) qui implémente `DatabaseDriver` et relaie chaque appel à un utilityProcess dédié (`dist/driver-host.js`, point d'entrée `main/src/driver-host.ts`). Une requête lourde, le module natif SQLite (synchrone) ou un client réseau bloqué ne gèlent donc ni le main ni les autres fenêtres, et un driver qui plante n'emporte pas l'application.
+
+- Le protocole est dans `driver-host.protocol.ts` ; la logique de l'hôte, indépendante du transport et testée, dans `driver-host.service.ts` (`DriverHost`). Seules les méthodes publiques du driver sont appelables.
+- Les accesseurs synchrones (`isOpen`, `path`, `isInTransaction`) lisent l'état recopié avec chaque réponse de l'hôte.
+- Le process est créé au premier appel et arrêté à la fermeture de la fenêtre (événement `closed`, Alt+F4 compris). S'il s'arrête de lui-même, les appels en cours échouent avec un message explicite, le diff de session est vidé et le renderer reçoit `display-error-dialog` ; l'appel suivant relance un hôte.
+- `execSqlPaged` / `fetchSqlRows` : l'éditeur SQL ne reçoit que la première page d'un SELECT (`SQL_FIRST_PAGE_SIZE`, 500 lignes). L'hôte garde le résultat (au plus `SQL_MAX_RESULT_ROWS`, 200 000 lignes, au-delà `truncated`) et en sert les pages suivantes. Seuls les 4 derniers résultats sont conservés ; une fermeture ou une réouverture les invalide. Le driver SQLite lit en flux (`iterate()`) et s'arrête au plafond.
+- Les drivers importent `Logger` depuis `@noxfly/noxus` (entrée « child », sans Electron), jamais depuis `@noxfly/noxus/main`. L'hôte journalise dans `<userData>/logs/quark-driver.log`.
+- `driver-registry.ts` ne contient que des métadonnées (utilisables par le main) ; `driver-factory.ts` (`createDriver`) importe tous les clients et n'est chargé que par l'hôte.
+
+### Rendu des grandes tables
+
+La vue table et les résultats de l'éditeur SQL sont virtualisés par `VirtualRows` (`renderer/src/app/shared/helpers/virtual-rows.helper.ts`) : seules les lignes visibles sont dans le DOM, deux lignes d'espacement tiennent la place des autres. Ce n'est pas le viewport du CDK, dont la translation du contenu casse l'en-tête `sticky` d'un `<table>`. Les lignes ont une hauteur fixe (`$row-height`), mesurée à l'exécution. La vue table charge par pages de 200 lignes au défilement.
 
 ### Drivers de base de données
 
-Les drivers implémentent `DatabaseDriver` (`main/src/core/drivers/`). Les drivers réseau étendent `NetworkSqlDriver`. Types supportés : `sqlite`, `mysql`, `postgresql`, `oracle`, `mssql`, `azure`, `mongodb`. **Azure SQL** (`azure-sql.driver.ts`) étend `MssqlDriver` et force le chiffrement TLS via `getTlsOptions()` (`encrypt: true`) — il hérite de toutes les fonctionnalités MSSQL, procédures stockées incluses. Il supporte deux modes d'authentification via `configureAuth()` + override de `getAuthentication()` : `sql` (login/mot de passe SQL Server) et `service-principal` (Microsoft Entra ID via `azure-active-directory-service-principal-secret` : `clientId` + `clientSecret` + `tenantId`, sans identifiant utilisateur). Le `clientSecret` réutilise le champ secret de la connexion (`password`) ; `clientId`/`tenantId` sont non secrets. Le mode est porté par `R_NetworkConnectBody`/`ConnectionProfile` (`authMode`, `clientId`, `tenantId`) et appliqué dans `Application.openNetworkConnection`. Pour ajouter un driver : créer la classe, l'enregistrer dans `driver-registry.ts` (`DRIVER_CATEGORIES`, `DRIVER_INFOS`, `createDriver`), l'exporter dans `drivers/index.ts`, ajouter le type dans `shared/driver.d.ts` et le logo/couleur dans `open-database.page.ts`.
+Les drivers implémentent `DatabaseDriver` (`main/src/core/drivers/`). Les drivers réseau étendent `NetworkSqlDriver`. Types supportés : `sqlite`, `mysql`, `postgresql`, `oracle`, `mssql`, `azure`, `mongodb`. **Azure SQL** (`azure-sql.driver.ts`) étend `MssqlDriver` et force le chiffrement TLS via `getTlsOptions()` (`encrypt: true`) — il hérite de toutes les fonctionnalités MSSQL, procédures stockées incluses. Il supporte deux modes d'authentification via `configureAuth()` (appelé par `RemoteDriver.configureAzureAuth`) + override de `getAuthentication()` : `sql` (login/mot de passe SQL Server) et `service-principal` (Microsoft Entra ID via `azure-active-directory-service-principal-secret` : `clientId` + `clientSecret` + `tenantId`, sans identifiant utilisateur). Le `clientSecret` réutilise le champ secret de la connexion (`password`) ; `clientId`/`tenantId` sont non secrets. Le mode est porté par `R_NetworkConnectBody`/`ConnectionProfile` (`authMode`, `clientId`, `tenantId`) et appliqué dans `DbService.openNetworkConnection`. Pour ajouter un driver : créer la classe, l'enregistrer dans `driver-registry.ts` (`DRIVER_CATEGORIES`, `DRIVER_INFOS`) et `driver-factory.ts` (`createDriver`), l'exporter dans `drivers/index.ts`, ajouter le type dans `shared/driver.d.ts` et le logo/couleur dans `open-database.page.ts`.
 
 ### Connexions sauvegardées (coffre chiffré)
 
-Système distinct de l'historique « bases récentes ». Les profils de connexion (identifiants inclus) sont persistés dans `connections.xml` (userData), chiffré AES-256-GCM par une clé dérivée (scrypt) d'un **mot de passe maître** déverrouillé une fois par session. `ConnectionStore` (`main/src/core/services/connection-store.ts`) gère le coffre ; `connection-crypto.ts` fournit le chiffrement et l'enveloppe XML. Les profils peuvent être **exportés** en fichier XML chiffré par une **passphrase** indépendante et **importés** ailleurs, pour partager l'accès à une base sans divulguer les identifiants (mots de passe write-only, jamais réaffichés). Canaux IPC : `conn-status`, `conn-initialize`, `conn-unlock`, `conn-lock`, `conn-list`, `conn-create`, `conn-update`, `conn-delete`, `conn-connect`, `conn-export`, `conn-import`. Côté renderer : `ConnectionsService`, modal `connections-manager` (File > Connections) et formulaire réutilisable `connection-form`. Types partagés dans `shared/connection.d.ts`.
+Système distinct de l'historique « bases récentes ». Les profils de connexion (identifiants inclus) sont persistés dans `connections.xml` (userData), chiffré AES-256-GCM par une clé dérivée (scrypt) d'un **mot de passe maître** déverrouillé une fois par session. `ConnectionStore` (`main/src/core/services/connection-store.ts`) gère le coffre ; `connection-crypto.ts` fournit le chiffrement et l'enveloppe XML. Les profils peuvent être **exportés** en fichier XML chiffré par une **passphrase** indépendante et **importés** ailleurs, pour partager l'accès à une base sans divulguer les identifiants (mots de passe write-only, jamais réaffichés). La dérivation scrypt est asynchrone (pool de libuv) et les écritures du fichier sont sérialisées. Routes Noxus : `connections/status`, `initialize`, `unlock`, `lock`, `list`, `create`, `update`, `delete`, `connect`, `export`, `import` (`ConnectionsController` / `ConnectionsService`). Côté renderer : `ConnectionsService`, modal `connections-manager` (File > Connections) et formulaire réutilisable `connection-form`. Types partagés dans `shared/connection.d.ts`.
+
+### Diff de session
+
+Page `/dashboard/session-diff` (onglet dédié, menu Affichage, `Ctrl+Shift+D`) qui montre l'écart entre l'état de la base **à son ouverture** et son état **actuel**. Le périmètre est la session de connexion entière : le mode transaction n'y change rien. Ce système remplace l'ancienne modale `transaction-diff`, supprimée — elle lisait `MutationHistoryService` (renderer, vidé à chaque changement de table et à chaque commit) et n'affichait donc qu'un sous-ensemble instable des modifications. `MutationHistoryService` reste dédié à l'undo/redo.
+
+Deux mises en page, au choix via le toggle de la barre d'outils (persisté en `localStorage`, clé `session-diff-view`, grille par défaut) :
+
+- **grille** : une table HTML par table de la base, champs alignés horizontalement comme dans la vue des données. Une modification occupe deux lignes (`−` avant, `+` après) pour que les colonnes restent alignées ; un insert ou un delete n'en occupe qu'une. Les colonnes sont unifiées **au niveau de la table** (`TableDiffView.columnNames`) et chaque `RowDiffView.columns` suit exactement cet ordre, y compris pour les colonnes absentes d'une ligne (rendues hachurées, distinctes d'un `NULL`) ;
+- **fiches** : une carte par ligne, panneaux côte à côte (gauche = à l'ouverture, droite = maintenant), plus lisible sur une table large.
+
+Le journal vit dans le **processus principal**, `SessionDiff` (`main/src/core/services/session-diff.ts`), une instance par `Window`. Il est **exclusivement en mémoire** : il contient le contenu réel des lignes, l'écrire sur disque exfiltrerait en clair les données d'une base chiffrée. Il est remis à zéro à l'ouverture et à la fermeture d'une connexion, mais **survit à un rafraîchissement** (`Window.reopenDatabase`) et à un `Ctrl+Alt+R`.
+
+L'agrégation est **par ligne**, pas chronologique : chaque ligne touchée porte son image d'origine et son image courante, si bien que deux éditions du même champ donnent une seule entrée et qu'une modification annulée disparaît du diff (`pruneIfUnchanged`). Une ligne insérée puis supprimée disparaît également. Les bornes de transaction sont suivies (`beginTransaction` / `commitTransaction` / `rollbackTransaction`) : un `ROLLBACK` restaure le journal comme il restaure la base.
+
+La capture des images avant/après se fait dans `Window` (`updateCell`, `batchUpdate`, `deleteRows`, `insertRow`) — les routes de `DbController` passent par ces méthodes, jamais directement par le driver. Au-delà de `BULK_DETAIL_LIMIT` (500 lignes), une opération en lot devient une entrée récapitulative, mais les lignes déjà suivies sont réconciliées pour ne pas rester obsolètes. Le SQL brut de l'éditeur, le DDL et les imports sont journalisés comme **entrées opaques** (`recordOpaqueChange`) : les diffé ligne à ligne imposerait de snapshoter la table cible avant et après. Plafond de suivi : 20 000 lignes (`capped`).
+
+Routes Noxus : `session-diff/snapshot`, `session-diff/summary`, `session-diff/clear`. Événement poussé : `session-diff-changed` (compteurs seulement — l'instantané complet n'est rechargé que si la page est ouverte, via `SessionDiffService.setLive`). Le découpage intra-valeur (surbrillance fine sur le fragment réellement différent) est fait par `diffInline` (`renderer/src/app/shared/helpers/text-diff.helper.ts`, LCS sur jetons, plafonné). Types partagés dans `shared/session-diff.d.ts`.
+
+Les onglets non tabulaires (éditeur SQL, diff de session) sont décrits par le registre `SPECIAL_TABS` de `tabs.service.ts` ; utiliser `getSpecialTab()` et `DatabaseService.activateTab()` plutôt que `selectTable()` pour activer un onglet par son identifiant.
 
 ### Mise à jour automatique
 
-`UpdaterService` (`main/src/modules/updater/`) recherche, télécharge, vérifie et applique les mises à jour, sans configuration utilisateur. Le manifeste `latest-<os>.json` (`shared/update.d.ts` : `UpdateManifest`) est publié comme asset de la dernière release GitHub et lu à l'URL stable `https://github.com/<repo>/releases/latest/download/latest-<os>.json` — `<repo>` est injecté à la compilation par tsup via `UPDATE_REPOSITORY` (défaut `NoxFly/quark`, fourni par la CI) et exposé dans `environment.update`. Une première recherche a lieu 15 s après le démarrage, puis toutes les 6 h (production uniquement) ; le main pousse alors `update-available` au renderer. L'installeur est vérifié par empreinte SHA-512 avant exécution, puis lancé en mode silencieux (`/S`, NSIS) sur Windows — ailleurs il est seulement révélé dans l'explorateur (le paquet deb/rpm exige une élévation). Routes Noxus : `update/check`, `update/info`, `update/apply`, `update/open-releases`. Canaux IPC poussés : `update-available`, `update-progress`. Côté renderer : `UpdateService` (proposition via `AlertController`, progression via `LoadingController`) et l'entrée « Check for updates » du menu Aide. La comparaison de versions repose sur `Version` (`main/src/core/version.ts`), qui gère le format `major.minor.patch[+build.<n>|-<canal>.<n>]`.
+`UpdaterService` (`main/src/modules/updater/`) recherche, télécharge, vérifie et applique les mises à jour, sans configuration utilisateur. Le manifeste `latest-<os>.json` (`shared/update.d.ts` : `UpdateManifest`) est publié comme asset de la dernière release GitHub et lu à l'URL stable `https://github.com/<repo>/releases/latest/download/latest-<os>.json` — `<repo>` est injecté à la compilation par tsup via `UPDATE_REPOSITORY` (défaut `NoxFly/quark`, fourni par la CI) et exposé dans `environment.update`. Une première recherche a lieu 5 s après le démarrage, puis toutes les heures, et 10 min après un échec (production uniquement) ; le main diffuse alors `update-available` (socket Noxus) à toutes les fenêtres. L'installeur est vérifié par empreinte SHA-512 avant exécution, puis lancé sur Windows avec `--updated /S --force-run` : installation silencieuse, puis relance de l'application — ailleurs il est seulement révélé dans l'explorateur (le paquet deb/rpm exige une élévation).
 
-Le workflow `.github/workflows/release.yml` publie une release à chaque push sur `main` : version `X.Y.Z+build.<run>`, build Windows + Linux, génération du manifeste et création de la release (tag `vX.Y.Z-build.<run>`).
+Deux modes, selon le réglage `autoUpdate` (`SettingsStore`, `<userData>/settings.json`, coché dans le menu Aide, désactivé hors Windows) :
+
+- **manuel** (défaut) : la mise à jour est proposée par une alerte ; « Installer et redémarrer » l'applique d'un clic ;
+- **automatique** : l'installeur est téléchargé aussitôt, puis appliqué sans rien demander dès que l'application est inactive — aucune fenêtre au premier plan, ou machine au repos depuis 5 min — et **jamais** avec une transaction ouverte ; l'utilisateur n'est prévenu que par un toast. Si l'application est fermée avant, l'installation se fait à la fermeture, sans relance.
+
+Avant un redémarrage de mise à jour, les bases SQLite ouvertes sont notées dans `pendingRestore` et rouvertes au lancement suivant (une fenêtre par base ; les connexions réseau ne sont pas rouvertes, leurs mots de passe n'étant pas conservés). Routes Noxus : `update/check`, `update/info`, `update/apply`, `update/open-releases`, `update/settings` (`GET`/`POST`). Événements poussés : `update-available`, `update-progress`. Côté renderer : `UpdateService` (proposition via `AlertController`, progression via `LoadingController`, réglage) et le menu Aide. La comparaison de versions repose sur `Version` (`main/src/core/version.ts`), qui gère le format `major.minor.patch[+build.<n>|-<canal>.<n>]`.
+
+### CI et versions
+
+- `.github/workflows/ci.yml` : typecheck (main + renderer), lint Biome et tests, sur chaque pull request vers `main` ; il est aussi appelé par la release.
+- `.github/workflows/release.yml` : à chaque push sur `main` (fusion d'une PR), calcule la version depuis les Conventional Commits écoulés depuis le dernier tag `vX.Y.Z` (`type!:`/`BREAKING CHANGE` → majeure, `feat:` → mineure, sinon correctif ; sans tag, la version de `package.json`). La version est injectée dans `package.json` le temps du build, jamais commitée. `[skip release]` dans le message du commit ne publie rien. Build Windows + Linux, manifeste `latest-<os>.json`, release `vX.Y.Z` créée avec `gh`.
+- Les anciens tags `vX.Y.Z-build.N` sont ignorés ; `Version` place `0.1.0` au-dessus de `0.0.1+build.N`, les installations existantes reçoivent donc la mise à jour.
 
 ### Robustesse du démarrage
 
@@ -52,10 +97,11 @@ L'écran de chargement est un calque opaque plein écran (z-index 999) qui recou
 
 - `AppComponent.load()` borne chaque étape (`withTimeout`, `shared/helpers/global.helper.ts`) et rattrape les erreurs dans un `StartupErrorComponent` actionnable (réessayer / recharger) ;
 - `main.ts` rattrape un échec de bootstrap Angular et affiche un message minimal sans framework ;
-- côté main, `app/state` et `get-window-state` bornent la lecture du schéma (`withTimeout`, `main/src/core/helpers/async.helper.ts`) : un driver bloqué ne doit jamais retenir le démarrage ;
+- côté main, `app/state` et `window/state` bornent la lecture du schéma (`withTimeout`, `main/src/core/helpers/async.helper.ts`) : un driver bloqué ne doit jamais retenir le démarrage ;
 - `Window` journalise et signale `did-fail-load`, `render-process-gone`, `preload-error`, `unresponsive`, refuse toute navigation hors du document de l'application, et affiche la fenêtre au bout de 8 s même si `ready-to-show` n'a pas été émis ;
 - en production le document est chargé via `loadFile` (et non une URL `file://` concaténée), pour supporter les chemins d'installation contenant espaces, accents ou `#` ;
-- le fichier passé en ligne de commande est mis en attente (`Application.setPendingFile`) et remis au renderer via `load-app`, plutôt que poussé sur un minuteur qui pouvait expirer avant lui ;
+- le fichier passé en ligne de commande est mis en attente **sur la fenêtre** (`Window.setPendingFile`) et remis au renderer via `window/load`, plutôt que poussé sur un minuteur qui pouvait expirer avant lui. Les fenêtres sont créées par `Application.openNewWindow()`, qui les enregistre via le callback `onCreated` de `Window.create` **avant** le chargement du document : le renderer émet ses premières requêtes IPC pendant celui-ci, et une fenêtre enregistrée après serait introuvable par `senderId` ;
+- toute relance de l'exécutable pendant qu'une instance tourne (liste de raccourcis Windows, double-clic sur un fichier associé) arrive dans `second-instance` : le drapeau `--new-window` ouvre une fenêtre, un argument fichier ouvre la base, et une relance nue remonte la fenêtre existante. Le tri des arguments se fait sur l'extension et non sur leur position, qui varie selon le mode de lancement ;
 - les logs du main sont écrits dans `<userData>/logs/quark.log` (`Logger.enableFileLogging`) : une application packagée n'a pas de console, et sans ce fichier un incident chez un utilisateur ne laisse aucune trace.
 
 ### Stored Procedures (MSSQL / Azure)
@@ -65,18 +111,39 @@ Le driver MSSQL expose des méthodes pour lister, détailler, exécuter, modifie
 ## Build & Dev
 
 ```bash
-npm run dev          # build main (dev) + lance Electron (source maps activées)
-npm run build        # build main (prod) + build renderer (prod)
-npm run typecheck    # tsc --noEmit (main + shared)
-npm run check        # biome check --write . — NE VÉRIFIE RIEN : biome.json a
-                     # files.includes = ["src/**/*.ts"], qui ne matche ni main/src
-                     # ni renderer/src. Corriger l'inclusion réintroduit ~90 écarts
-                     # de format, car la config Biome n'est pas alignée sur les
-                     # conventions du repo (Stroustrup, parenthèses d'arrow).
-npm run make         # electron-builder → installeur distributable
+npm run dev                 # build main (dev) + lance Electron (source maps activées)
+npm run build               # build main (prod) + build renderer (prod)
+npm run typecheck           # tsc --noEmit (main + shared + specs)
+npm run typecheck:renderer  # tsc --noEmit du renderer
+npm run lint                # biome lint . (main, scripts, shared, renderer)
+npm test                    # vitest, sous le Node d'Electron
+npm run make                # electron-builder → installeur distributable
 ```
 
+> Lancé depuis un terminal intégré de VS Code, `ELECTRON_RUN_AS_NODE=1` peut être hérité : Electron démarre alors comme Node et échoue sur `electron/main`. Il faut retirer la variable (`env -u ELECTRON_RUN_AS_NODE npm start`).
+
 > En développement, le renderer est chargé depuis le serveur Angular sur `localhost:4200`. En production, depuis `dist/browser/`.
+
+### Packaging (electron-builder)
+
+`electron-builder.config.js` reste déclaratif ; la logique vit dans `main/scripts/` :
+
+| Fichier | Rôle |
+| --- | --- |
+| `package-files.js` | Patterns `files` : exclusion des artefacts de build (sourcemaps, sources C/C++ et résidus node-gyp, sources TS, docs) et des binaires natifs des autres plateformes |
+| `resolve-native-modules.js` | Globs `asarUnpack`, détectés sur la présence réelle d'un `.node` dans les dépendances de production |
+| `flip-fuses.js` | Verrouillage des fuses Electron en `afterPack` : ni mode Node, ni `NODE_OPTIONS`, ni inspecteur ; intégrité de l'asar vérifiée (Windows) et chargement depuis l'asar uniquement |
+
+Deux pièges à ne pas réintroduire :
+
+- **Tous les patterns `files` tiennent dans le tableau racine.** electron-builder normalise `config.files` en `[{ filter: [...] }]` (un matcher dédié) alors que des `files` déclarés sous `win`/`linux` alimentent un second matcher qui passe en tête. Ce dernier ne contenant que des exclusions, electron-builder lui ajoute `**/*` et embarque le projet entier (`renderer/.angular`, `main/`, `.vscode`…) dans l'asar.
+- **Les binaires natifs conservés sont ceux de la machine de build**, pas ceux de la cible : `electron-rebuild` ne compile que pour l'hôte, un paquet Linux produit depuis Windows n'est de toute façon pas fonctionnel.
+
+`electronLanguages` limite Chromium à `en-US` et `fr` : les 53 autres `.pak` pèsent 45 Mo. À élargir en même temps que `renderer/src/app/core/i18n/`.
+
+### Sécurité du renderer
+
+`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. Le preload est bundlé avec Noxus (`noExternal` dans `tsup.config.cjs`) : un preload sandboxé ne peut `require` que les modules d'Electron.
 
 ## Conventions — Main (Node.js / Noxus)
 
@@ -85,6 +152,8 @@ npm run make         # electron-builder → installeur distributable
 - Les services singleton (un par app) : `lifetime: "singleton"` ; par onglet/connexion : `lifetime: "transient"`
 - Les `BrowserWindow` sont gérées uniquement via la classe `Window` (`main/src/core/services/window.ts`)
 - Toujours utiliser `Logger` de Noxus, jamais `console.log`
+- Nouvelle opération IPC : une route dans un contrôleur Noxus (`GET` pour une lecture, `POST` pour une mutation), la méthode correspondante dans `IpcRendererBridge` et sa ligne dans `noxus-ipc.bridge.ts`. Jamais de `ipcMain.handle`.
+- La fenêtre appelante se retrouve par `Application.requireWindow(request.senderId)`.
 
 ## Conventions — Renderer (Angular 21)
 
@@ -104,10 +173,28 @@ La pipe `bypass` contourne la sanitisation Angular (`bypass:'html'|'style'`) —
 
 ## Linting (Biome)
 
-- Indentation : **4 espaces**, ligne max : **120 caractères**
-- **Doubles quotes**, `operatorLinebreak: "before"`
-- `noNonNullAssertion` et `useForOf` sont désactivés
-- Lancer `npm run check` avant tout commit
+- Biome sert de **linter** (règles `recommended` et quelques règles de style du repo, voir `biome.json`) sur `main/`, `shared/`, `renderer/src` et les scripts. Le **formatter est désactivé** : il ne sait pas produire le style Stroustrup (`else` sur la ligne qui suit l'accolade fermante) exigé par les conventions.
+- Indentation : **4 espaces**, ligne max : **120 caractères**, **doubles quotes**
+- Lancer `npm run lint` avant tout commit (la CI échoue sinon)
+
+## Tests (vitest)
+
+- Fichiers `*.spec.ts` à côté du code testé, dans `main/src` ou `renderer/src` (côté renderer, code pur uniquement). Configuration : `vitest.config.mts`.
+- `npm test` exécute vitest sous le Node embarqué d'Electron : `better-sqlite3-multiple-ciphers` est compilé pour l'ABI d'Electron par `electron-rebuild`.
+- Les drivers réseau n'ont pas de tests : il faudrait des serveurs de base de données. Le driver SQLite, l'hôte des drivers, le diff de session, le coffre, les versions et le bridge IPC sont couverts.
+
+## Licence et en-têtes
+
+Chaque fichier source commence par l'en-tête AGPL bilingue de NoxFly (à copier depuis un fichier existant) :
+
+```ts
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ * ...
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+```
 
 ## Types partagés (`shared/`)
 
@@ -164,7 +251,7 @@ Use spaces, 4 for any file type, except yml that are 2 spaces.
 
 ### Code Quality
 
-- All files must include the NoxFly copyright header
+- All files must include the NoxFly AGPL-3.0-only header (see "Licence et en-têtes")
 - Prefer `async`/`await` over `Promise` and `.then()` calls.
 - Always await a promise to make the function appearable in the stack trace, unless you have a good reason not to (e.g., you want it to run in the background and don't care about errors).
 - Look for existing test patterns before creating new structures.

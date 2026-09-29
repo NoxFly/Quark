@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import { Injectable, signal, computed } from "@angular/core";
@@ -24,6 +35,42 @@ export interface TableTab {
 
 /** Identifiant spécial pour l'onglet SQL Editor. */
 export const SQL_EDITOR_TAB_ID = "__sql-editor__";
+
+/** Identifiant spécial pour l'onglet du diff de session. */
+export const SESSION_DIFF_TAB_ID = "__session-diff__";
+
+/**
+ * Onglet qui n'affiche pas une table mais une vue dédiée.
+ * Décrit ici plutôt que dispersé en conditions dans chaque composant.
+ */
+export interface SpecialTab {
+    /** Identifiant utilisé comme `tableName` de l'onglet. */
+    id: string;
+    /** Route du dashboard vers laquelle basculer. */
+    route: string;
+    /** Clé de traduction du libellé. */
+    labelKey: string;
+    /** Glyphe Segoe Fluent Icons affiché devant le libellé. */
+    icon: string;
+}
+
+const SPECIAL_TABS: readonly SpecialTab[] = [
+    { id: SQL_EDITOR_TAB_ID, route: "/dashboard/sql-editor", labelKey: "tabs.sqlEditor", icon: "\uE943" },
+    { id: SESSION_DIFF_TAB_ID, route: "/dashboard/session-diff", labelKey: "tabs.sessionDiff", icon: "\uE81C" },
+];
+
+/**
+ * Retourne la définition de l'onglet spécial correspondant, ou `null` s'il
+ * s'agit d'un onglet de table ordinaire.
+ * @param tableName - Identifiant porté par l'onglet.
+ */
+export function getSpecialTab(tableName: string | null): SpecialTab | null {
+    if (tableName === null) {
+        return null;
+    }
+
+    return SPECIAL_TABS.find(tab => tab.id === tableName) ?? null;
+}
 
 /**
  * Gère les onglets de tables ouverts dans le dashboard.

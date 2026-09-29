@@ -1,0 +1,282 @@
+@let snap = snapshot();
+
+<div class="session-diff">
+    <header class="diff-toolbar">
+        <div class="toolbar-title">
+            <h1>{{ i18n.t('sessionDiff.title') }}</h1>
+
+            @if (snap?.startedAt; as startedAt) {
+                <span class="toolbar-since">{{ i18n.t('sessionDiff.since', { time: formatTime(startedAt) }) }}</span>
+            }
+        </div>
+
+        @let summary = sessionDiff.summary();
+
+        <div class="toolbar-counts">
+            <span class="count">{{ i18n.t('sessionDiff.changedRows', { count: summary.rows }) }}</span>
+            <span class="count-sep">·</span>
+            <span class="count">{{ i18n.t('sessionDiff.tablesTouched', { count: summary.tables }) }}</span>
+
+            @if (summary.opaque > 0) {
+                <span class="count-sep">·</span>
+                <span class="count">{{ i18n.t('sessionDiff.opaqueCount', { count: summary.opaque }) }}</span>
+            }
+        </div>
+
+        <div class="toolbar-actions">
+            <div class="view-toggle" role="group" [attr.aria-label]="i18n.t('sessionDiff.viewMode')">
+                <button
+                    type="button"
+                    class="view-toggle__button"
+                    [class.active]="viewMode() === 'grid'"
+                    (click)="setViewMode('grid')"
+                    [tooltip]="i18n.t('sessionDiff.viewGrid')">
+                    <span class="segoe-icon">&#xE71D;</span>
+                </button>
+
+                <button
+                    type="button"
+                    class="view-toggle__button"
+                    [class.active]="viewMode() === 'cards'"
+                    (click)="setViewMode('cards')"
+                    [tooltip]="i18n.t('sessionDiff.viewCards')">
+                    <span class="segoe-icon">&#xE8A4;</span>
+                </button>
+            </div>
+
+            <input
+                class="toolbar-filter"
+                type="search"
+                [placeholder]="i18n.t('sessionDiff.filterPlaceholder')"
+                [value]="tableFilter()"
+                (input)="tableFilter.set($any($event.target).value)"
+            />
+
+            <button type="button" class="toolbar-button" (click)="refresh()" [tooltip]="i18n.t('sessionDiff.refresh')">
+                <span class="segoe-icon">&#xE72C;</span>
+            </button>
+
+            <button
+                type="button"
+                class="toolbar-button"
+                [disabled]="!sessionDiff.hasChanges()"
+                (click)="confirmClear()"
+                [tooltip]="i18n.t('sessionDiff.clear')">
+                <span class="segoe-icon">&#xE74D;</span>
+            </button>
+        </div>
+    </header>
+
+    @if (sessionDiff.error(); as error) {
+        <div class="diff-error">{{ error }}</div>
+    }
+
+    @if (snap?.capped) {
+        <div class="diff-notice">{{ i18n.t('sessionDiff.capped') }}</div>
+    }
+
+    <div class="diff-body">
+        @if (initializing()) {
+            <p class="diff-placeholder">{{ i18n.t('sessionDiff.loading') }}</p>
+        }
+        @else if (snap && !snap.active) {
+            <p class="diff-placeholder">{{ i18n.t('sessionDiff.noConnection') }}</p>
+        }
+        @else if (isEmpty()) {
+            <p class="diff-placeholder">{{ i18n.t('sessionDiff.noChanges') }}</p>
+        }
+
+        @for (table of tables(); track table.table) {
+            <section class="table-diff">
+                <header class="table-header" (click)="toggleTable(table.table)">
+                    @if (isCollapsed(table.table)) {
+                        <span class="table-chevron segoe-icon">&#xE76C;</span>
+                    }
+                    @else {
+                        <span class="table-chevron segoe-icon">&#xE70D;</span>
+                    }
+
+                    <span class="table-name">{{ table.table }}</span>
+
+                    <span class="table-stats">
+                        @if (table.inserted > 0) {
+                            <span class="stat stat--insert">+{{ table.inserted }}</span>
+                        }
+                        @if (table.updated > 0) {
+                            <span class="stat stat--update">~{{ table.updated }}</span>
+                        }
+                        @if (table.deleted > 0) {
+                            <span class="stat stat--delete">-{{ table.deleted }}</span>
+                        }
+                    </span>
+                </header>
+
+                @if (!isCollapsed(table.table)) {
+                    @if (viewMode() === 'grid') {
+                        <div class="grid-scroll">
+                            <table class="diff-grid">
+                                <thead>
+                                    <tr>
+                                        <th class="grid-sign"></th>
+                                        <th class="grid-rowid">#</th>
+
+                                        @for (column of table.columnNames; track column) {
+                                            <th>{{ column }}</th>
+                                        }
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    @for (row of table.rows; track row.rowid) {
+                                        <!--
+                                            Une modification occupe deux lignes, avant puis après,
+                                            comme un diff git : les champs restent alignés sur les
+                                            mêmes colonnes, ce qu'une cellule « a → b » perdrait.
+                                        -->
+                                        @if (row.kind !== 'insert') {
+                                            <tr class="grid-line grid-line--before">
+                                                <td class="grid-sign">−</td>
+                                                <td class="grid-rowid">{{ row.rowid }}</td>
+
+                                                @for (column of row.columns; track column.column) {
+                                                    <td
+                                                        [class.removed]="row.kind === 'delete' || column.changed"
+                                                        [class.cell-absent]="column.before === null">
+                                                        @for (segment of column.before; track $index) {
+                                                            <span [class.segment-changed]="segment.changed && row.kind === 'update'">{{ segment.text }}</span>
+                                                        }
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+
+                                        @if (row.kind !== 'delete') {
+                                            <tr class="grid-line grid-line--after">
+                                                <td class="grid-sign">+</td>
+                                                <td class="grid-rowid">{{ row.rowid }}</td>
+
+                                                @for (column of row.columns; track column.column) {
+                                                    <td
+                                                        [class.added]="row.kind === 'insert' || column.changed"
+                                                        [class.cell-absent]="column.after === null">
+                                                        @for (segment of column.after; track $index) {
+                                                            <span [class.segment-changed]="segment.changed && row.kind === 'update'">{{ segment.text }}</span>
+                                                        }
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (table.hidden > 0) {
+                            <button
+                                type="button"
+                                class="show-more"
+                                (click)="showMore(table.table, table.rows.length)">
+                                {{ i18n.t('sessionDiff.showMore', { count: table.hidden }) }}
+                            </button>
+                        }
+                    }
+                    @else {
+                        <div class="table-rows">
+                            @for (row of table.rows; track row.rowid) {
+                                <article class="row-diff" [class]="'row-diff--' + row.kind">
+                                    <div class="row-header">
+                                        <span class="row-kind">{{ i18n.t('sessionDiff.kind.' + row.kind) }}</span>
+                                        <span class="row-id">#{{ row.rowid }}</span>
+                                        <span class="row-time">{{ formatTime(row.lastChangedAt) }}</span>
+                                    </div>
+
+                                    <div class="row-panes">
+                                        <div class="pane pane--before">
+                                            <div class="pane-title">{{ i18n.t('sessionDiff.beforePane') }}</div>
+
+                                            @if (row.kind === 'insert') {
+                                                <div class="pane-absent">{{ i18n.t('sessionDiff.rowDidNotExist') }}</div>
+                                            }
+                                            @else {
+                                                @for (column of row.columns; track column.column) {
+                                                    <div class="diff-line" [class.removed]="column.changed">
+                                                        <span class="line-column">{{ column.column }}</span>
+                                                        <span class="line-value">
+                                                            @for (segment of column.before; track $index) {
+                                                                <span [class.segment-changed]="segment.changed">{{ segment.text }}</span>
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+
+                                        <div class="pane pane--after">
+                                            <div class="pane-title">{{ i18n.t('sessionDiff.afterPane') }}</div>
+
+                                            @if (row.kind === 'delete') {
+                                                <div class="pane-absent">{{ i18n.t('sessionDiff.rowDeleted') }}</div>
+                                            }
+                                            @else {
+                                                @for (column of row.columns; track column.column) {
+                                                    <div class="diff-line" [class.added]="column.changed">
+                                                        <span class="line-column">{{ column.column }}</span>
+                                                        <span class="line-value">
+                                                            @for (segment of column.after; track $index) {
+                                                                <span [class.segment-changed]="segment.changed">{{ segment.text }}</span>
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                </article>
+                            }
+
+                            @if (table.hidden > 0) {
+                                <button
+                                    type="button"
+                                    class="show-more"
+                                    (click)="showMore(table.table, table.rows.length)">
+                                    {{ i18n.t('sessionDiff.showMore', { count: table.hidden }) }}
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+            </section>
+        }
+
+        @if (opaqueChanges().length > 0) {
+            <section class="opaque-diff">
+                <header class="table-header">
+                    <span class="table-name">{{ i18n.t('sessionDiff.opaqueTitle') }}</span>
+                    <span class="table-stats">
+                        <span class="stat">{{ opaqueChanges().length }}</span>
+                    </span>
+                </header>
+
+                <p class="opaque-hint">{{ i18n.t('sessionDiff.opaqueHint') }}</p>
+
+                @for (change of opaqueChanges(); track change.id) {
+                    <article class="opaque-entry" [class]="'opaque-entry--' + change.category">
+                        <div class="opaque-head">
+                            <span class="opaque-category">{{ i18n.t('sessionDiff.category.' + change.category) }}</span>
+                            <span class="opaque-label">{{ change.label }}</span>
+                            <span class="opaque-time">{{ formatTime(change.at) }}</span>
+                        </div>
+
+                        <pre class="opaque-detail">{{ change.detail }}</pre>
+
+                        @if (change.rowsAffected !== null) {
+                            <div class="opaque-rows">
+                                {{ i18n.t('sessionDiff.rowsAffected', { count: change.rowsAffected }) }}
+                            </div>
+                        }
+                    </article>
+                }
+            </section>
+        }
+    </div>
+</div>

@@ -1,5 +1,23 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 /**
- * Shared contract for the IPC bridge exposed by the preload script.
+ * Contrat de l'API IPC du renderer. Elle est implémentée côté renderer au-dessus
+ * des routes Noxus (`NoxusService.ipc`) : le preload n'expose que `PreloadApi`.
  */
 
 export type TitlebarState = {
@@ -20,6 +38,14 @@ export type LoadAppResult = {
 };
 
 export type NavigationRequest = string;
+
+/**
+ * Seule API exposée par le preload en plus du pont Noxus.
+ */
+export interface PreloadApi {
+    /** Chemin absolu d'un fichier déposé dans la fenêtre. */
+    getPathForFile(file: File): string;
+}
 
 export interface IpcRendererBridge {
     requestReload(): Promise<void>;
@@ -46,7 +72,10 @@ export interface IpcRendererBridge {
     transactionAction(action: import("./types").R_TransactionAction): Promise<void>;
     exportData(body: import("./types").R_ExportBody): Promise<import("./types").R_ExportResponse>;
     getWindowState(): Promise<import("./types").R_WindowStateResponse>;
+    /** Exécute du SQL brut ; seule la première page d'un SELECT est renvoyée. */
     execSql(body: import("./types").R_SqlExecBody): Promise<import("./types").R_SqlExecResponse>;
+    /** Lit une page supplémentaire d'un résultat SQL conservé par le main. */
+    fetchSqlRows(body: import("./types").R_SqlRowsBody): Promise<import("./types").R_SqlRowsResponse>;
     importData(body: import("./types").R_ImportDataBody): Promise<void>;
     previewImport(body: Omit<import("./types").R_ImportDataBody, "mode">): Promise<import("./types").R_ImportPreviewResponse>;
     getIndexes(table: string): Promise<import("./types").R_GetIndexesResponse>;
@@ -86,6 +115,12 @@ export interface IpcRendererBridge {
     onUpdateAvailable(cb: (info: import("./update").UpdateInfo) => void): void;
     /** Notifié pendant le téléchargement de l'installeur. */
     onUpdateProgress(cb: (progress: import("./update").UpdateProgress) => void): void;
+
+    /**
+     * Notifié à chaque modification enregistrée dans le diff de session.
+     * Ne transporte que les compteurs : le contenu est chargé à la demande.
+     */
+    onSessionDiffChanged(cb: (summary: import("./session-diff").SessionDiffSummary) => void): void;
 }
 
 export interface ErrorDialogPayload {
@@ -118,9 +153,6 @@ export interface RecentDatabaseEntry {
 
 declare global {
     interface Window {
-        ipcRenderer: IpcRendererBridge;
-        __APP_LOAD_RESULT__?: LoadAppResult;
+        quark: PreloadApi;
     }
 }
-
-export {};

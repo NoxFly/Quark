@@ -1,37 +1,79 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { Injectable, Logger } from "@noxfly/noxus/main";
-import type { UpdateInfo, UpdateManifest, UpdateProgress } from "@shared/update";
+import { inject, Injectable, Logger, NoxSocket } from "@noxfly/noxus/main";
+import type { UpdateInfo, UpdateManifest, UpdateProgress, UpdateSettings } from "@shared/update";
 import { shell } from "electron/common";
-import { app, BrowserWindow } from "electron/main";
+import { app, BrowserWindow, powerMonitor } from "electron/main";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AppEnv, OSType } from "src/core/env.dto";
 import { environment } from "src/core/environment";
+import { SettingsStore } from "src/core/services/settings-store";
 import { Version } from "src/core/version";
 
-/** Délai avant la première recherche, pour ne pas concurrencer le démarrage. */
-const FIRST_CHECK_DELAY_MS = 15_000;
+/** Délai avant la première recherche : juste le temps que la fenêtre s'affiche. */
+const FIRST_CHECK_DELAY_MS = 5_000;
 
 /** Intervalle entre deux recherches automatiques. */
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
+const CHECK_INTERVAL_MS = 60 * 60 * 1_000;
+
+/** Nouvel essai après un échec (hors ligne, GitHub indisponible). */
+const RETRY_DELAY_MS = 10 * 60 * 1_000;
+
+/** Intervalle entre deux vérifications d'inactivité, quand une installation automatique attend. */
+const IDLE_POLL_MS = 60 * 1_000;
+
+/**
+ * Inactivité du système (clavier, souris) au-delà de laquelle l'application peut
+ * redémarrer même si l'une de ses fenêtres est au premier plan.
+ */
+const SYSTEM_IDLE_SECONDS = 5 * 60;
 
 /** Échéance de récupération du manifeste : une CI indisponible ne doit rien bloquer. */
 const MANIFEST_TIMEOUT_MS = 15_000;
 
 /**
+ * Ce que l'updater doit savoir de l'application pour redémarrer au bon moment.
+ * Fourni par `Application`, qui détient les fenêtres.
+ */
+export interface UpdaterHost {
+    /** Vrai tant qu'un redémarrage ferait perdre du travail (transaction non validée). */
+    isBusy(): boolean;
+    /** Bases à rouvrir après le redémarrage, une par fenêtre. */
+    getRestorableFiles(): string[];
+}
+
+/**
  * Recherche, télécharge et applique les mises à jour de l'application.
  *
  * Le manifeste est publié comme asset de la dernière release GitHub, à une URL
- * stable (`releases/latest/download/latest-<os>.json`) : aucune configuration
- * n'est demandée à l'utilisateur, et rien n'est à mettre à jour côté client
- * quand une nouvelle version paraît.
+ * stable (`releases/latest/download/latest-<os>.json`) : rien n'est à configurer.
+ * Une recherche a lieu au démarrage puis toutes les heures.
+ *
+ * Deux modes :
+ * - manuel (défaut) : la version trouvée est proposée ; l'utilisateur l'installe
+ *   d'un clic, l'application redémarre d'elle-même une fois installée ;
+ * - automatique (réglage `autoUpdate`) : l'installeur est téléchargé aussitôt, puis
+ *   appliqué sans rien demander dès que l'application est inactive (en arrière-plan
+ *   ou machine au repos) et qu'aucune transaction n'est ouverte ; à défaut, à la
+ *   fermeture de l'application.
  *
  * L'installeur téléchargé est vérifié par empreinte SHA-512 avant d'être exécuté :
  * un binaire est lancé avec les droits de l'utilisateur, une archive tronquée ou
@@ -39,29 +81,44 @@ const MANIFEST_TIMEOUT_MS = 15_000;
  */
 @Injectable({ lifetime: "singleton" })
 export class UpdaterService {
+    private readonly settings = inject(SettingsStore);
+
     private manifest: UpdateManifest | null = null;
     private info: UpdateInfo | null = null;
-    private checkTimer: ReturnType<typeof setInterval> | null = null;
-    private busy = false;
+    private host: UpdaterHost | null = null;
+
+    private checkTimer: ReturnType<typeof setTimeout> | null = null;
+    private idleTimer: ReturnType<typeof setInterval> | null = null;
+
+    /** Installeur déjà téléchargé et vérifié, réutilisé tant que la version ne change pas. */
+    private downloaded: { version: string; path: string } | null = null;
+    private downloading: Promise<string> | null = null;
+
+    /** L'installeur a été lancé : l'application est en train de se fermer. */
+    private installing = false;
 
     /**
-     * Démarre les recherches automatiques : une première différée, puis
-     * périodiques. Sans effet hors production, où aucune release ne correspond
-     * à la version locale.
+     * Démarre les recherches automatiques : une au démarrage, puis toutes les
+     * heures. Sans effet hors production, où aucune release ne correspond à la
+     * version locale.
      */
-    public startAutoCheck(): void {
+    public startAutoCheck(host: UpdaterHost): void {
         if (environment.env !== AppEnv.PRODUCTION) {
             Logger.info("Auto-update checks are disabled outside production builds.");
             return;
         }
 
-        if (this.checkTimer !== null) {
+        if (this.host) {
             return;
         }
 
-        setTimeout(() => void this.checkSilently(), FIRST_CHECK_DELAY_MS);
+        this.host = host;
 
-        this.checkTimer = setInterval(() => void this.checkSilently(), CHECK_INTERVAL_MS);
+        // Mode automatique : une mise à jour téléchargée mais pas encore appliquée
+        // l'est à la fermeture, sans relancer l'application.
+        app.on("before-quit", () => this.installOnQuit());
+
+        this.scheduleCheck(FIRST_CHECK_DELAY_MS);
     }
 
     /**
@@ -69,9 +126,11 @@ export class UpdaterService {
      */
     public stopAutoCheck(): void {
         if (this.checkTimer !== null) {
-            clearInterval(this.checkTimer);
+            clearTimeout(this.checkTimer);
             this.checkTimer = null;
         }
+
+        this.stopIdleWatch();
     }
 
     /**
@@ -79,6 +138,37 @@ export class UpdaterService {
      */
     public getInfo(): UpdateInfo | null {
         return this.info;
+    }
+
+    /**
+     * Réglages de mise à jour exposés au renderer.
+     */
+    public getSettings(): UpdateSettings {
+        return {
+            autoUpdate: this.settings.get("autoUpdate"),
+            supported: this.canAutoInstall,
+        };
+    }
+
+    /**
+     * Active ou désactive l'installation automatique. Une mise à jour déjà
+     * trouvée est prise en charge aussitôt.
+     */
+    public setAutoUpdate(enabled: boolean): UpdateSettings {
+        this.settings.set("autoUpdate", enabled);
+
+        if (this.info) {
+            this.info = { ...this.info, autoInstall: this.autoInstallEnabled };
+        }
+
+        if (!enabled) {
+            this.stopIdleWatch();
+        }
+        else if (this.info?.isNewer) {
+            void this.prepareAutoInstall();
+        }
+
+        return this.getSettings();
     }
 
     /**
@@ -101,7 +191,8 @@ export class UpdaterService {
             version: manifest.version,
             releaseDate: manifest.releaseDate,
             isNewer: latest.compareTo(current) > 0,
-            canAutoInstall: environment.os === OSType.Windows,
+            canAutoInstall: this.canAutoInstall,
+            autoInstall: this.autoInstallEnabled,
             notes: manifest.notes,
         };
 
@@ -111,52 +202,29 @@ export class UpdaterService {
     }
 
     /**
-     * Télécharge, vérifie puis applique la mise à jour.
+     * Télécharge, vérifie puis applique la mise à jour, à la demande de l'utilisateur.
      *
-     * Sur Windows, l'installeur NSIS est lancé en mode silencieux et l'application
-     * se termine pour lui laisser remplacer ses fichiers. Ailleurs, le paquet exige
-     * une élévation que l'application ne peut pas obtenir seule : il est simplement
-     * révélé dans l'explorateur de fichiers.
+     * Sur Windows, l'installeur NSIS s'exécute en silence et relance l'application
+     * une fois installé. Ailleurs, le paquet exige une élévation que l'application
+     * ne peut pas obtenir seule : il est simplement révélé dans l'explorateur.
      *
      * @throws Error si aucune mise à jour n'est disponible, si le téléchargement
      *         échoue, ou si l'empreinte du fichier ne correspond pas au manifeste.
      */
     public async applyUpdate(): Promise<void> {
-        const manifest = this.manifest;
-
-        if (!manifest || !this.info?.isNewer) {
+        if (!this.manifest || !this.info?.isNewer) {
             throw new Error("No update available. Run a check first.");
         }
 
-        if (this.busy) {
-            throw new Error("An update is already being applied.");
+        const installerPath = await this.downloadOnce(this.manifest);
+
+        if (!this.canAutoInstall) {
+            Logger.info(`Installer downloaded to ${installerPath}; manual installation required on ${environment.os}.`);
+            shell.showItemInFolder(installerPath);
+            return;
         }
 
-        this.busy = true;
-
-        try {
-            const installerPath = await this.download(manifest);
-
-            if (environment.os !== OSType.Windows) {
-                Logger.info(`Installer downloaded to ${installerPath}; manual installation required on ${environment.os}.`);
-                shell.showItemInFolder(installerPath);
-                return;
-            }
-
-            Logger.info(`Launching installer: ${installerPath}`);
-
-            // `/S` : mode silencieux NSIS. Détaché et « unref » pour survivre à
-            // l'arrêt de l'application, qui doit libérer ses fichiers.
-            spawn(installerPath, ["/S"], {
-                detached: true,
-                stdio: "ignore",
-            }).unref();
-
-            app.quit();
-        }
-        finally {
-            this.busy = false;
-        }
+        this.install(installerPath, true);
     }
 
     /**
@@ -169,22 +237,193 @@ export class UpdaterService {
 
     // --- Helpers privés ---
 
+    /** Seul l'installeur NSIS (Windows) sait s'appliquer sans élévation. */
+    private get canAutoInstall(): boolean {
+        return environment.os === OSType.Windows;
+    }
+
+    private get autoInstallEnabled(): boolean {
+        return this.canAutoInstall && this.settings.get("autoUpdate");
+    }
+
+    private scheduleCheck(delay: number): void {
+        if (this.checkTimer !== null) {
+            clearTimeout(this.checkTimer);
+        }
+
+        this.checkTimer = setTimeout(() => void this.runScheduledCheck(), delay);
+    }
+
     /**
-     * Recherche silencieuse : notifie le renderer si une version plus récente
-     * existe, et se contente de journaliser en cas d'échec (réseau coupé,
-     * exécution hors ligne — rien qui doive interrompre l'utilisateur).
+     * Recherche périodique : notifie le renderer si une version plus récente
+     * existe, et ne fait que journaliser un échec (réseau coupé, exécution hors
+     * ligne — rien qui doive interrompre l'utilisateur). Un échec est retenté
+     * plus tôt que l'intervalle normal.
      */
-    private async checkSilently(): Promise<void> {
+    private async runScheduledCheck(): Promise<void> {
+        let next = CHECK_INTERVAL_MS;
+
         try {
             const info = await this.check();
 
             if (info.isNewer) {
                 this.broadcast("update-available", info);
+
+                if (info.autoInstall) {
+                    void this.prepareAutoInstall();
+                }
             }
         }
         catch (error) {
+            next = RETRY_DELAY_MS;
             Logger.warn(`Automatic update check failed: ${error instanceof Error ? error.message : String(error)}`);
         }
+
+        this.scheduleCheck(next);
+    }
+
+    /**
+     * Mode automatique : télécharge l'installeur tout de suite, puis attend un
+     * moment d'inactivité pour l'appliquer.
+     */
+    private async prepareAutoInstall(): Promise<void> {
+        const manifest = this.manifest;
+
+        if (!manifest || !this.autoInstallEnabled) {
+            return;
+        }
+
+        try {
+            await this.downloadOnce(manifest);
+        }
+        catch (error) {
+            // La mise à jour reste proposée à la main ; le téléchargement sera
+            // retenté à la prochaine recherche.
+            Logger.warn(`Background update download failed: ${error instanceof Error ? error.message : String(error)}`);
+            return;
+        }
+
+        this.startIdleWatch();
+    }
+
+    private startIdleWatch(): void {
+        if (this.idleTimer !== null) {
+            return;
+        }
+
+        const tryInstall = (): void => {
+            const installer = this.downloaded;
+
+            if (!this.autoInstallEnabled || !installer) {
+                this.stopIdleWatch();
+                return;
+            }
+
+            if (!this.isIdle()) {
+                return;
+            }
+
+            this.stopIdleWatch();
+            Logger.info(`Application idle: installing ${installer.version} automatically.`);
+            this.install(installer.path, true);
+        };
+
+        this.idleTimer = setInterval(tryInstall, IDLE_POLL_MS);
+        tryInstall();
+    }
+
+    private stopIdleWatch(): void {
+        if (this.idleTimer !== null) {
+            clearInterval(this.idleTimer);
+            this.idleTimer = null;
+        }
+    }
+
+    /**
+     * L'application peut-elle redémarrer sans gêner l'utilisateur ?
+     *
+     * Jamais avec une transaction ouverte : ses modifications seraient perdues.
+     * Sinon, quand aucune fenêtre n'est au premier plan (l'utilisateur travaille
+     * ailleurs) ou quand la machine est au repos depuis quelques minutes.
+     */
+    private isIdle(): boolean {
+        if (this.host?.isBusy() ?? true) {
+            return false;
+        }
+
+        return BrowserWindow.getFocusedWindow() === null || powerMonitor.getSystemIdleTime() >= SYSTEM_IDLE_SECONDS;
+    }
+
+    /**
+     * Mode automatique, fermeture de l'application avant tout moment
+     * d'inactivité : l'installation se fait maintenant, sans relancer.
+     */
+    private installOnQuit(): void {
+        if (this.installing || !this.autoInstallEnabled || !this.downloaded) {
+            return;
+        }
+
+        this.install(this.downloaded.path, false);
+    }
+
+    /**
+     * Lance l'installeur et ferme l'application pour qu'il remplace ses fichiers.
+     *
+     * Arguments de l'installeur NSIS d'electron-builder : `/S` l'exécute sans
+     * fenêtre ni question, `--updated` le signale comme une mise à jour et
+     * `--force-run` relance l'application une fois installée, ce que le mode
+     * silencieux ne fait pas sans lui.
+     *
+     * @param relaunch - Relancer l'application après l'installation.
+     */
+    private install(installerPath: string, relaunch: boolean): void {
+        if (this.installing) {
+            return;
+        }
+
+        this.installing = true;
+
+        // Les bases ouvertes sont rouvertes au redémarrage : une mise à jour
+        // automatique ne doit pas faire perdre à l'utilisateur ce qu'il consultait.
+        if (relaunch) {
+            this.settings.set("pendingRestore", this.host?.getRestorableFiles() ?? []);
+        }
+
+        const args = ["--updated", "/S", ...(relaunch ? ["--force-run"] : [])];
+
+        Logger.info(`Launching installer: ${installerPath} ${args.join(" ")}`);
+
+        // Détaché et « unref » pour survivre à l'arrêt de l'application, qui doit
+        // libérer ses fichiers.
+        spawn(installerPath, args, {
+            detached: true,
+            stdio: "ignore",
+        }).unref();
+
+        app.quit();
+    }
+
+    /**
+     * Télécharge l'installeur d'une version une seule fois, même si le mode
+     * automatique et l'utilisateur le demandent en même temps.
+     */
+    private async downloadOnce(manifest: UpdateManifest): Promise<string> {
+        if (this.downloaded?.version === manifest.version) {
+            return this.downloaded.path;
+        }
+
+        if (!this.downloading) {
+            this.downloading = this.download(manifest)
+                .then(path => {
+                    this.downloaded = { version: manifest.version, path };
+                    return path;
+                })
+                .finally(() => {
+                    this.downloading = null;
+                });
+        }
+
+        return await this.downloading;
     }
 
     /**
@@ -260,9 +499,7 @@ export class UpdaterService {
     /**
      * Diffuse un événement à toutes les fenêtres ouvertes.
      */
-    private broadcast(channel: string, payload: unknown): void {
-        for (const window of BrowserWindow.getAllWindows()) {
-            window.webContents.send(channel, payload);
-        }
+    private broadcast(event: string, payload: unknown): void {
+        inject(NoxSocket).emit(event, payload);
     }
 }

@@ -1,10 +1,27 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from "@angular/core";
 import { Router, RouterOutlet } from "@angular/router";
 import { AppState } from "@shared/types";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
-import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
+import { SESSION_DIFF_TAB_ID, SQL_EDITOR_TAB_ID, TabsService } from "src/app/core/services/tabs.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
 import { SidebarComponent } from "./core/components/sidebar/sidebar.component";
@@ -24,6 +41,7 @@ import { EntitySearchComponent } from "./shared/components/entity-search/entity-
 import { AlertController } from "@ui/alert/alert.controller";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
+import { SessionDiffService } from "src/app/core/services/session-diff.service";
 import { UpdateService } from "src/app/core/services/update.service";
 import { withTimeout } from "src/app/shared/helpers/global.helper";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
@@ -106,6 +124,7 @@ export class AppComponent {
     private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly storedProcService = inject(StoredProceduresService);
     private readonly updateService = inject(UpdateService);
+    private readonly sessionDiffService = inject(SessionDiffService);
     private readonly destroyRef = inject(DestroyRef);
 
     /**
@@ -142,6 +161,10 @@ export class AppComponent {
         // Le main recherche les mises à jour de lui-même ; on se contente d'écouter
         // pour proposer l'installation le moment venu.
         this.updateService.listen();
+
+        // Le journal des modifications de session vit dans le main : on suit ses
+        // compteurs en continu, le contenu n'est chargé que par la page dédiée.
+        this.sessionDiffService.listen();
 
         // Écouter l'événement "À propos" depuis le titlebar
         const onAbout = (): void => this.showAboutDialog();
@@ -392,6 +415,16 @@ export class AppComponent {
                 if (this.state.connected() && this.dbService.mutationHistory.canRedo()) {
                     this.dbService.redoLastMutation();
                 }
+            }
+        }
+
+        // Ctrl+Shift+D : ouvrir le diff de session
+        if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "D") {
+            event.preventDefault();
+            if (this.state.connected()) {
+                this.tabsService.openTab(SESSION_DIFF_TAB_ID);
+                this.dbService.selectedTable.set(null);
+                this.router.navigate(["/dashboard/session-diff"]);
             }
         }
 

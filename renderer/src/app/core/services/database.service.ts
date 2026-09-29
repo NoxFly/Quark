@@ -1,3 +1,20 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 import { inject, Injectable, signal } from "@angular/core";
 import { Router } from "@angular/router";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
@@ -17,8 +34,9 @@ import type {
 import { MutationHistoryService } from "src/app/core/services/mutation-history.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
+import { SessionDiffService } from "src/app/core/services/session-diff.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
-import { TabsService } from "src/app/core/services/tabs.service";
+import { getSpecialTab, TabsService } from "src/app/core/services/tabs.service";
 import * as pkg from "package.json";
 
 /**
@@ -31,6 +49,7 @@ export class DatabaseService {
     private readonly state = inject(StateService);
     private readonly router = inject(Router);
     private readonly storedProcService = inject(StoredProceduresService);
+    private readonly sessionDiffService = inject(SessionDiffService);
     public readonly mutationHistory = inject(MutationHistoryService);
     public readonly tabs = inject(TabsService);
 
@@ -59,7 +78,12 @@ export class DatabaseService {
     private readonly driverInfosCache = new Map<DatabaseDriverType, DriverInfo>();
 
     private currentOffset = 0;
-    private readonly pageSize = 50;
+
+    /**
+     * Lignes lues par page. Les lignes étant virtualisées, une page plus grande
+     * ne coûte plus en rendu et réduit le nombre d'allers-retours au défilement.
+     */
+    private readonly pageSize = 200;
 
     /**
      * Ouvre le dialogue de sélection de fichier et ouvre le fichier sélectionné.
@@ -172,6 +196,7 @@ export class DatabaseService {
             this.allRowsSelected.set(false);
             this.mutationHistory.clear();
             this.storedProcService.reset();
+            this.sessionDiffService.resetLocal();
             this.tabs.closeAll();
             this.router.navigate(["/open-database"]);
         }
@@ -344,7 +369,10 @@ export class DatabaseService {
      * Charge la page suivante (infinite scroll).
      */
     public async loadNextPage(): Promise<void> {
-        if (this.tableData().length >= this.totalCount()) {
+        // Chaque événement `scroll` proche de la fin appelle cette méthode : sans
+        // cette garde, la même page était demandée plusieurs fois, puis ajoutée
+        // en double.
+        if (this.loading() || this.tableData().length >= this.totalCount()) {
             return;
         }
 
@@ -979,6 +1007,14 @@ export class DatabaseService {
     }
 
     /**
+     * Lit une page supplémentaire d'un résultat SQL conservé par le main.
+     */
+    public async fetchSqlRows(resultId: string, offset: number, limit: number): Promise<unknown[][]> {
+        const { rows } = await this.noxus.ipc.fetchSqlRows({ resultId, offset, limit });
+        return rows;
+    }
+
+    /**
      * Récupère les index d'une table.
      */
     public async getIndexes(tableName: string): Promise<IndexDef[]> {
@@ -1056,6 +1092,26 @@ export class DatabaseService {
     }
 
     /**
+     * Active un onglet par son identifiant.
+     *
+     * Un onglet spécial (éditeur SQL, diff de session) ne désigne pas une table :
+     * le passer à `selectTable` provoquerait une requête sur une table inexistante.
+     *
+     * @param tableName - Identifiant porté par l'onglet.
+     */
+    public async activateTab(tableName: string): Promise<void> {
+        const special = getSpecialTab(tableName);
+
+        if (special) {
+            this.selectedTable.set(null);
+            await this.router.navigate([special.route]);
+            return;
+        }
+
+        await this.selectTable(tableName);
+    }
+
+    /**
      * Ferme l'onglet actif et bascule sur l'onglet adjacent.
      */
     public async closeActiveTab(): Promise<void> {
@@ -1065,7 +1121,7 @@ export class DatabaseService {
         }
         const nextTable = this.tabs.closeTab(activeIdx);
         if (nextTable) {
-            await this.selectTable(nextTable);
+            await this.activateTab(nextTable);
         }
         else {
             this.selectedTable.set(null);

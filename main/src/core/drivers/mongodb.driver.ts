@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import type { DatabaseCategory, DatabaseDriverType, DriverCapabilities, DriverInfo } from "@shared/driver";
@@ -195,13 +206,15 @@ export class MongodbDriver implements DatabaseDriver {
         }
 
         // Enlever "ORDER BY" du début
-        let clause = orderByClause.replace(/^\s*ORDER\s+BY\s+/i, "").trim();
+        const clause = orderByClause.replace(/^\s*ORDER\s+BY\s+/i, "").trim();
 
         // Splitter par les virgules
         const parts = clause.split(",").map(p => p.trim());
 
         for (const part of parts) {
-            if (!part) continue;
+            if (!part) {
+                continue;
+            }
 
             // Chercher "ASC" ou "DESC"
             const ascDescMatch = part.match(/^(\w+)\s+(ASC|DESC)$/i);
@@ -248,7 +261,7 @@ export class MongodbDriver implements DatabaseDriver {
                     query = JSON.parse(queryString.trim());
                     console.log("[MongoDB] JSON query parsed:", JSON.stringify(query));
                 }
-                catch (parseErr) {
+                catch {
                     // Essayer de convertir le format MongoDB (sans quotes autour des clés) en JSON strict
                     try {
                         const strictJson = queryString.trim().replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');

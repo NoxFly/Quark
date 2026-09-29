@@ -15,15 +15,13 @@
                 (dragleave)="onDragLeave()"
                 (drop)="onDrop($event, i)"
                 (dragend)="onDragEnd()"
-                [class.sql-editor-tab]="isSqlEditorTab(tab)"
-                [tooltip]="isSqlEditorTab(tab) ? i18n.t('tabs.sqlEditor') : tab.tableName">
-                @if (isSqlEditorTab(tab)) {
-                    <span class="tab-icon segoe-icon">&#xE943;</span>
-                    <span class="tab-label">{{ i18n.t('tabs.sqlEditor') }}</span>
+                [class.sql-editor-tab]="specialTab(tab) !== null"
+                [tooltip]="tabLabel(tab)">
+                @if (specialTab(tab); as special) {
+                    <span class="tab-icon segoe-icon">{{ special.icon }}</span>
                 }
-                @else {
-                    <span class="tab-label">{{ tab.tableName }}</span>
-                }
+
+                <span class="tab-label">{{ tabLabel(tab) }}</span>
                 <button
                     class="tab-close"
                     (click)="closeTab($event, i)"

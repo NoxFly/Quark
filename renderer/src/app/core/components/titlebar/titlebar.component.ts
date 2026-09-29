@@ -1,10 +1,27 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
 import { Router } from "@angular/router";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
-import { TabsService, SQL_EDITOR_TAB_ID } from "src/app/core/services/tabs.service";
+import { SESSION_DIFF_TAB_ID, SQL_EDITOR_TAB_ID, TabsService } from "src/app/core/services/tabs.service";
 import { UpdateService } from "src/app/core/services/update.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { ChangePasswordComponent } from "src/app/shared/components/change-password/change-password.component";
@@ -13,7 +30,6 @@ import { CreateTableComponent } from "src/app/shared/components/create-table/cre
 import { ImportDataComponent } from "src/app/shared/components/import-data/import-data.component";
 import { IndexViewerComponent } from "src/app/shared/components/index-viewer/index-viewer.component";
 import { SchemaEditorComponent } from "src/app/shared/components/schema-editor/schema-editor.component";
-import { TransactionDiffComponent } from "src/app/shared/components/transaction-diff/transaction-diff.component";
 import { DatabaseSchemaComponent } from "src/app/shared/components/database-schema/database-schema.component";
 import { ShortcutsComponent } from "src/app/shared/components/shortcuts/shortcuts.component";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
@@ -22,6 +38,8 @@ import type { UIDismissData } from "src/app/shared/ui/ui.types";
 interface MenuItem {
     label: string;
     shortcut?: string;
+    /** Élément à cocher : `true`/`false` affiche l'état, absent pour une simple action. */
+    checked?: boolean;
     action?: () => void;
     separator?: boolean;
     disabled?: boolean;
@@ -86,7 +104,6 @@ export class TitlebarComponent {
                 { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: isReadOnly || !connected || this.dbService.inTransaction() },
                 { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: isReadOnly || !this.dbService.inTransaction() },
                 { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: isReadOnly || !this.dbService.inTransaction() },
-                { label: t("menu.transactionDiff"), action: () => this.openTransactionDiff(), disabled: !this.dbService.inTransaction() },
             );
         }
 
@@ -125,6 +142,10 @@ export class TitlebarComponent {
                 { label: t("menu.erDiagram"), action: () => this.router.navigate(["/dashboard/er-diagram"]), disabled: !connected },
             );
         }
+
+        viewItems.push(
+            { label: t("menu.sessionDiff"), shortcut: "Ctrl+Shift+D", action: () => this.openSessionDiff(), disabled: !connected },
+        );
 
         if (viewItems.length > 0) {
             viewItems.push({ label: "", separator: true });
@@ -205,6 +226,12 @@ export class TitlebarComponent {
                 items: [
                     { label: t("menu.shortcuts"), action: () => this.openShortcuts() },
                     { label: t("menu.checkForUpdates"), action: () => void this.updateService.checkNow() },
+                    {
+                        label: t("menu.autoUpdate"),
+                        checked: this.updateService.settings().autoUpdate,
+                        disabled: !this.updateService.settings().supported,
+                        action: () => void this.updateService.toggleAutoUpdate(),
+                    },
                     { label: "", separator: true },
                     { label: t("menu.about"), action: () => this.openAbout() },
                 ],
@@ -275,6 +302,15 @@ export class TitlebarComponent {
         this.tabsService.openTab(SQL_EDITOR_TAB_ID);
         this.dbService.selectedTable.set(null);
         this.router.navigate(["/dashboard/sql-editor"]);
+    }
+
+    /**
+     * Ouvre le diff de session en tant qu'onglet dédié.
+     */
+    private openSessionDiff(): void {
+        this.tabsService.openTab(SESSION_DIFF_TAB_ID);
+        this.dbService.selectedTable.set(null);
+        this.router.navigate(["/dashboard/session-diff"]);
     }
 
     /**
@@ -451,20 +487,4 @@ export class TitlebarComponent {
         }
     }
 
-    /**
-     * Ouvre le modal de diff des mutations en attente.
-     */
-    private async openTransactionDiff(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: TransactionDiffComponent,
-            componentProps: {},
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<TransactionDiffComponent>();
-        if (comp) {
-            comp.dismiss = () => modal.dismiss();
-        }
-    }
 }

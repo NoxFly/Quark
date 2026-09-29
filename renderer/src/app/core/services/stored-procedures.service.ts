@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import { inject, Injectable, signal } from "@angular/core";
@@ -85,9 +96,12 @@ export class StoredProceduresService {
     public async execProcedure(name: string, schema: string, params: Record<string, unknown>): Promise<StoredProcedureExecResult> {
         const body: R_StoredProcExecBody = { name, schema, params };
         return await this.noxus.request<StoredProcedureExecResult>({
-            method: "GET",
+            method: "POST",
             path: "db/stored-procedure-exec",
             body,
+        }, {
+            // La durée d'une procédure dépend entièrement de la base.
+            timeout: 0,
         });
     }
 
@@ -97,7 +111,7 @@ export class StoredProceduresService {
     public async modifyProcedure(name: string, schema: string, definition: string): Promise<void> {
         const body: R_StoredProcModifyBody = { name, schema, definition };
         await this.noxus.request<void>({
-            method: "GET",
+            method: "POST",
             path: "db/stored-procedure-modify",
             body,
         });
@@ -109,7 +123,7 @@ export class StoredProceduresService {
     public async dropProcedure(name: string, schema: string): Promise<void> {
         const body: R_StoredProcDropBody = { name, schema };
         await this.noxus.request<void>({
-            method: "GET",
+            method: "POST",
             path: "db/stored-procedure-drop",
             body,
         });

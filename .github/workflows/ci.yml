@@ -1,0 +1,72 @@
+# Quark
+# Copyright (C) 2026 NoxFly
+#
+# FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+# modifier selon les termes de la GNU Affero General Public License, version 3,
+# telle que publiée par la Free Software Foundation. Il est distribué dans
+# l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+#
+# EN : This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License, version 3, as
+# published by the Free Software Foundation. It is distributed in the hope that
+# it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Vérifications d'une pull request vers `main` : typage, lint, tests.
+#
+# Le même workflow est appelé par `release.yml` avant toute publication : une
+# release ne part jamais d'un état que la PR n'aurait pas validé.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Un nouveau commit sur une PR annule la vérification précédente, devenue
+# obsolète ; un appel depuis la release n'est jamais annulé.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Typecheck, lint, tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            renderer/package-lock.json
+
+      # `postinstall` recompile le module natif SQLite pour l'ABI d'Electron :
+      # les tests le chargent ensuite sous le Node embarqué par Electron.
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install renderer dependencies
+        working-directory: renderer
+        run: npm ci
+
+      - name: Typecheck (main)
+        run: npm run typecheck
+
+      - name: Typecheck (renderer)
+        run: npm run typecheck:renderer
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test

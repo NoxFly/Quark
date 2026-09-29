@@ -1,3 +1,20 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 @use "src/theme/mixins.scss" as *;
 
 :host {
@@ -139,6 +156,8 @@
 
 // --- Table ---
 
+$row-height: 30px;
+
 .table-container {
     flex: 1;
     overflow: auto;
@@ -275,6 +294,27 @@ thead {
 }
 
 tbody {
+    // Espacement de la virtualisation : ni bordure ni survol, sinon sa hauteur
+    // ne correspondrait plus exactement à celle des lignes qu'il remplace.
+    tr.virtual-spacer {
+        border: 0;
+
+        &:hover {
+            background: none;
+        }
+
+        td {
+            padding: 0;
+            border: 0;
+        }
+    }
+
+    tr.data-row {
+        // Hauteur fixe : la virtualisation suppose des lignes de hauteur égale,
+        // y compris celle qui contient le champ d'édition.
+        height: $row-height;
+    }
+
     tr {
         border-bottom: 1px solid rgba(127, 127, 127, 0.08);
         transition: background 0.1s;
@@ -362,7 +402,7 @@ tbody {
 
         .cell-edit {
             width: 100%;
-            height: 36px;
+            height: $row-height - 1px;
             padding: 4px 10px;
             border: 1px solid var(--interactive);
             border-radius: 0;

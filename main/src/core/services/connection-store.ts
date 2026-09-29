@@ -1,11 +1,23 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import { app } from "electron/main";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type {
@@ -46,6 +58,7 @@ export class ConnectionStore {
     private masterPassword: string | null = null;
     private profiles: StoredProfile[] = [];
     private unlocked = false;
+    private pendingSave: Promise<void> = Promise.resolve();
 
     public constructor() {
         this.filePath = join(app.getPath("userData"), "connections.xml");
@@ -62,7 +75,7 @@ export class ConnectionStore {
      * Initialise un nouveau coffre vide protégé par un mot de passe maître.
      * @throws Si un coffre existe déjà.
      */
-    public initialize(masterPassword: string): void {
+    public async initialize(masterPassword: string): Promise<void> {
         if (existsSync(this.filePath)) {
             throw new Error("Connection vault already initialized");
         }
@@ -73,21 +86,21 @@ export class ConnectionStore {
         this.masterPassword = masterPassword;
         this.profiles = [];
         this.unlocked = true;
-        this.save();
+        await this.save();
     }
 
     /**
      * Déverrouille le coffre avec le mot de passe maître.
      * @returns `true` si le déverrouillage réussit, `false` si le mot de passe est incorrect.
      */
-    public unlock(masterPassword: string): boolean {
+    public async unlock(masterPassword: string): Promise<boolean> {
         if (!existsSync(this.filePath)) {
             return false;
         }
 
         try {
-            const xml = readFileSync(this.filePath, "utf-8");
-            const plaintext = decryptFromXml(xml, masterPassword);
+            const xml = await readFile(this.filePath, "utf-8");
+            const plaintext = await decryptFromXml(xml, masterPassword);
             this.profiles = this.parseProfiles(plaintext);
             this.masterPassword = masterPassword;
             this.unlocked = true;
@@ -122,7 +135,7 @@ export class ConnectionStore {
     /**
      * Crée un nouveau profil et retourne sa version publique.
      */
-    public create(input: ConnectionProfileInput): ConnectionProfile {
+    public async create(input: ConnectionProfileInput): Promise<ConnectionProfile> {
         this.ensureUnlocked();
 
         const now = Date.now();
@@ -135,7 +148,7 @@ export class ConnectionStore {
         };
 
         this.profiles.push(profile);
-        this.save();
+        await this.save();
         return this.toPublic(profile);
     }
 
@@ -144,7 +157,7 @@ export class ConnectionStore {
      * le secret inchangé ; une chaîne vide supprime le mot de passe.
      * @throws Si le profil n'existe pas.
      */
-    public update(id: string, input: ConnectionProfileInput): ConnectionProfile {
+    public async update(id: string, input: ConnectionProfileInput): Promise<ConnectionProfile> {
         this.ensureUnlocked();
 
         const existing = this.profiles.find(p => p.id === id);
@@ -162,17 +175,17 @@ export class ConnectionStore {
         };
 
         this.profiles = this.profiles.map(p => (p.id === id ? updated : p));
-        this.save();
+        await this.save();
         return this.toPublic(updated);
     }
 
     /**
      * Supprime un profil.
      */
-    public delete(id: string): void {
+    public async delete(id: string): Promise<void> {
         this.ensureUnlocked();
         this.profiles = this.profiles.filter(p => p.id !== id);
-        this.save();
+        await this.save();
     }
 
     /**
@@ -188,7 +201,7 @@ export class ConnectionStore {
      * Exporte les profils sélectionnés dans un document XML chiffré par `passphrase`.
      * Le chiffrement est indépendant du mot de passe maître pour permettre le partage.
      */
-    public exportProfiles(ids: string[], passphrase: string): string {
+    public async exportProfiles(ids: string[], passphrase: string): Promise<string> {
         this.ensureUnlocked();
         if (!passphrase) {
             throw new Error("Passphrase cannot be empty");
@@ -196,7 +209,7 @@ export class ConnectionStore {
 
         const selected = this.profiles.filter(p => ids.includes(p.id));
         const plaintext = this.serializeProfiles(selected);
-        return encryptToXml(plaintext, passphrase);
+        return await encryptToXml(plaintext, passphrase);
     }
 
     /**
@@ -206,10 +219,10 @@ export class ConnectionStore {
      * @returns Le nombre de profils importés.
      * @throws Si la passphrase est incorrecte.
      */
-    public importProfiles(xml: string, passphrase: string): number {
+    public async importProfiles(xml: string, passphrase: string): Promise<number> {
         this.ensureUnlocked();
 
-        const plaintext = decryptFromXml(xml, passphrase);
+        const plaintext = await decryptFromXml(xml, passphrase);
         const imported = this.parseProfiles(plaintext);
         const now = Date.now();
 
@@ -217,7 +230,7 @@ export class ConnectionStore {
             this.profiles.push({ ...profile, id: randomUUID(), createdAt: now, updatedAt: now });
         }
 
-        this.save();
+        await this.save();
         return imported.length;
     }
 
@@ -370,13 +383,23 @@ export class ConnectionStore {
     /**
      * Chiffre et écrit le coffre sur le disque.
      */
-    private save(): void {
+    private async save(): Promise<void> {
         if (this.masterPassword === null) {
             throw new Error("Cannot save a locked vault");
         }
 
         const plaintext = this.serializeProfiles(this.profiles);
-        const encrypted = encryptToXml(plaintext, this.masterPassword);
-        writeFileSync(this.filePath, encrypted, "utf-8");
+        const masterPassword = this.masterPassword;
+
+        // Les sauvegardes sont sérialisées : deux écritures concurrentes du même
+        // fichier pourraient laisser sur le disque l'état le plus ancien.
+        const write = this.pendingSave.then(async () => {
+            const encrypted = await encryptToXml(plaintext, masterPassword);
+            await writeFile(this.filePath, encrypted, "utf-8");
+        });
+
+        this.pendingSave = write.catch(() => undefined);
+
+        await write;
     }
 }

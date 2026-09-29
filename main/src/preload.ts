@@ -1,112 +1,33 @@
-import { contextBridge, ipcRenderer, webUtils } from "electron/renderer";
-import type {
-    ErrorDialogPayload,
-    IpcRendererBridge,
-    LoadAppResult,
-    TitlebarState,
-} from "@shared/ipc-renderer";
-import type { UpdateInfo, UpdateProgress } from "@shared/update";
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+
 import { exposeNoxusBridge } from "@noxfly/noxus/preload";
+import type { PreloadApi } from "@shared/ipc-renderer";
+import { contextBridge, webUtils } from "electron/renderer";
 
-// .invoke -> front sends to back
-// .on -> back sends to front
-
-const ensureLoadAppResult = async (): Promise<LoadAppResult> => {
-    const result = (await ipcRenderer.invoke("load-app")) as LoadAppResult;
-    return result;
-};
-
-const api: IpcRendererBridge = {
-    // window
-    requestReload: () => ipcRenderer.invoke("request-reload"),
-    close: () => ipcRenderer.invoke("close-app"),
-    reduce: () => ipcRenderer.invoke("reduce-app"),
-    toggleMaximize: () => ipcRenderer.invoke("toggle-maximize"),
-    toggleFullscreen: () => ipcRenderer.invoke("toggle-fullscreen"),
-    getTitlebarState: () => ipcRenderer.invoke("get-titlebar-state") as Promise<TitlebarState>,
-    newWindow: () => ipcRenderer.invoke("new-window"),
-    quitApp: () => ipcRenderer.invoke("quit-app"),
-    getFilePathFromDrop: (file: File) => webUtils.getPathForFile(file),
-
-    loadApp: () => ensureLoadAppResult(),
-
-    // File / DB
-    openFileDialog: () => ipcRenderer.invoke("open-file-dialog"),
-    openFile: (filePath) => ipcRenderer.invoke("db-open-file", filePath),
-    submitPassword: (password) => ipcRenderer.invoke("db-submit-password", password),
-    closeFile: () => ipcRenderer.invoke("db-close-file"),
-    refreshDatabase: () => ipcRenderer.invoke("db-refresh"),
-    getTableData: (body) => ipcRenderer.invoke("db-table-data", body),
-    updateCell: (body) => ipcRenderer.invoke("db-update-cell", body),
-    deleteRows: (body) => ipcRenderer.invoke("db-delete-rows", body),
-    insertRow: (body) => ipcRenderer.invoke("db-insert-row", body),
-    getRow: (body) => ipcRenderer.invoke("db-get-row", body),
-    transactionAction: (action) => ipcRenderer.invoke("db-transaction", action),
-    exportData: (body) => ipcRenderer.invoke("db-export", body),
-    getWindowState: () => ipcRenderer.invoke("get-window-state"),
-    execSql: (body) => ipcRenderer.invoke("db-exec-sql", body),
-    importData: (body) => ipcRenderer.invoke("db-import-data", body),
-    previewImport: (body) => ipcRenderer.invoke("db-preview-import", body),
-    getIndexes: (table) => ipcRenderer.invoke("db-get-indexes", table),
-    createIndex: (body) => ipcRenderer.invoke("db-create-index", body),
-    dropIndex: (name) => ipcRenderer.invoke("db-drop-index", name),
-    createTable: (body) => ipcRenderer.invoke("db-create-table", body),
-    alterTable: (action) => ipcRenderer.invoke("db-alter-table", action),
-    changePassword: (body) => ipcRenderer.invoke("db-change-password", body),
-    batchUpdate: (body) => ipcRenderer.invoke("db-batch-update", body),
-    dropTable: (tableName) => ipcRenderer.invoke("db-drop-table", tableName),
-    getTablesSql: () => ipcRenderer.invoke("db-get-tables-sql") as Promise<{ name: string; sql: string }[]>,
-    getRecentDatabases: () => ipcRenderer.invoke("get-recent-databases"),
-    setDriverType: (type) => ipcRenderer.invoke("db-set-driver-type", type),
-    connectNetwork: (body) => ipcRenderer.invoke("db-connect-network", body),
-    getSchema: () => ipcRenderer.invoke("db-get-schema"),
-    getAllDriverInfos: () => ipcRenderer.invoke("db-get-driver-infos"),
-
-    // Connections vault
-    connVaultStatus: () => ipcRenderer.invoke("conn-status"),
-    connInitialize: (masterPassword) => ipcRenderer.invoke("conn-initialize", masterPassword),
-    connUnlock: (masterPassword) => ipcRenderer.invoke("conn-unlock", masterPassword),
-    connLock: () => ipcRenderer.invoke("conn-lock"),
-    connList: () => ipcRenderer.invoke("conn-list"),
-    connCreate: (input) => ipcRenderer.invoke("conn-create", input),
-    connUpdate: (id, input) => ipcRenderer.invoke("conn-update", id, input),
-    connDelete: (id) => ipcRenderer.invoke("conn-delete", id),
-    connConnect: (id) => ipcRenderer.invoke("conn-connect", id),
-    connExport: (ids, passphrase) => ipcRenderer.invoke("conn-export", ids, passphrase),
-    connImport: (passphrase) => ipcRenderer.invoke("conn-import", passphrase),
-
-    // Events from main
-    onNavigationRequested: (cb) => {
-        ipcRenderer.removeAllListeners("navigate-to");
-        ipcRenderer.on("navigate-to", (_event, target: string) => cb(target));
-    },
-
-    onFileOpened: (cb) => {
-        ipcRenderer.removeAllListeners("open-file");
-        ipcRenderer.on("open-file", (_event, filePath: string) => cb(filePath));
-    },
-
-    onTitleChanged: (cb) => {
-        ipcRenderer.removeAllListeners("title-changed");
-        ipcRenderer.on("title-changed", (_event, title: string) => cb(title));
-    },
-
-    whenDisplayErrorDialog: (cb) => {
-        ipcRenderer.removeAllListeners("display-error-dialog");
-        ipcRenderer.on("display-error-dialog", (_event, error: ErrorDialogPayload) => cb(error));
-    },
-
-    onUpdateAvailable: (cb) => {
-        ipcRenderer.removeAllListeners("update-available");
-        ipcRenderer.on("update-available", (_event, info: UpdateInfo) => cb(info));
-    },
-
-    onUpdateProgress: (cb) => {
-        ipcRenderer.removeAllListeners("update-progress");
-        ipcRenderer.on("update-progress", (_event, progress: UpdateProgress) => cb(progress));
-    },
-};
-
-contextBridge.exposeInMainWorld("ipcRenderer", api);
-
+// Toute la communication avec le main passe par Noxus : le preload n'expose que
+// la poignée de main de son MessagePort, et ce que seul un preload peut faire.
 exposeNoxusBridge();
+
+const api: PreloadApi = {
+    // Le chemin d'un fichier déposé n'est accessible qu'au preload depuis que
+    // `File.path` a disparu, y compris dans un renderer sandboxé.
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
+};
+
+contextBridge.exposeInMainWorld("quark", api);

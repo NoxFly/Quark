@@ -1,3 +1,20 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 import { enableProdMode } from "@angular/core";
 import { bootstrapApplication } from "@angular/platform-browser";
 import { AppComponent } from "src/app/app.component";
@@ -43,7 +60,8 @@ function renderBootstrapFailure(error: unknown): void {
     reload.textContent = "Reload the application";
     reload.setAttribute("style", "margin-top:24px;padding:8px 18px;align-self:flex-start;cursor:pointer");
     reload.addEventListener("click", () => {
-        void window.ipcRenderer?.requestReload();
+        // Le pont Noxus n'est pas initialisé si Angular n'a pas démarré.
+        window.location.reload();
     });
 
     container.append(title, details, reload);

@@ -1,20 +1,41 @@
-import { Logger, WindowManager } from "@noxfly/noxus/main";
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+import { inject, Logger, NoxSocket, type WindowManager } from "@noxfly/noxus/main";
 import { shell } from "electron/common";
-import { BrowserWindow, BrowserWindowConstructorOptions, dialog, screen } from "electron/main";
+import { type BrowserWindow, type BrowserWindowConstructorOptions, dialog, screen } from "electron/main";
 import { join, basename } from "node:path";
 import { environment } from "src/core/environment";
-import type { DatabaseDriver } from "src/core/drivers/driver.interface";
-import { createDriver } from "src/core/drivers/driver-registry";
+import { RemoteDriver } from "src/core/driver-host/remote-driver";
 import type { DatabaseDriverType } from "@shared/driver";
-import type { DatabaseSchema } from "@shared/types";
+import type { ErrorDialogPayload } from "@shared/ipc-renderer";
+import type { SessionOpaqueCategory } from "@shared/session-diff";
+import type { DatabaseSchema, DbRecord, R_TransactionAction } from "@shared/types";
 import { AppEnv } from "src/core/env.dto";
+import { SessionDiff } from "src/core/services/session-diff";
 
 const defaultWindowOptions: BrowserWindowConstructorOptions = {
     webPreferences: {
         devTools: environment.env === AppEnv.DEVELOPMENT,
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: false, // false pour supporter File.path dans le drag & drop — sécurisé grâce à contextIsolation
+        // Le preload n'utilise que `contextBridge`, `ipcRenderer` et `webUtils` (chemin
+        // d'un fichier déposé), tous disponibles dans un renderer sandboxé.
+        sandbox: true,
         preload: join(environment.rootDir, "preload.js"),
         webSecurity: true,
     },
@@ -40,18 +61,47 @@ const defaultWindowOptions: BrowserWindowConstructorOptions = {
 const READY_TO_SHOW_FALLBACK_MS = 8_000;
 
 /**
+ * Au-delà de ce nombre de lignes, une opération en lot est journalisée comme une
+ * entrée récapitulative plutôt que ligne à ligne : capturer chaque image
+ * coûterait autant de requêtes que de lignes, pour un diff illisible.
+ */
+const BULK_DETAIL_LIMIT = 500;
+
+/**
  * 1 instance par fenêtre (renderer).
  * Chaque fenêtre gère une seule connexion DB via un driver interchangeable.
  */
 export class Window {
     private win: BrowserWindow | null = null;
-    private _database: DatabaseDriver = createDriver("sqlite");
+    /**
+     * Driver de la fenêtre. Il s'exécute dans un utilityProcess dédié : une
+     * requête lourde ou un client bloqué ne gèle ni le main ni les autres fenêtres.
+     */
+    private readonly _database = new RemoteDriver(wasOpen => this.onDriverCrash(wasOpen));
+    private readonly socket = inject(NoxSocket);
+    private readonly _sessionDiff = new SessionDiff();
     private showFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /**
+     * Identifiants mémorisés à la création : ils doivent rester lisibles après la
+     * destruction de la `BrowserWindow`, pour désenregistrer la fenêtre.
+     */
+    private windowId = -1;
+    private webContentsId = -1;
+
+    /**
+     * Base à ouvrir dès que le renderer de cette fenêtre est prêt.
+     *
+     * Le fichier est attaché à la fenêtre plutôt qu'à l'application : deux
+     * fenêtres peuvent démarrer en parallèle, et un compteur unique verrait la
+     * seconde consommer le fichier destiné à la première.
+     */
+    private pendingFile: string | null = null;
 
     /**
      * Retourne le driver de base de données actif.
      */
-    public get database(): DatabaseDriver {
+    public get database(): RemoteDriver {
         return this._database;
     }
 
@@ -60,18 +110,28 @@ export class Window {
      * Ferme le driver actuel si une connexion est ouverte.
      */
     public async setDriverType(type: DatabaseDriverType): Promise<void> {
-        if (this._database.isOpen) {
-            await this._database.close();
-        }
-        this._database = createDriver(type);
+        // L'hôte ferme lui-même la connexion en cours avant de changer de driver.
+        await this._database.switchTo(type);
+        this._sessionDiff.reset();
     }
 
     /**
+     * Crée une fenêtre et charge son document.
      *
+     * @param windowManager - Gestionnaire de fenêtres Noxus.
+     * @param onCreated - Appelé dès que la `BrowserWindow` existe, avant le
+     * chargement du document. C'est le seul moment où l'appelant peut enregistrer
+     * la fenêtre avant que son renderer ne commence à émettre des requêtes IPC :
+     * enregistrée après le chargement, elle resterait introuvable par `senderId`
+     * pendant toute son initialisation.
      */
-    public static async create(windowManager: WindowManager): Promise<Window> {
-        const window = new Window(windowManager);
-        await window.instantiate();
+    public static async create(
+        windowManager: WindowManager,
+        onCreated?: (window: Window) => void,
+        onClosed?: (window: Window) => void,
+    ): Promise<Window> {
+        const window = new Window(windowManager, onClosed);
+        await window.instantiate(onCreated);
         return window;
     }
 
@@ -80,27 +140,42 @@ export class Window {
      */
     private constructor(
         private readonly windowManager: WindowManager,
+        private readonly onClosed?: (window: Window) => void,
     ) {}
 
     /**
      *
      */
     public get id(): number {
-        return this.win?.id ?? -1;
+        return this.windowId;
     }
 
     /**
      * Retourne le webContents.id (senderId pour Noxus).
      */
     public get senderId(): number {
-        return this.win?.webContents?.id ?? -1;
+        return this.webContentsId;
     }
 
     /**
      *
      */
+    /**
+     * Fenêtre native, pour parenter un dialogue. `null` une fois fermée.
+     */
+    public get browserWindow(): BrowserWindow | null {
+        return this.win;
+    }
+
     public get isFocused(): boolean {
         return this.win?.isFocused() ?? false;
+    }
+
+    /**
+     * Journal des modifications de la session de connexion courante.
+     */
+    public get sessionDiff(): SessionDiff {
+        return this._sessionDiff;
     }
 
     /**
@@ -110,6 +185,7 @@ export class Window {
         const needsPassword = await this.database.open(filePath);
 
         if (!needsPassword) {
+            this.beginDiffSession();
             this.updateTitle();
         }
 
@@ -121,6 +197,7 @@ export class Window {
      */
     public async unlockDatabase(password: string): Promise<void> {
         await this.database.unlock(password);
+        this.beginDiffSession();
         this.updateTitle();
     }
 
@@ -129,7 +206,250 @@ export class Window {
      */
     public async closeDatabase(): Promise<void> {
         await this.database.close();
+        this._sessionDiff.reset();
+        this.notifySessionDiffChanged();
         this.updateTitle();
+    }
+
+    /**
+     * Vide le journal et redéfinit son point de référence sur l'état actuel de la
+     * base, sans toucher aux données.
+     */
+    public restartDiffSession(): void {
+        this._sessionDiff.start(this.database.path);
+        this.notifySessionDiffChanged();
+    }
+
+    /**
+     * Ferme puis rouvre la même base sans interrompre le suivi des modifications.
+     *
+     * Un rafraîchissement relit la base ; il ne recommence pas la session de
+     * l'utilisateur, et repartir d'un diff vide lui ferait perdre l'historique
+     * de tout ce qu'il a modifié depuis l'ouverture.
+     *
+     * @param filePath - Chemin ou URI de la base à rouvrir.
+     * @returns `true` si un mot de passe est nécessaire.
+     */
+    public async reopenDatabase(filePath: string): Promise<boolean> {
+        await this.database.close();
+
+        const needsPassword = await this.database.open(filePath);
+
+        this.updateTitle();
+
+        return needsPassword;
+    }
+
+    /**
+     * Démarre le suivi des modifications pour la connexion qui vient de s'ouvrir.
+     *
+     * Le diff couvre la session entière et non la transaction courante : le point
+     * de référence est donc l'ouverture de la base, pas un `BEGIN`.
+     */
+    private beginDiffSession(): void {
+        const source = this.database.path;
+
+        // Réouverture technique de la même base (saisie du mot de passe après un
+        // rafraîchissement) : le journal doit survivre, pas repartir de zéro.
+        if (this._sessionDiff.isTracking(source)) {
+            return;
+        }
+
+        this._sessionDiff.start(source);
+        this.notifySessionDiffChanged();
+    }
+
+    /**
+     * Le process du driver s'est arrêté : la connexion est perdue. Le journal
+     * de session décrivait une connexion qui n'existe plus.
+     */
+    private onDriverCrash(wasOpen: boolean): void {
+        this._sessionDiff.reset();
+        this.notifySessionDiffChanged();
+        this.updateTitle();
+
+        if (wasOpen) {
+            this.sendToRenderer("display-error-dialog", {
+                title: "Connection lost",
+                message: "The database driver stopped unexpectedly and the connection was closed. Reopen the database to continue.",
+            } satisfies ErrorDialogPayload);
+        }
+    }
+
+    /**
+     * Informe le renderer que le diff de session a changé, sans lui transmettre
+     * son contenu : la page ne recharge l'instantané complet que si elle est ouverte.
+     */
+    private notifySessionDiffChanged(): void {
+        this.sendToRenderer("session-diff-changed", this._sessionDiff.getSummary());
+    }
+
+    /**
+     * Applique une action de transaction et aligne le journal sur la base.
+     *
+     * Le diff couvre la session et non la transaction : il enregistre donc les
+     * écritures en attente comme les autres. Mais un `ROLLBACK` les annule
+     * réellement, et le journal doit revenir en arrière avec la base — sinon il
+     * afficherait des modifications qui n'existent plus.
+     *
+     * @param action - `begin`, `commit` ou `rollback`.
+     */
+    public async transactionAction(action: R_TransactionAction): Promise<void> {
+        switch (action) {
+            case "begin":
+                await this.database.beginTransaction();
+                this._sessionDiff.beginTransaction();
+                break;
+
+            case "commit":
+                await this.database.commit();
+                this._sessionDiff.commitTransaction();
+                break;
+
+            case "rollback":
+                await this.database.rollback();
+                this._sessionDiff.rollbackTransaction();
+                break;
+        }
+
+        this.notifySessionDiffChanged();
+    }
+
+    /**
+     * Lit une ligne sans laisser une erreur de driver interrompre la mutation
+     * qu'elle accompagne : le diff est une commodité, jamais une raison d'échouer.
+     */
+    private async captureRow(table: string, rowid: number): Promise<DbRecord | null> {
+        try {
+            return await this.database.getRow(table, rowid);
+        }
+        catch (error) {
+            Logger.warn(`Session diff: unable to capture ${table}#${rowid}: ${errorMessage(error)}`);
+            return null;
+        }
+    }
+
+    /**
+     * Lit un lot de lignes pour le journal, dans la limite du seuil de détail.
+     * @returns Les images lues, indexées par rowid, ou `null` si le lot dépasse le seuil.
+     */
+    private async captureRows(table: string, rowids: number[]): Promise<Map<number, DbRecord | null> | null> {
+        if (rowids.length > BULK_DETAIL_LIMIT) {
+            return null;
+        }
+
+        const images = new Map<number, DbRecord | null>();
+
+        for (const rowid of rowids) {
+            images.set(rowid, await this.captureRow(table, rowid));
+        }
+
+        return images;
+    }
+
+    /**
+     * Modifie une cellule et enregistre l'effet dans le diff de session.
+     */
+    public async updateCell(table: string, rowid: number, column: string, value: unknown): Promise<void> {
+        const before = await this.captureRow(table, rowid);
+        await this.database.updateCell(table, rowid, column, value);
+        const after = await this.captureRow(table, rowid);
+
+        this._sessionDiff.recordUpdate(table, rowid, before, after);
+        this.notifySessionDiffChanged();
+    }
+
+    /**
+     * Applique la même valeur à plusieurs lignes et enregistre l'effet dans le diff.
+     */
+    public async batchUpdate(table: string, rowids: number[], column: string, value: unknown): Promise<void> {
+        const before = await this.captureRows(table, rowids);
+
+        await this.database.batchUpdate(table, rowids, column, value);
+
+        if (!before) {
+            this._sessionDiff.recordOpaque({
+                category: "bulk",
+                label: `Batch update on ${table}`,
+                detail: `${column} = ${formatValue(value)}`,
+                table,
+                rowsAffected: rowids.length,
+            });
+
+            // Les lignes déjà au journal doivent rester justes : on relit leur seule
+            // image courante. Les autres restent couvertes par l'entrée ci-dessus.
+            for (const rowid of this._sessionDiff.trackedRowIds(table, rowids)) {
+                const after = await this.captureRow(table, rowid);
+                this._sessionDiff.recordUpdate(table, rowid, null, after);
+            }
+        }
+        else {
+            for (const rowid of rowids) {
+                const after = await this.captureRow(table, rowid);
+                this._sessionDiff.recordUpdate(table, rowid, before.get(rowid) ?? null, after);
+            }
+        }
+
+        this.notifySessionDiffChanged();
+    }
+
+    /**
+     * Supprime des lignes et enregistre l'effet dans le diff de session.
+     */
+    public async deleteRows(table: string, rowids: number[]): Promise<void> {
+        const before = await this.captureRows(table, rowids);
+
+        await this.database.deleteRows(table, rowids);
+
+        if (!before) {
+            this._sessionDiff.recordOpaque({
+                category: "bulk",
+                label: `Bulk delete on ${table}`,
+                detail: `${rowids.length} rows deleted`,
+                table,
+                rowsAffected: rowids.length,
+            });
+
+            // Les lignes déjà au journal portent leur image d'origine : elles
+            // deviennent des suppressions plutôt que de rester à un état obsolète.
+            this._sessionDiff.markTrackedAsDeleted(table, rowids);
+        }
+        else {
+            for (const rowid of rowids) {
+                this._sessionDiff.recordDelete(table, rowid, before.get(rowid) ?? null);
+            }
+        }
+
+        this.notifySessionDiffChanged();
+    }
+
+    /**
+     * Insère une ligne et enregistre l'effet dans le diff de session.
+     * @returns Le rowid créé et l'image de la ligne insérée.
+     */
+    public async insertRow(table: string, values: Record<string, unknown>): Promise<{ rowid: number; record: DbRecord | null }> {
+        const rowid = await this.database.insertRow(table, values);
+        const record = await this.captureRow(table, rowid);
+
+        this._sessionDiff.recordInsert(table, rowid, record);
+        this.notifySessionDiffChanged();
+
+        return { rowid, record };
+    }
+
+    /**
+     * Enregistre dans le diff une opération dont l'effet ligne à ligne n'est pas
+     * capturé (SQL brut, DDL, import de masse).
+     */
+    public recordOpaqueChange(change: {
+        category: SessionOpaqueCategory;
+        label: string;
+        detail: string;
+        table?: string | null;
+        rowsAffected?: number | null;
+    }): void {
+        this._sessionDiff.recordOpaque(change);
+        this.notifySessionDiffChanged();
     }
 
     /**
@@ -153,16 +473,41 @@ export class Window {
         const dbPath = this.database.path;
         const title = dbPath ? basename(dbPath) : "";
         this.win.setTitle(title);
-        this.win.webContents.send("title-changed", title);
+        this.sendToRenderer("title-changed", title);
     }
 
     /**
-     * Pousse un événement vers le renderer de cette fenêtre.
-     * @param channel - Canal IPC écouté côté preload.
+     * Met une base en attente pour cette fenêtre, à ouvrir dès son renderer prêt.
+     * @param filePath - Chemin de la base, ou `null` pour ne rien mettre en attente.
+     */
+    public setPendingFile(filePath: string | null): void {
+        this.pendingFile = filePath;
+    }
+
+    /**
+     * Retourne la base en attente et la consomme.
+     */
+    public takePendingFile(): string | null {
+        const pending = this.pendingFile;
+        this.pendingFile = null;
+
+        return pending;
+    }
+
+    /**
+     * Pousse un événement vers le renderer de cette fenêtre, par le socket Noxus.
+     * @param event - Nom de l'événement écouté par le renderer.
      * @param payload - Données transmises au renderer.
      */
-    public sendToRenderer(channel: string, ...payload: unknown[]): void {
-        this.win?.webContents.send(channel, ...payload);
+    public sendToRenderer(event: string, payload?: unknown): void {
+        if (!this.win) {
+            return;
+        }
+
+        // Le canal n'existe qu'une fois la poignée de main Noxus faite : un
+        // événement émis avant est sans destinataire, comme l'était un
+        // `webContents.send` sans écouteur.
+        this.socket.emitToRenderer(this.senderId, event, payload);
     }
 
     /**
@@ -177,13 +522,17 @@ export class Window {
             this.win.restore();
         }
 
+        // `show()` avant `focus()` : une fenêtre encore masquée — celle dont le
+        // premier rendu n'a pas abouti — ne se met pas au premier plan sur le seul
+        // appel à `focus()`, et l'utilisateur ne voit rien apparaître.
+        this.win.show();
         this.win.focus();
     }
 
     /**
      *
      */
-    private async instantiate(): Promise<void> {
+    private async instantiate(onCreated?: (window: Window) => void): Promise<void> {
         if (this.win) {
             return;
         }
@@ -201,11 +550,15 @@ export class Window {
         }, true);
 
         this.win = win;
+        this.windowId = win.id;
+        this.webContentsId = win.webContents.id;
 
         // Les écouteurs de cycle de vie sont posés une seule fois pour la durée de vie
         // de la fenêtre : `load()` peut être rappelé (Ctrl+Alt+R) et les réenregistrer
         // à chaque passage accumulerait des écouteurs sur le même émetteur.
         this.registerLifecycleHandlers(win);
+
+        onCreated?.(this);
 
         await this.load();
     }
@@ -218,9 +571,8 @@ export class Window {
             return;
         }
 
-        this.clearShowFallback();
+        // L'écouteur `closed` libère le driver et désenregistre la fenêtre.
         this.win.close();
-        this.win = null;
     }
 
     /**
@@ -300,6 +652,16 @@ export class Window {
      * l'utilisateur, aucune trace exploitable dans les logs.
      */
     private registerLifecycleHandlers(win: BrowserWindow): void {
+        // Une fermeture native (Alt+F4, barre des tâches) ne passe pas par
+        // `close()` : sans cet écouteur, la fenêtre resterait référencée et son
+        // process de driver continuerait de tourner.
+        win.once("closed", () => {
+            this.clearShowFallback();
+            this.win = null;
+            void this._database.dispose();
+            this.onClosed?.(this);
+        });
+
         win.on("ready-to-show", () => {
             this.clearShowFallback();
             win.show();
@@ -466,7 +828,7 @@ export class Window {
         }
 
         if (launchPage) {
-            win.webContents.send("navigate-to", launchPage);
+            this.sendToRenderer("navigate-to", launchPage);
         }
     }
 
@@ -483,4 +845,26 @@ export class Window {
     public async reloadRenderer(): Promise<void> {
         await this.load();
     }
+}
+
+/**
+ * Extrait un message lisible d'une erreur de driver.
+ */
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Rend une valeur de cellule lisible dans le libellé d'une entrée de diff.
+ */
+function formatValue(value: unknown): string {
+    if (value === null || value === undefined) {
+        return "NULL";
+    }
+
+    if (typeof value === "string") {
+        return `"${value}"`;
+    }
+
+    return String(value);
 }

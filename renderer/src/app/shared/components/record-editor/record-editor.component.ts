@@ -1,7 +1,18 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import {
@@ -18,6 +29,7 @@ import { InputComponent } from "@ui/input/input.component";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import type { DbRecord, FieldDef } from "@shared/types";
 
 /**
@@ -32,7 +44,25 @@ interface FormField {
     def: FieldDef;
     value: string;
     disabled: boolean;
+    /** Texte indicatif affiché dans le champ vide. */
+    placeholder: string;
+    /** Le formulaire a rempli ou réservé cette valeur ; l'utilisateur n'a rien à saisir. */
+    autoFilled: boolean;
 }
+
+/**
+ * Ce que le formulaire doit faire de la clé primaire lors d'une création.
+ *
+ * - `autoincrement` : `INTEGER PRIMARY KEY` est l'alias du rowid ; SQLite
+ *   attribue la valeur dès que la colonne est omise de l'insertion.
+ * - `uuid` : la colonne porte des identifiants générés côté application ; le
+ *   formulaire en produit un nouveau plutôt que de le demander à l'utilisateur.
+ * - `manual` : identifiant métier (un code, une référence) : à saisir.
+ */
+type PrimaryKeyKind = "autoincrement" | "uuid" | "manual";
+
+/** UUID canonique, tel que produit par `crypto.randomUUID()`. */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Composant injecté dans un modal pour éditer, créer ou dupliquer un record.
@@ -43,7 +73,7 @@ interface FormField {
     templateUrl: "./record-editor.component.html",
     styleUrl: "./record-editor.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent, InputComponent],
+    imports: [FormsModule, ButtonComponent, InputComponent, TooltipDirective],
 })
 export class RecordEditorComponent implements OnInit {
     private readonly dbService = inject(DatabaseService);
@@ -71,28 +101,111 @@ export class RecordEditorComponent implements OnInit {
 
         const formFields: FormField[] = fieldDefs.map(def => {
             let value = "";
-            let disabled = false;
 
             if (currentRecord && (currentMode === "edit" || currentMode === "duplicate")) {
                 const rawVal = currentRecord[def.name];
                 value = rawVal === null || rawVal === undefined ? "" : String(rawVal);
             }
 
-            // En mode create/duplicate, on désactive la PK auto-incrémentée
-            if (def.pk && currentMode !== "edit") {
-                disabled = true;
-                value = "";
+            if (!def.pk) {
+                return { def, value, disabled: false, placeholder: this.getPlaceholder(def), autoFilled: false };
             }
 
-            // En mode edit, la PK est toujours en lecture seule
-            if (def.pk && currentMode === "edit") {
-                disabled = true;
+            // En mode edit, la PK identifie la ligne : elle reste en lecture seule.
+            if (currentMode === "edit") {
+                return { def, value, disabled: true, placeholder: this.getPlaceholder(def), autoFilled: false };
             }
 
-            return { def, value, disabled };
+            return this.buildPrimaryKeyField(def);
         });
 
         this.formFields.set(formFields);
+    }
+
+    /**
+     * Construit le champ d'une clé primaire pour une création ou une duplication.
+     *
+     * Toutes les clés primaires étaient jusqu'ici désactivées et omises de
+     * l'insertion, en supposant qu'elles étaient auto-incrémentées. Une clé
+     * textuelle échouait donc sur sa contrainte NOT NULL, sans que l'utilisateur
+     * puisse la renseigner.
+     */
+    private buildPrimaryKeyField(def: FieldDef): FormField {
+        switch (this.detectPrimaryKeyKind(def)) {
+            case "autoincrement":
+                // Omise de l'insertion : c'est SQLite qui attribue la valeur.
+                return {
+                    def,
+                    value: "",
+                    disabled: true,
+                    placeholder: this.i18n.t("editor.autoAssigned"),
+                    autoFilled: true,
+                };
+
+            case "uuid":
+                // Généré ici et non à l'envoi : l'utilisateur voit la valeur qui
+                // sera écrite, et reste libre de la remplacer.
+                return {
+                    def,
+                    value: randomUuid(),
+                    disabled: false,
+                    placeholder: this.getPlaceholder(def),
+                    autoFilled: true,
+                };
+
+            case "manual":
+                return {
+                    def,
+                    value: "",
+                    disabled: false,
+                    placeholder: this.getPlaceholder(def),
+                    autoFilled: false,
+                };
+        }
+    }
+
+    /**
+     * Détermine comment la valeur d'une clé primaire doit être obtenue.
+     */
+    private detectPrimaryKeyKind(def: FieldDef): PrimaryKeyKind {
+        if (def.type.toUpperCase().includes("INT")) {
+            return "autoincrement";
+        }
+
+        return this.columnHoldsUuid(def.name) ? "uuid" : "manual";
+    }
+
+    /**
+     * Indique si une colonne porte des UUID.
+     *
+     * Le type SQL ne le dit pas : la preuve vient des données. La ligne dupliquée
+     * fait foi quand elle existe, sinon les lignes déjà chargées de la table.
+     *
+     * @param column - Nom de la colonne à examiner.
+     */
+    private columnHoldsUuid(column: string): boolean {
+        const source = this.record()?.[column];
+
+        if (typeof source === "string") {
+            return UUID_PATTERN.test(source);
+        }
+
+        for (const row of this.dbService.tableData()) {
+            const value = row[column];
+
+            if (typeof value === "string") {
+                return UUID_PATTERN.test(value);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Remplace la valeur d'un champ par un nouvel UUID.
+     */
+    protected regenerateUuid(index: number): void {
+        this.onFieldChange(index, randomUuid());
     }
 
     /**
@@ -199,7 +312,7 @@ export class RecordEditorComponent implements OnInit {
     /**
      * Retourne le placeholder pour un champ.
      */
-    protected getPlaceholder(field: FieldDef): string {
+    private getPlaceholder(field: FieldDef): string {
         const parts: string[] = [field.type];
 
         if (field.notnull) {
@@ -216,4 +329,32 @@ export class RecordEditorComponent implements OnInit {
 
         return parts.join(" | ");
     }
+}
+
+/**
+ * Produit un UUID v4.
+ *
+ * `crypto.randomUUID` exige un contexte sécurisé ; le repli couvre le cas où il
+ * ne l'est pas, plutôt que de laisser le formulaire échouer sur une exception.
+ */
+function randomUuid(): string {
+    if (typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
+
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+
+    // Version 4 et variante RFC 4122.
+    bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+    bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+
+    const hex = [...bytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
+
+    return [
+        hex.slice(0, 8),
+        hex.slice(8, 12),
+        hex.slice(12, 16),
+        hex.slice(16, 20),
+        hex.slice(20),
+    ].join("-");
 }

@@ -1,10 +1,33 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from "@angular/core";
+import {
+    afterNextRender,
+    afterRenderEffect,
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    ElementRef,
+    inject,
+    signal,
+    viewChild,
+} from "@angular/core";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
@@ -14,6 +37,13 @@ import type { R_SqlExecResponse } from "@shared/types";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { ButtonComponent } from "@ui/button/button.component";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
+import { VirtualRows } from "src/app/shared/helpers/virtual-rows.helper";
+
+/** Lignes demandées au main à chaque page supplémentaire. */
+const RESULT_PAGE_SIZE = 1000;
+
+/** Hauteur de ligne attendue (voir la feuille de style), avant mesure. */
+const ESTIMATED_ROW_HEIGHT = 29;
 
 /** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
 declare const monaco: typeof import("monaco-editor");
@@ -43,6 +73,7 @@ export class SqlEditorPage {
     private readonly destroyRef = inject(DestroyRef);
 
     private readonly editorContainerRef = viewChild<ElementRef<HTMLDivElement>>("monacoContainer");
+    private readonly resultsContainerRef = viewChild<ElementRef<HTMLDivElement>>("resultsContainer");
 
     protected readonly result = signal<R_SqlExecResponse | null>(null);
     protected readonly errorMessage = signal<string | null>(null);
@@ -62,11 +93,25 @@ export class SqlEditorPage {
     /** Nombre de colonnes du résultat. */
     protected readonly resultColumns = computed(() => this.result()?.columns ?? []);
 
-    /** Lignes du résultat (toutes, scroll infini via overflow: auto sur le wrapper). */
-    protected readonly resultRows = computed(() => this.result()?.rows ?? []);
+    /**
+     * Lignes du résultat déjà rapatriées. Le main n'envoie que la première page ;
+     * les suivantes sont demandées au fil du défilement.
+     */
+    protected readonly resultRows = signal<unknown[][]>([]);
 
-    /** Nombre total de lignes du résultat. */
-    protected readonly totalResultRows = computed(() => this.result()?.rows.length ?? 0);
+    /** Nombre total de lignes du résultat, rapatriées ou non. */
+    protected readonly totalResultRows = computed(() => this.result()?.totalRows ?? this.resultRows().length);
+
+    /** Seules les lignes visibles sont rendues. */
+    protected readonly virtual = new VirtualRows(computed(() => this.resultRows().length), ESTIMATED_ROW_HEIGHT);
+
+    protected readonly visibleRows = computed(() => {
+        const { start, end } = this.virtual.range();
+        return this.resultRows().slice(start, end);
+    });
+
+    /** Une page supplémentaire est en cours de lecture. */
+    private fetchingRows = false;
 
     /** Retourne true si le résultat est un SELECT. */
     protected readonly isSelectResult = computed(() => this.result()?.isSelect === true);
@@ -82,6 +127,26 @@ export class SqlEditorPage {
 
     public constructor() {
         afterNextRender(() => this.initMonaco());
+
+        // Hauteur réelle d'une ligne, mesurée une fois rendue.
+        afterRenderEffect(() => {
+            this.visibleRows();
+            this.virtual.measure(this.resultsContainerRef()?.nativeElement.querySelector<HTMLElement>("tr.data-row"));
+        });
+
+        // Le conteneur des résultats n'existe que lorsqu'un SELECT a répondu : on
+        // suit sa taille à chaque fois qu'il apparaît.
+        effect(onCleanup => {
+            const container = this.resultsContainerRef()?.nativeElement;
+
+            if (!container) {
+                return;
+            }
+
+            const observer = new ResizeObserver(() => this.virtual.onScroll(container));
+            observer.observe(container);
+            onCleanup(() => observer.disconnect());
+        });
 
         // Réagir aux changements de thème pour mettre à jour Monaco.
         effect(() => {
@@ -132,10 +197,13 @@ export class SqlEditorPage {
         this.isExecuting.set(true);
         this.errorMessage.set(null);
         this.result.set(null);
+        this.resultRows.set([]);
+        this.virtual.reset(this.resultsContainerRef()?.nativeElement);
 
         try {
             const response = await this.dbService.execSql(sql);
             this.result.set(response);
+            this.resultRows.set(response.rows);
             this.addToHistory(sql);
         }
         catch (err) {
@@ -151,7 +219,50 @@ export class SqlEditorPage {
      */
     protected clearResult(): void {
         this.result.set(null);
+        this.resultRows.set([]);
         this.errorMessage.set(null);
+    }
+
+    /**
+     * Défilement des résultats : met à jour la plage rendue et rapatrie la page
+     * suivante à l'approche de la fin des lignes chargées.
+     */
+    protected onResultsScroll(event: Event): void {
+        this.virtual.onScroll(event.target as HTMLElement);
+
+        if (this.virtual.isNearEnd(200)) {
+            void this.loadMoreRows();
+        }
+    }
+
+    /**
+     * Rapatrie la page suivante du résultat conservé par le main.
+     */
+    private async loadMoreRows(): Promise<void> {
+        const result = this.result();
+        const loaded = this.resultRows().length;
+
+        if (this.fetchingRows || !result?.resultId || loaded >= this.totalResultRows()) {
+            return;
+        }
+
+        this.fetchingRows = true;
+
+        try {
+            const rows = await this.dbService.fetchSqlRows(result.resultId, loaded, RESULT_PAGE_SIZE);
+
+            // La requête a pu être relancée pendant la lecture : cette page
+            // appartient alors à un résultat qui n'est plus affiché.
+            if (this.result() === result) {
+                this.resultRows.update(existing => existing.concat(rows));
+            }
+        }
+        catch (err) {
+            this.errorMessage.set(extractIpcErrorMessage(err));
+        }
+        finally {
+            this.fetchingRows = false;
+        }
     }
 
     /**

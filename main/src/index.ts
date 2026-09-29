@@ -1,3 +1,19 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
 
 import { bootstrapApplication, inject, Logger } from "@noxfly/noxus/main";
 import { app } from "electron/main";
@@ -9,20 +25,28 @@ import { routes } from "src/modules/app.routes";
 /** Extensions SQLite reconnues passées en argument de ligne de commande. */
 const SQLITE_EXTENSIONS = new Set([".db", ".sqlite", ".sqlite3", ".s3db"]);
 
+/** Drapeau posé par la tâche « New Window » de la liste de raccourcis Windows. */
+const NEW_WINDOW_FLAG = "--new-window";
+
 /**
- * Extrait le chemin de fichier SQLite depuis les arguments de ligne de commande.
+ * Extrait le chemin de fichier SQLite des arguments de ligne de commande.
+ *
+ * Le tri se fait sur l'extension et non sur la position : le nombre d'arguments
+ * qui précèdent varie selon que l'application est packagée, lancée depuis la
+ * liste de raccourcis, ou démarrée en développement — une découpe par index en
+ * écartait certains lancements.
  */
 function extractFileArgument(argv: string[]): string | null {
-    // Ignorer les flags electron et l'exécutable lui-même
-    const args = argv.slice(app.isPackaged ? 1 : 2);
-    for (const arg of args) {
-        if (!arg.startsWith("--") && !arg.startsWith("-")) {
-            const ext = extname(arg).toLowerCase();
-            if (SQLITE_EXTENSIONS.has(ext)) {
-                return arg;
-            }
+    for (const arg of argv.slice(1)) {
+        if (arg.startsWith("-")) {
+            continue;
+        }
+
+        if (SQLITE_EXTENSIONS.has(extname(arg).toLowerCase())) {
+            return arg;
         }
     }
+
     return null;
 }
 
@@ -68,9 +92,6 @@ export async function startApplication(): Promise<void> {
     const { Application } = await import("./modules/application");
     noxApp.configure(Application);
 
-    // const { errorFeedbackMiddleware } = await import("./core/middlewares/error-feedback.middleware");
-    // noxApp.use(errorFeedbackMiddleware);
-
     const application = inject(Application);
 
     // Le fichier de lancement est mis en attente AVANT `start()` : le renderer le
@@ -85,13 +106,25 @@ export async function startApplication(): Promise<void> {
 
     noxApp.start();
 
-    // Gérer l'ouverture d'un fichier depuis une seconde instance (Windows/Linux)
+    // Toute relance de l'exécutable pendant qu'une instance tourne — entrée de la
+    // liste de raccourcis, double-clic sur un fichier associé, raccourci du bureau —
+    // arrive ici : la seconde instance rend la main au verrou et se termine.
+    // Ignorer ce qu'elle demandait donnait des entrées de menu sans effet.
     app.on("second-instance", (_event, argv) => {
         const filePath = extractFileArgument(argv);
 
+        if (argv.includes(NEW_WINDOW_FLAG)) {
+            void application.openNewWindow(filePath);
+            return;
+        }
+
         if (filePath) {
             application.openExternalFile(filePath);
+            return;
         }
+
+        // Relance sans argument : l'utilisateur veut retrouver son application.
+        application.focusExistingWindow();
     });
 
     // Gérer l'ouverture d'un fichier sur macOS (événement "open-file")

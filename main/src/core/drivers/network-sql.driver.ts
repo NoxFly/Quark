@@ -1,10 +1,21 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { Logger } from "@noxfly/noxus/main";
+import { Logger } from "@noxfly/noxus";
 import type {
     CreateTableColumnDef,
     DatabaseSchema,
@@ -424,7 +435,8 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
         }
 
         if (format === "xlsx") {
-            const XLSX = require("xlsx");
+            // Chargé à la demande : la bibliothèque est lourde et ne sert qu'à cet export.
+            const XLSX = await import("xlsx");
             const worksheet = XLSX.utils.json_to_sheet(records);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, tableName);
