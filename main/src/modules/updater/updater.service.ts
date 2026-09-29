@@ -28,9 +28,6 @@ import { environment } from "src/core/environment";
 import { SettingsStore } from "src/core/services/settings-store";
 import { Version } from "src/core/version";
 
-/** Délai avant la première recherche : juste le temps que la fenêtre s'affiche. */
-const FIRST_CHECK_DELAY_MS = 5_000;
-
 /** Intervalle entre deux recherches automatiques. */
 const CHECK_INTERVAL_MS = 60 * 60 * 1_000;
 
@@ -98,9 +95,9 @@ export class UpdaterService {
     private installing = false;
 
     /**
-     * Démarre les recherches automatiques : une au démarrage, puis toutes les
-     * heures. Sans effet hors production, où aucune release ne correspond à la
-     * version locale.
+     * Démarre les recherches automatiques : une immédiatement, en parallèle du
+     * reste du démarrage (sans l'attendre), puis toutes les heures. Sans effet
+     * hors production, où aucune release ne correspond à la version locale.
      */
     public startAutoCheck(host: UpdaterHost): void {
         if (environment.env !== AppEnv.PRODUCTION) {
@@ -118,7 +115,8 @@ export class UpdaterService {
         // l'est à la fermeture, sans relancer l'application.
         app.on("before-quit", () => this.installOnQuit());
 
-        this.scheduleCheck(FIRST_CHECK_DELAY_MS);
+        // Fire-and-forget : ne bloque ni `startAutoCheck` ni son appelant.
+        void this.runScheduledCheck();
     }
 
     /**
@@ -204,9 +202,10 @@ export class UpdaterService {
     /**
      * Télécharge, vérifie puis applique la mise à jour, à la demande de l'utilisateur.
      *
-     * Sur Windows, l'installeur NSIS s'exécute en silence et relance l'application
-     * une fois installé. Ailleurs, le paquet exige une élévation que l'application
-     * ne peut pas obtenir seule : il est simplement révélé dans l'explorateur.
+     * Sur Windows, l'installeur NSIS s'exécute (petite fenêtre de progression, sans
+     * clic requis) et relance l'application une fois installé. Ailleurs, le paquet
+     * exige une élévation que l'application ne peut pas obtenir seule : il est
+     * simplement révélé dans l'explorateur.
      *
      * @throws Error si aucune mise à jour n'est disponible, si le téléchargement
      *         échoue, ou si l'empreinte du fichier ne correspond pas au manifeste.
@@ -264,9 +263,15 @@ export class UpdaterService {
      * existe, et ne fait que journaliser un échec (réseau coupé, exécution hors
      * ligne — rien qui doive interrompre l'utilisateur). Un échec est retenté
      * plus tôt que l'intervalle normal.
+     *
+     * `update-checking` encadre la requête réseau (avant / après, succès ou échec)
+     * pour que le renderer puisse afficher un indicateur de recherche en cours,
+     * y compris pour la toute première recherche, lancée dès le démarrage.
      */
     private async runScheduledCheck(): Promise<void> {
         let next = CHECK_INTERVAL_MS;
+
+        this.broadcast("update-checking", true);
 
         try {
             const info = await this.check();
@@ -282,6 +287,9 @@ export class UpdaterService {
         catch (error) {
             next = RETRY_DELAY_MS;
             Logger.warn(`Automatic update check failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        finally {
+            this.broadcast("update-checking", false);
         }
 
         this.scheduleCheck(next);
@@ -372,12 +380,25 @@ export class UpdaterService {
     }
 
     /**
-     * Lance l'installeur et ferme l'application pour qu'il remplace ses fichiers.
+     * Ferme l'application puis lance l'installeur pour qu'il remplace ses fichiers.
      *
-     * Arguments de l'installeur NSIS d'electron-builder : `/S` l'exécute sans
-     * fenêtre ni question, `--updated` le signale comme une mise à jour et
-     * `--force-run` relance l'application une fois installée, ce que le mode
-     * silencieux ne fait pas sans lui.
+     * L'installeur (NSIS « one-click », voir `electron-builder.config.js`) s'exécute
+     * sans page Suivant/Installer/Terminer, avec une petite fenêtre et une barre de
+     * progression — on ne passe volontairement pas `/S` (silencieux), pour que cette
+     * fenêtre s'affiche aussi lors d'une mise à jour automatique, pas seulement à
+     * l'installation manuelle. `--updated` le signale comme une mise à jour et
+     * `--force-run` relance l'application une fois installée.
+     *
+     * L'installeur vérifie d'abord qu'aucune instance de l'application ne tourne
+     * encore (`CHECK_APP_RUNNING`). `--updated` lui donne un bref délai de grâce puis,
+     * si besoin, une tentative de fermeture silencieuse — sans lui, une instance encore
+     * détectée déclenche une vraie boîte de dialogue « L'application est ouverte,
+     * fermer ? » par-dessus la fenêtre de progression. Spawner l'installeur avant
+     * d'appeler `app.quit()` perdait presque toujours cette course, le temps de
+     * fermeture d'Electron (fenêtres, connexions aux bases, gestionnaires
+     * `before-quit`) dépassant régulièrement le délai de grâce. Spawner seulement
+     * dans `will-quit` — après que toutes les fenêtres sont réellement fermées, juste
+     * avant la sortie du processus — élimine l'essentiel de cette course.
      *
      * @param relaunch - Relancer l'application après l'installation.
      */
@@ -394,16 +415,18 @@ export class UpdaterService {
             this.settings.set("pendingRestore", this.host?.getRestorableFiles() ?? []);
         }
 
-        const args = ["--updated", "/S", ...(relaunch ? ["--force-run"] : [])];
+        const args = ["--updated", ...(relaunch ? ["--force-run"] : [])];
 
-        Logger.info(`Launching installer: ${installerPath} ${args.join(" ")}`);
+        app.once("will-quit", () => {
+            Logger.info(`Launching installer: ${installerPath} ${args.join(" ")}`);
 
-        // Détaché et « unref » pour survivre à l'arrêt de l'application, qui doit
-        // libérer ses fichiers.
-        spawn(installerPath, args, {
-            detached: true,
-            stdio: "ignore",
-        }).unref();
+            // Détaché et « unref » pour survivre à l'arrêt de l'application, qui doit
+            // libérer ses fichiers.
+            spawn(installerPath, args, {
+                detached: true,
+                stdio: "ignore",
+            }).unref();
+        });
 
         app.quit();
     }

@@ -317,22 +317,27 @@ export class Application implements IApp {
 
     /**
      * Ferme la fenêtre appelante, et l'application avec la dernière fenêtre.
+     *
+     * La fenêtre se ferme immédiatement : `Window.close()` déclenche l'évènement
+     * natif `closed`, dont l'écouteur libère déjà le driver via `dispose()` (qui
+     * ferme proprement la base avant de terminer son process hôte). Attendre
+     * `database.close()` ici referait ce même travail une seconde fois, en bloquant
+     * la fenêtre visible le temps de l'aller-retour IPC — jusqu'à plusieurs secondes
+     * pour une base réseau — sans aucun retour à l'utilisateur pendant ce temps.
      */
-    public async closeWindow(senderId: number): Promise<void> {
-        const window = this.getWindowBySenderId(senderId);
-
-        if (window) {
-            await window.database.close().catch(() => undefined);
-            window.close();
-        }
+    public closeWindow(senderId: number): void {
+        this.getWindowBySenderId(senderId)?.close();
     }
 
     /**
      * Ferme toutes les fenêtres et quitte l'application.
+     *
+     * Même raisonnement que `closeWindow` : ne pas attendre la fermeture de chaque
+     * base avant de fermer sa fenêtre. `app.quit()` n'interrompt pas le nettoyage en
+     * tâche de fond déclenché par `closed` sur chaque fenêtre.
      */
-    public async quit(): Promise<void> {
+    public quit(): void {
         for (const window of [...this.windows.values()]) {
-            await window.database.close().catch(() => undefined);
             window.close();
         }
 

@@ -81,14 +81,16 @@ module.exports = {
         artifactName: installerFilename,
     },
     nsis: {
-        oneClick: false,
-        allowToChangeInstallationDirectory: true,
+        // Installateur « one-step » : une petite fenêtre avec barre de progression,
+        // sans page Suivant/Installer/Terminer. Pas de choix du dossier d'installation
+        // dans ce mode (perdu volontairement) — la version portable reste l'option pour
+        // qui veut choisir précisément où Quark vit, sans même passer par un installateur.
+        oneClick: true,
         perMachine: false,
         allowElevation: false,
         uninstallDisplayName: pkg.productName,
         installerIcon: windowsIconPath,
         uninstallerIcon: windowsIconPath,
-        installerHeaderIcon: windowsIconPath,
     },
     portable: {
         artifactName: portableFilename,

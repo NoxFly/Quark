@@ -14,6 +14,29 @@
 <div class="settings-content">
     <div class="settings-title">{{ "settings.title" | translate }}</div>
 
+    <!--
+        Même contenu que la confirmation de la titlebar, sans le bouton « Plus tard » :
+        l'utilisateur est déjà dans un écran qu'il a choisi d'ouvrir, pas devant une
+        interruption à écarter.
+    -->
+    @if (updateAvailable(); as info) {
+        <div class="update-banner">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 16 16">
+                <path d="M8 2v7.5M4.5 6.5 8 10l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                <rect x="3" y="12.2" width="10" height="1.6" rx="0.8" fill="currentColor"></rect>
+            </svg>
+
+            <div class="text">
+                <div class="title">{{ "update.availableTitle" | translate: { version: info.version } }}</div>
+                <div class="description">{{ "update.availableMessage" | translate: { current: info.currentVersion, version: info.version } }}</div>
+            </div>
+
+            <ui-button color="primary" [disabled]="updateService.applying()" (click)="installUpdate()">
+                {{ updateService.installLabel(info) }}
+            </ui-button>
+        </div>
+    }
+
     <div class="sections">
         <!-- Général -->
         <section>

@@ -28,6 +28,7 @@ import { UpdateService } from "src/app/core/services/update.service";
 import { formatShortcut } from "src/app/shared/helpers/shortcut.helper";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
+import { SpinnerComponent } from "src/app/shared/ui/components/spinner/spinner.component";
 
 /** Ordre des langues dans le sous-menu, celui de la maquette. */
 const MENU_LOCALES: readonly SupportedLocale[] = ["fr", "en"];
@@ -40,7 +41,7 @@ const SEPARATOR: MenuItem = { label: "", separator: true };
     standalone: true,
     templateUrl: "./titlebar.component.html",
     styleUrl: "./titlebar.component.scss",
-    imports: [TranslatePipe, IconComponent],
+    imports: [TranslatePipe, IconComponent, SpinnerComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "(document:click)": "closeMenus()",
@@ -51,7 +52,7 @@ export class TitlebarComponent {
     private readonly noxus = inject(NoxusService);
     private readonly dbService = inject(DatabaseService);
     private readonly i18n = inject(I18nService);
-    private readonly updateService = inject(UpdateService);
+    protected readonly updateService = inject(UpdateService);
     private readonly themeService = inject(ThemeService);
     protected readonly shell = inject(ShellService);
     protected readonly state = inject(StateService);
@@ -69,6 +70,12 @@ export class TitlebarComponent {
         return this.state.connected() && databaseName
             ? `${databaseName} — ${appName}`
             : appName;
+    });
+
+    /** Mise à jour détectée, ou `null` sinon — pilote la flèche de téléchargement. */
+    protected readonly updateAvailable = computed(() => {
+        const info = this.updateService.info();
+        return info?.isNewer ? info : null;
     });
 
     protected readonly menus = computed<Menu[]>(() => [
@@ -128,6 +135,21 @@ export class TitlebarComponent {
         event.stopPropagation();
         this.closeMenus();
         this.shell.toggleSettings();
+    }
+
+    /**
+     * Rouvre la confirmation d'installation de la mise à jour détectée, sur un
+     * clic de la flèche de téléchargement.
+     */
+    protected onUpdateAvailableClick(event: MouseEvent): void {
+        event.stopPropagation();
+        this.closeMenus();
+
+        const info = this.updateAvailable();
+
+        if (info) {
+            void this.updateService.promptUpdate(info);
+        }
     }
 
     protected closeApp(): void {

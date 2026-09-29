@@ -126,6 +126,8 @@ export interface IpcRendererBridge {
 
     /** Notifié quand la recherche automatique détecte une version plus récente. */
     onUpdateAvailable(cb: (info: import("./update").UpdateInfo) => void): void;
+    /** Notifié au début et à la fin de chaque recherche automatique (périodique ou de démarrage). */
+    onUpdateChecking(cb: (checking: boolean) => void): void;
     /** Notifié pendant le téléchargement de l'installeur. */
     onUpdateProgress(cb: (progress: import("./update").UpdateProgress) => void): void;
 

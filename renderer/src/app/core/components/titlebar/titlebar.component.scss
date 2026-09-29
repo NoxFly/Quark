@@ -230,6 +230,28 @@
     }
 }
 
+// Flèche de mise à jour disponible : vert, pour se distinguer des icônes
+// neutres du reste de la titlebar et attirer l'œil sans être alarmant.
+.update-available {
+    width: 36px;
+    color: var(--success);
+}
+
+// Recherche de mise à jour en cours (démarrage ou périodique) : discret, à la
+// couleur neutre du texte, comme les autres icônes au repos de la titlebar.
+.update-checking {
+    width: 36px;
+    cursor: default;
+
+    &:hover {
+        background: transparent;
+    }
+
+    ui-spinner {
+        --spinner-size: 13px;
+    }
+}
+
 .settings {
     width: 36px;
 
