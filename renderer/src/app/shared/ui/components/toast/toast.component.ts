@@ -15,7 +15,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, computed, input, model, OnInit } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, input, model, OnDestroy, OnInit } from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { UIComponent } from "src/app/shared/ui/UIComponent.directive";
 import type { ToastPosition, UIAction, UIColor } from "src/app/shared/ui/ui.types";
 
@@ -27,19 +28,27 @@ import type { ToastPosition, UIAction, UIColor } from "src/app/shared/ui/ui.type
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "[attr.data-toast-type]": "color() || 'medium'",
-        "[attr.data-toast-position]": "position() || 'top-center'",
+        "[attr.data-toast-position]": "position() || 'bottom-right'",
+        "[class.busy]": "busy()",
+        "role": "status",
     }
 })
-export class ToastComponent extends UIComponent implements OnInit {
+export class ToastComponent extends UIComponent implements OnInit, OnDestroy {
+    protected readonly i18n = inject(I18nService);
+
     public readonly message = model.required<string>();
     public readonly duration = input<number>();
     public readonly color = input<UIColor>();
     public readonly closable = input<boolean>();
     public readonly position = input<ToastPosition>();
     public readonly actions = input<UIAction[]>([]);
+    /** Affiche le spinner de la maquette devant le message (opération en cours). */
+    public readonly busy = input<boolean>(false);
 
     protected readonly hasActions = computed(() => this.actions().length > 0);
     protected readonly hasDuration = computed(() => this.duration() !== undefined);
+
+    private durationTimer: ReturnType<typeof setTimeout> | undefined;
 
     /**
      *
@@ -52,17 +61,27 @@ export class ToastComponent extends UIComponent implements OnInit {
      *
      */
     public ngOnInit(): void {
-        if (this.hasDuration()) {
-            this.ref.nativeElement.style.setProperty("--toast-duration", `${this.duration()}ms`);
+        const duration = this.duration();
+
+        if (duration !== undefined) {
+            this.ref.nativeElement.style.setProperty("--toast-duration", `${duration}ms`);
             this.ref.nativeElement.classList.add("ephemeral");
 
-            this.ref.nativeElement.addEventListener(
-                "animationend",
-                () => {
+            // Minuteur plutôt que la fin de l'animation de la barre : n'importe quelle
+            // autre animation du toast (spinner, apparition) aurait déclenché la fermeture.
+            this.durationTimer = setTimeout(() => {
+                if (!this.disappearing()) {
                     this.dismiss();
-                },
-                { once: true },
-            );
+                }
+            }, duration);
         }
+    }
+
+    /**
+     *
+     */
+    public override ngOnDestroy(): void {
+        clearTimeout(this.durationTimer);
+        super.ngOnDestroy();
     }
 }

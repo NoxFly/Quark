@@ -1,0 +1,43 @@
+<div class="cm-pane">
+    <div class="header">
+        <svg width="28" height="24" viewBox="0 0 14 12" aria-hidden="true">
+            <path d="M1 2.5h4l1.5 1.5H13v6.5H1z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" />
+        </svg>
+        <div class="cm-title">{{ (existing() ? 'connections.folder.title' : 'connections.folder.newTitle') | translate }}</div>
+    </div>
+
+    <div class="cm-field">
+        <label for="cm-folder-name">{{ 'connections.folder.name' | translate }}</label>
+        <input
+            #nameInput
+            id="cm-folder-name"
+            class="cm-input"
+            type="text"
+            autocomplete="off"
+            [placeholder]="'connections.folder.namePlaceholder' | translate"
+            [(ngModel)]="name"
+            (keydown.enter)="submit()" />
+    </div>
+
+    <div class="info">
+        @if (existing()) {
+            {{ 'connections.folder.count' | translate: { count: folder()?.profiles?.length ?? 0 } }}
+        }
+        @else {
+            {{ 'connections.folder.help' | translate }}
+        }
+    </div>
+</div>
+
+<div class="cm-footer">
+    @if (existing()) {
+        <button type="button" class="cm-btn danger-quiet" [disabled]="busy()" (click)="deleteRequested.emit()">
+            {{ 'connections.folder.delete' | translate }}
+        </button>
+    }
+    <div class="cm-spacer"></div>
+    <button type="button" class="cm-btn" (click)="cancelled.emit()">{{ 'editor.cancel' | translate }}</button>
+    <button type="button" class="cm-btn primary" [disabled]="!name().trim() || busy()" (click)="submit()">
+        {{ (existing() ? 'connections.folder.rename' : 'connections.folder.create') | translate }}
+    </button>
+</div>

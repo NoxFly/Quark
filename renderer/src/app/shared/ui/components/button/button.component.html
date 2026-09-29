@@ -10,6 +10,8 @@
 <button #button
     [type]="type()"
     [attr.data-color]="color()"
+    [attr.data-fill]="fill()"
+    [attr.data-size]="size()"
     [class.icon-left]="!!srcIcon && iconPos === 'left'"
     [class.icon-right]="!!srcIcon && iconPos === 'right'"
 >

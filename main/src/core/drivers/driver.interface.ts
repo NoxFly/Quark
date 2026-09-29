@@ -23,7 +23,13 @@ import type {
     R_AlterTableAction,
     R_SqlExecResponse,
 } from "@shared/types";
-import type { DriverCapabilities, DriverInfo, DatabaseDriverType, DatabaseCategory } from "@shared/driver";
+import type {
+    DatabaseCategory,
+    DatabaseDriverType,
+    DriverCapabilities,
+    DriverConnectionOptions,
+    DriverInfo,
+} from "@shared/driver";
 
 /**
  * Contrat abstrait que tout driver de base de données doit implémenter.
@@ -58,6 +64,13 @@ export interface DatabaseDriver {
 
     /** Chemin ou URI de la connexion. */
     readonly path: string | null;
+
+    /**
+     * Fixe les options d'établissement de la prochaine connexion (SSL, délai,
+     * URI MongoDB, jeton libSQL, authentification Azure). À appeler avant `open` ;
+     * un driver ignore les options qui ne le concernent pas.
+     */
+    configureConnection(options: DriverConnectionOptions): Promise<void>;
 
     /**
      * Ouvre une connexion à la base de données.
@@ -116,6 +129,13 @@ export interface DatabaseDriver {
 
     /** Met à jour le même champ sur plusieurs lignes. */
     batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): Promise<void>;
+
+    /**
+     * Supprime toutes les lignes d'une table. Un `DELETE` plutôt qu'un `TRUNCATE` :
+     * il reste annulable dans une transaction et existe dans tous les dialectes.
+     * @returns Le nombre de lignes supprimées.
+     */
+    truncateTable(tableName: string): Promise<number>;
 
     // --- Transactions ---
 

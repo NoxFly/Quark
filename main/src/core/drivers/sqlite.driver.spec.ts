@@ -91,6 +91,17 @@ describe("SqliteDriver", () => {
         expect(await driver.getRow("people", 1)).not.toBeNull();
     });
 
+    it("empties a table in a way a rollback can undo", async () => {
+        await driver.beginTransaction();
+
+        expect(await driver.truncateTable("people")).toBe(30);
+        expect((await driver.getTableData("people", 0, 10)).totalCount).toBe(0);
+
+        await driver.rollback();
+
+        expect((await driver.getTableData("people", 0, 10)).totalCount).toBe(30);
+    });
+
     it("keeps duplicate column names and column order in SQL results", async () => {
         const result = await driver.execSql("SELECT a.id, a.name, b.name FROM people a JOIN people b ON b.id = a.id WHERE a.id = 4");
 

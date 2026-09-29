@@ -21,16 +21,23 @@ import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
-import { ButtonComponent } from "@ui/button/button.component";
+import { ShellService } from "src/app/core/services/shell.service";
 import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+
+/** Largeur initiale de l'explorateur, celle de la maquette (`--sidebar-width`). */
+const SIDEBAR_DEFAULT_WIDTH = 250;
+
+/** Bornes du redimensionnement de l'explorateur. */
+const SIDEBAR_MIN_WIDTH = 200;
+const SIDEBAR_MAX_WIDTH = 500;
 
 @Component({
     selector: "app-sidebar",
     standalone: true,
     templateUrl: "./sidebar.component.html",
     styleUrl: "./sidebar.component.scss",
-    imports: [ButtonComponent, ContextMenuComponent, TooltipDirective],
+    imports: [ContextMenuComponent, TooltipDirective],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "[style.width.px]": "width()",
@@ -43,8 +50,9 @@ export class SidebarComponent {
     protected readonly i18n = inject(I18nService);
     protected readonly storedProcService = inject(StoredProceduresService);
     private readonly router = inject(Router);
+    private readonly shell = inject(ShellService);
 
-    protected readonly width = signal<number>(220);
+    protected readonly width = signal<number>(SIDEBAR_DEFAULT_WIDTH);
     protected readonly isResizing = signal<boolean>(false);
 
     protected readonly contextMenu = viewChild.required(ContextMenuComponent);
@@ -62,6 +70,42 @@ export class SidebarComponent {
         const db = this.state.database();
         return db?.tables ?? [];
     });
+
+    /** Texte du champ « Filtrer les tables ». */
+    protected readonly tableFilter = signal<string>("");
+
+    /** Tables affichées, filtrées sur leur nom sans tenir compte de la casse. */
+    protected readonly filteredTables = computed(() => {
+        const filter = this.tableFilter().trim().toLowerCase();
+        const tables = this.tables();
+
+        return filter === "" ? tables : tables.filter(table => table.name.toLowerCase().includes(filter));
+    });
+
+    /** Procédures stockées affichées, soumises au même filtre que les tables. */
+    protected readonly filteredProcedures = computed(() => {
+        const filter = this.tableFilter().trim().toLowerCase();
+        const procedures = this.storedProcService.procedures();
+
+        return filter === "" ? procedures : procedures.filter(proc => proc.name.toLowerCase().includes(filter));
+    });
+
+    /** Nom de la base, en tête de l'explorateur. */
+    protected readonly databaseName = computed<string>(() => this.state.fileName() || this.state.database()?.name || "");
+
+    /**
+     * Nombre de lignes d'une table, avec séparateurs de milliers.
+     */
+    protected formatCount(count: number): string {
+        return this.i18n.formatNumber(count);
+    }
+
+    /**
+     * Met à jour le filtre des tables depuis le champ de saisie.
+     */
+    protected onFilterInput(event: Event): void {
+        this.tableFilter.set((event.target as HTMLInputElement).value);
+    }
 
     protected readonly selectedTable = computed(() => this.dbService.selectedTable());
     protected readonly isNoSql = computed(() => this.state.isNoSqlDatabase());
@@ -106,7 +150,7 @@ export class SidebarComponent {
     protected onTableContextMenu(event: MouseEvent, tableName: string): void {
         const capabilities = this.state.capabilities();
         const isReadOnly = this.dbService.readOnly();
-        const items: { label: string; icon?: string; action: () => void; separator?: boolean; danger?: boolean }[] = [];
+        const items: { label: string; icon?: string; action: () => void; separator?: boolean; danger?: boolean; disabled?: boolean }[] = [];
 
         if (!isReadOnly && (!capabilities || capabilities.schemaEditing)) {
             items.push({
@@ -130,11 +174,20 @@ export class SidebarComponent {
             });
         }
 
-        if (!isReadOnly) {
-            if (items.length > 0) {
-                items.push({ label: "", action: () => {}, separator: true });
-            }
+        if (items.length > 0) {
+            items.push({ label: "", action: () => {}, separator: true });
+        }
 
+        // Toujours listée, mais inactive en lecture seule : l'action reste découvrable.
+        items.push({
+            label: this.i18n.t(this.isNoSql() ? "data.truncateTable.nosql" : "data.truncateTable"),
+            icon: "",
+            danger: true,
+            disabled: isReadOnly,
+            action: () => void this.dbService.truncateTable(tableName),
+        });
+
+        if (!isReadOnly) {
             items.push({
                 label: this.i18n.t(this.isNoSql() ? "sidebar.table.deleteTable.nosql" : "sidebar.table.deleteTable"),
                 icon: "\uE74D",
@@ -158,7 +211,7 @@ export class SidebarComponent {
 
         const onMouseMove = (e: MouseEvent): void => {
             const delta = e.clientX - startX;
-            const newWidth = Math.max(220, Math.min(500, startWidth + delta));
+            const newWidth = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, startWidth + delta));
             this.width.set(newWidth);
         };
 
@@ -176,10 +229,7 @@ export class SidebarComponent {
      * Rafraîchit la base de données.
      */
     protected refreshDatabase(): void {
-        this.dbService.refreshDatabase();
-        if (this.hasStoredProcedures()) {
-            void this.storedProcService.loadProcedures();
-        }
+        void this.shell.refresh();
     }
 
     /**

@@ -21,13 +21,17 @@ import type {
     SessionRowDiff,
     SessionTableDiff,
 } from "@shared/session-diff";
-import type { DbRecord } from "@shared/types";
+import type { DbRecord, R_TransactionAction } from "@shared/types";
 import { AlertController } from "@ui/alert/alert.controller";
+import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { SessionDiffService } from "src/app/core/services/session-diff.service";
 import { StateService } from "src/app/core/services/state.service";
 import { diffInline, type DiffSegment } from "src/app/shared/helpers/text-diff.helper";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+import { ButtonComponent } from "@ui/button/button.component";
+import { SegmentedComponent } from "src/app/shared/ui/components/segmented/segmented.component";
+import type { SegmentedOption } from "src/app/shared/ui/ui.types";
 
 /** Nombre de lignes affichées par table avant de devoir en demander davantage. */
 const DEFAULT_ROW_LIMIT = 100;
@@ -74,6 +78,22 @@ interface TableDiffView {
     hidden: number;
 }
 
+/** Pastille affichée pour chaque nature de changement. */
+const KIND_LABELS: Readonly<Record<SessionRowDiff["kind"], string>> = {
+    insert: "INSERT",
+    update: "UPDATE",
+    delete: "DELETE",
+};
+
+/** Instructions qui retirent des données ou des objets. */
+const DESTRUCTIVE_STATEMENT = /^\s*(?:DROP|DELETE|TRUNCATE)\b/i;
+
+/** Instructions qui ajoutent des lignes. */
+const INSERT_STATEMENT = /^\s*(?:INSERT|REPLACE)\b/i;
+
+/** Premier mot-clé d'une instruction SQL. */
+const LEADING_KEYWORD = /^\s*(?<keyword>[A-Za-z]{2,12})\b/;
+
 /** Mise en page du diff. */
 type DiffViewMode = "cards" | "grid";
 
@@ -94,13 +114,76 @@ const VIEW_MODE_STORAGE_KEY = "session-diff-view";
     templateUrl: "./session-diff.page.html",
     styleUrl: "./session-diff.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TooltipDirective],
+    imports: [TooltipDirective, ButtonComponent, SegmentedComponent],
 })
 export class SessionDiffPage implements OnInit, OnDestroy {
     protected readonly sessionDiff = inject(SessionDiffService);
     protected readonly i18n = inject(I18nService);
     protected readonly state = inject(StateService);
+    protected readonly dbService = inject(DatabaseService);
     private readonly alertCtrl = inject(AlertController);
+
+    /** Une validation ou une annulation de transaction est en cours. */
+    protected readonly transactionBusy = signal<boolean>(false);
+
+    /** La transaction ouverte peut être validée ou annulée depuis la page. */
+    protected readonly canCloseTransaction = computed(() => {
+        const supportsTransactions = this.state.capabilities()?.transactions ?? true;
+
+        return this.dbService.inTransaction() && supportsTransactions;
+    });
+
+    /** Heure d'ouverture de la session, en infobulle du titre. */
+    protected readonly sinceLabel = computed(() => {
+        const startedAt = this.snapshot()?.startedAt;
+
+        return startedAt ? this.i18n.t("sessionDiff.since", { time: this.formatTime(startedAt) }) : null;
+    });
+
+    /**
+     * Résumé sous le titre : « 4 modification(s) depuis l'ouverture · 2 non
+     * validée(s) · transaction ouverte ».
+     */
+    protected readonly changesInfo = computed(() => {
+        const summary = this.sessionDiff.summary();
+        const total = summary.rows + summary.opaque;
+        const info = this.i18n.t("sessionDiff.info", { count: total, pending: this.pendingCount() });
+
+        if (!this.dbService.inTransaction()) {
+            return info;
+        }
+
+        const transactionOpen = this.i18n.t("sessionDiff.transactionOpen");
+
+        return `${info} · ${transactionOpen}`;
+    });
+
+    /** Modifications postérieures à l'ouverture de la transaction courante. */
+    private readonly pendingCount = computed(() => {
+        const snapshot = this.snapshot();
+
+        if (!snapshot || this.sessionDiff.transactionStartedAt() === null) {
+            return 0;
+        }
+
+        let count = 0;
+
+        for (const table of snapshot.tables) {
+            for (const row of table.rows) {
+                if (this.sessionDiff.isPending(row.lastChangedAt)) {
+                    count++;
+                }
+            }
+        }
+
+        for (const change of snapshot.opaque) {
+            if (this.sessionDiff.isPending(change.at)) {
+                count++;
+            }
+        }
+
+        return count;
+    });
 
     /** Limite d'affichage par table, au-delà de la valeur par défaut. */
     private readonly rowLimits = signal<Record<string, number>>({});
@@ -118,6 +201,22 @@ export class SessionDiffPage implements OnInit, OnDestroy {
      * base ; les fiches gardent chaque ligne lisible quand la table est large.
      */
     protected readonly viewMode = signal<DiffViewMode>(readStoredViewMode());
+
+    /** Choix de la mise en page, dans la langue courante. */
+    protected readonly viewModeOptions = computed<SegmentedOption<DiffViewMode>[]>(() => [
+        {
+            value: "grid",
+            label: this.i18n.t("sessionDiff.viewGridShort"),
+            icon: "E71D",
+            tooltip: this.i18n.t("sessionDiff.viewGrid"),
+        },
+        {
+            value: "cards",
+            label: this.i18n.t("sessionDiff.viewCardsShort"),
+            icon: "E8A4",
+            tooltip: this.i18n.t("sessionDiff.viewCards"),
+        },
+    ]);
 
     protected readonly snapshot = computed(() => this.sessionDiff.snapshot());
 
@@ -173,6 +272,15 @@ export class SessionDiffPage implements OnInit, OnDestroy {
      */
     public ngOnDestroy(): void {
         this.sessionDiff.setLive(false);
+    }
+
+    /**
+     * Sélection d'une mise en page dans le contrôle segmenté.
+     */
+    protected onViewModeChange(mode: DiffViewMode | null): void {
+        if (mode !== null) {
+            this.setViewMode(mode);
+        }
     }
 
     /**
@@ -250,10 +358,86 @@ export class SessionDiffPage implements OnInit, OnDestroy {
     }
 
     /**
+     * Valide ou annule la transaction ouverte. Le diff suit de lui-même : le main
+     * notifie le changement, et un ROLLBACK restaure son journal.
+     */
+    protected async closeTransaction(action: Extract<R_TransactionAction, "commit" | "rollback">): Promise<void> {
+        this.transactionBusy.set(true);
+
+        try {
+            await this.dbService.transactionAction(action);
+            await this.sessionDiff.load();
+        }
+        catch (error) {
+            await this.alertCtrl.create({
+                title: this.i18n.t("sessionDiff.transactionFailed"),
+                message: error instanceof Error ? error.message : String(error),
+                color: "danger",
+                actions: [{ text: this.i18n.t("sessionDiff.cancel"), role: "cancel" }],
+            });
+        }
+        finally {
+            this.transactionBusy.set(false);
+        }
+    }
+
+    /**
      * Formate un horodatage pour l'affichage.
      */
     protected formatTime(timestamp: number): string {
         return new Date(timestamp).toLocaleTimeString(this.i18n.locale());
+    }
+
+    /**
+     * Pastille de nature d'une ligne : le mot-clé SQL correspondant, qui se lit
+     * de la même façon dans toutes les langues.
+     */
+    protected kindLabel(kind: SessionRowDiff["kind"]): string {
+        return KIND_LABELS[kind];
+    }
+
+    /**
+     * Détail d'une ligne dans l'en-tête de sa fiche : son identifiant, suivi des
+     * colonnes modifiées pour une mise à jour.
+     */
+    protected rowDetail(row: RowDiffView): string {
+        if (row.kind !== "update") {
+            return `#${row.rowid}`;
+        }
+
+        const changed = row.columns.filter(column => column.changed).map(column => column.column).join(", ");
+
+        return `#${row.rowid} · ${changed}`;
+    }
+
+    /**
+     * Couleur de la pastille d'une opération non détaillée : rouge pour ce qui
+     * supprime, vert pour ce qui ajoute, accent pour le reste.
+     */
+    protected opaqueKind(change: SessionOpaqueChange): SessionRowDiff["kind"] {
+        if (DESTRUCTIVE_STATEMENT.test(change.detail)) {
+            return "delete";
+        }
+
+        if (change.category === "import" || INSERT_STATEMENT.test(change.detail)) {
+            return "insert";
+        }
+
+        return "update";
+    }
+
+    /**
+     * Libellé de la pastille d'une opération non détaillée : le premier mot-clé
+     * de l'instruction SQL, ou la catégorie pour un import ou un lot.
+     */
+    protected opaqueKindLabel(change: SessionOpaqueChange): string {
+        const keyword = LEADING_KEYWORD.exec(change.detail)?.groups?.["keyword"];
+
+        if ((change.category === "sql" || change.category === "schema") && keyword) {
+            return keyword.toUpperCase();
+        }
+
+        return this.i18n.t(`sessionDiff.category.${change.category}`).toUpperCase();
     }
 
     // --- Construction du modèle d'affichage ---

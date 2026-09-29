@@ -15,49 +15,51 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
 :host {
-    @include flex;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    height: calc(100% - 35px);
+    height: 100%;
+    background: var(--bg-app);
 }
 
+// État vide sobre : texte discret, centré, sans illustration.
 .no-table {
-    @include flex($dir: column, $gap: 12px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    max-width: 360px;
+    padding: 24px;
     text-align: center;
+    color: var(--text-faint);
     user-select: none;
+}
 
-    .icon {
-        font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 48px;
-        color: rgba(127, 127, 127, 0.4);
+.title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
 
-        &.spin {
-            animation: spin 1.2s linear infinite;
-        }
-    }
+.hint {
+    font-size: 12px;
+    line-height: 1.5;
+}
 
-    h2 {
-        margin: 0;
-        font-size: 1.1em;
-        font-weight: 600;
-        color: var(--text-color);
-    }
+.count {
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
 
-    p {
-        margin: 0;
-        font-size: 0.85em;
-        color: rgba(127, 127, 127, 0.6);
-    }
-
-    .table-info {
-        font-size: 0.75em;
-        color: rgba(127, 127, 127, 0.4);
-    }
+.spinner {
+    width: 18px;
+    height: 18px;
+    margin-bottom: 6px;
+    border: 2px solid var(--border-control);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: qspin .8s linear infinite;
 }

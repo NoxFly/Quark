@@ -19,6 +19,7 @@ import { ChangeDetectionStrategy, Component, inject, input, OnInit, signal } fro
 import { FormsModule } from "@angular/forms";
 import { I18nService } from "src/app/core/services/i18n.service";
 import type { FieldDef } from "@shared/types";
+import { isTextType } from "src/app/shared/helpers/data-grid.helper";
 import { ButtonComponent } from "@ui/button/button.component";
 import { InputComponent } from "@ui/input/input.component";
 import { SelectComponent } from "@ui/select/select.component";
@@ -62,6 +63,15 @@ export class BatchEditComponent implements OnInit {
 
     protected editableFields(): FieldDef[] {
         return this.fields().filter(f => !f.pk);
+    }
+
+    /**
+     * Indique si la colonne choisie attend une valeur non textuelle, saisie en
+     * police à chasse fixe comme dans la grille.
+     */
+    protected isMonoColumn(): boolean {
+        const field = this.fields().find(f => f.name === this.selectedColumn());
+        return field !== undefined && !isTextType(field.type);
     }
 
     /**

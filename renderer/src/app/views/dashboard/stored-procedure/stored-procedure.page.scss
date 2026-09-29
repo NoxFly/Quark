@@ -15,17 +15,19 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
+@use "src/app/shared/styles/tool-ui.scss" as tool;
 
 :host {
     display: flex;
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    background: var(--bg-app);
 }
 
 .stored-procedure-page {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    display: flex;
+    flex-direction: column;
     height: 100%;
     overflow: hidden;
     position: relative;
@@ -41,7 +43,7 @@
     display: none !important;
 }
 
-// --- Loading overlay (appears on top of existing content) ---
+// --- Chargement (par-dessus le contenu existant) ---
 
 .loading-overlay {
     position: absolute;
@@ -50,24 +52,32 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--surface) 80%, transparent);
-    backdrop-filter: blur(2px);
+    background: color-mix(in srgb, var(--bg-app) 80%, transparent);
 }
 
-// --- Header ---
+// --- En-tête (même grammaire que la barre de l'éditeur SQL) ---
 
 .proc-header {
-    @include flex(flex, row, nowrap, space-between, center, 12px);
-    padding: 8px 14px;
-    background: var(--surface);
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 12px;
     border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
+    flex: none;
 }
 
 .proc-identity {
-    @include flex(flex, row, nowrap, flex-start, baseline, 0);
-    font-size: 14px;
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 
     .proc-schema {
         color: var(--text-muted);
@@ -75,98 +85,63 @@
     }
 
     .proc-name {
-        color: var(--text-color);
+        color: var(--text);
     }
 }
 
 .proc-actions {
-    @include flex(flex, row, nowrap, flex-end, center, 8px);
-}
-
-.action-btn {
-    @include flex(flex, row, nowrap, center, center, 5px);
-    padding: 5px 10px;
-    border: none;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-
-    .action-icon {
-        font-family: "Segoe MDL2 Assets", sans-serif;
-        font-size: 13px;
-        pointer-events: none;
-    }
-
-    &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .icon-btn {
-    padding: 5px 8px;
-    background: transparent;
-    color: var(--text);
-
-    &:hover {
-        background: rgba(127, 127, 127, 0.1);
-        color: var(--text-color);
-    }
+    @include tool.button-icon(28px);
 
     &.active {
-        color: var(--interactive);
+        color: var(--accent-hover);
+        background: var(--bg-selected);
     }
 }
 
-.save-btn {
-    background: transparent;
-    color: var(--text);
-
-    &:hover:not(:disabled) {
-        background: rgba(127, 127, 127, 0.1);
-        color: var(--text-color);
-    }
+.action-icon {
+    font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+    font-size: 13px;
+    pointer-events: none;
 }
 
-.exec-btn {
-    background: color-mix(in srgb, var(--interactive) 15%, transparent);
-    color: var(--interactive);
-
-    &:hover:not(:disabled) {
-        background: color-mix(in srgb, var(--interactive) 25%, transparent);
-    }
-}
-
-// --- Editor + Params layout ---
+// --- Éditeur + paramètres ---
 
 .editor-params-container {
-    @include flex(flex, row, nowrap, stretch, stretch, 0);
+    display: flex;
     flex: 1;
     min-height: 0;
     position: relative;
 }
 
 .editor-section {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-width: 0;
     overflow: hidden;
+    background: var(--bg-subtle);
 }
 
 .section-label {
-    @include flex(flex, row, nowrap, space-between, center, 5px);
-
-    padding: 6px 12px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    color: var(--interactive);
-    background: var(--surface);
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 0 8px 0 12px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
     user-select: none;
+
+    .section-title {
+        color: var(--text-secondary);
+    }
 }
 
 .monaco-container {
@@ -175,276 +150,227 @@
     overflow: hidden;
 }
 
-.editor-hint {
-    padding: 4px 12px;
-    font-size: 11px;
-    color: var(--text-muted);
-    background: var(--surface);
-    user-select: none;
-    flex-shrink: 0;
-}
+// --- Poignées de redimensionnement ---
 
-// --- Resize handles ---
-
-.resize-handle-vertical {
+@mixin resize-handle($axis) {
     position: relative;
-    height: 0px;
-    flex-shrink: 0;
-    cursor: row-resize;
+    flex: none;
     z-index: 2;
-    background: var(--surface);
-    border-top: 1px solid var(--border-color);
-    border-bottom: 1px solid var(--border-color);
 
+    // Zone de saisie plus large que le trait visible.
     &::before {
-        content: '';
+        content: "";
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 6px;
-        transform: translateY(-50%);
-        background: transparent;
     }
 
     &::after {
         content: "";
         position: absolute;
-        inset: -1px 0;
         background: transparent;
-        transition: background 0.15s;
+        transition: background .15s;
     }
 
     &:hover::after,
     &:active::after {
-        background: var(--interactive);
+        background: var(--accent);
     }
+
+    @if $axis == vertical {
+        height: 0;
+        cursor: row-resize;
+        border-top: 1px solid var(--border);
+
+        &::before {
+            left: 0;
+            right: 0;
+            top: -3px;
+            height: 6px;
+        }
+
+        &::after {
+            inset: -1px 0;
+        }
+    }
+    @else {
+        width: 0;
+        cursor: col-resize;
+        border-left: 1px solid var(--border);
+
+        &::before {
+            top: 0;
+            bottom: 0;
+            left: -3px;
+            width: 6px;
+        }
+
+        &::after {
+            inset: 0 -1px;
+        }
+    }
+}
+
+.resize-handle-vertical {
+    @include resize-handle(vertical);
 }
 
 .resize-handle-horizontal {
-    position: relative;
-    width: 0px;
-    flex-shrink: 0;
-    cursor: col-resize;
-    z-index: 2;
-    background: var(--surface);
-    border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
-
-    &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 6px;
-        height: 100%;
-        transform: translateX(-50%);
-        background: transparent;
-    }
-
-    &::after {
-        content: "";
-        position: absolute;
-        inset: 0 -1px;
-        background: transparent;
-        transition: background 0.15s;
-    }
-
-    &:hover::after,
-    &:active::after {
-        background: var(--interactive);
-    }
+    @include resize-handle(horizontal);
 }
 
-// --- Params section ---
+// --- Paramètres ---
 
 .params-section {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    display: flex;
+    flex-direction: column;
     width: 280px;
-    flex-shrink: 0;
+    flex: none;
     overflow-y: auto;
-    border-left: 1px solid var(--border);
+    background: var(--bg-subtle-alt);
 }
 
 .params-form {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
-    padding: 8px 12px;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
 }
 
 .param-field {
-    @include flex(flex, column, nowrap, stretch, stretch, 4px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .param-label {
-    @include flex(flex, row, nowrap, flex-start, baseline, 6px);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     font-size: 12px;
-
-    .param-name {
-        font-weight: 600;
-        color: var(--text-color);
-    }
-
-    .param-type {
-        font-size: 10px;
-        color: var(--text-muted);
-        font-family: "Consolas", monospace;
-    }
 }
 
+.param-name {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text);
+}
+
+.param-type {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+}
+
+// `ui-input` encapsule son champ : sa largeur passe par la variable qu'il expose.
 .param-input {
-    // `ui-input` encapsule son champ : sa largeur passe par la variable qu'il
-    // expose, sans quoi il reste figé à 250 px dans une colonne étirée.
     --width: 100%;
 
     display: block;
     margin: 0;
-    padding: 5px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--surface-alt);
-    color: var(--text-color);
-    font-size: 12px;
-    font-family: "Consolas", monospace;
-    outline: none;
-    transition: border-color 0.15s;
-
-    &:focus {
-        --border-color: var(--interactive);
-    }
-
-    &::placeholder {
-        --text-color: var(--text-muted);
-        opacity: 0.6;
-    }
 }
 
-// --- Output params ---
-
 .params-empty-hint {
-    padding: 10px 12px;
+    padding: 12px;
     font-size: 12px;
-    color: var(--text-muted);
-    font-style: italic;
+    color: var(--text-faint);
     user-select: none;
 
     &.output-params-hint {
-        padding-top: 8px;
-        border-top: 1px solid var(--border-color);
+        border-top: 1px solid var(--border-subtle);
     }
 }
 
 .output-params {
-    padding: 8px 12px;
-    border-top: 1px solid var(--border-color);
+    padding: 12px;
+    border-top: 1px solid var(--border-subtle);
 }
 
 .output-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--interactive);
     margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
     user-select: none;
 }
 
 .output-param-entry {
-    @include flex(flex, row, nowrap, flex-start, baseline, 6px);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     padding: 3px 0;
     font-size: 12px;
     user-select: none;
 
-    .param-name {
-        font-weight: 600;
-        color: var(--text-color);
-    }
-
-    .param-type {
-        font-size: 10px;
-        color: var(--text-muted);
-        font-family: "Consolas", monospace;
-    }
-
     .param-value {
-        color: var(--interactive);
-        font-family: "Consolas", monospace;
+        font-family: var(--font-mono);
+        color: var(--accent-hover);
     }
 }
 
-// --- Results ---
+// --- Résultats ---
 
 .results-panel {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
+    display: flex;
+    flex-direction: column;
     flex: 1;
     overflow: hidden;
     min-height: 80px;
-    border-top: 1px solid var(--border);
+}
+
+.results-top-bar {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 8px 0 12px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.results-meta-bar {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.meta-timing {
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.error-banner,
+.success-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12.5px;
+    flex: none;
+
+    .error-icon,
+    .success-icon {
+        font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+        font-size: 13px;
+    }
 }
 
 .error-banner {
-    @include flex(flex, row, nowrap, flex-start, center, 8px);
-    padding: 10px 14px;
-    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
-    color: var(--color-danger);
-    font-size: 13px;
-
-    .error-icon {
-        font-family: "Segoe MDL2 Assets", sans-serif;
-        font-size: 14px;
-    }
+    background: var(--danger-bg);
+    color: var(--danger-text);
 
     .error-text {
-        font-family: "Consolas", monospace;
+        font-family: var(--font-mono);
         font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
     }
 }
 
 .success-banner {
-    @include flex(flex, row, nowrap, flex-start, center, 12px);
-    padding: 10px 14px;
-    background: color-mix(in srgb, var(--color-success) 12%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
-    color: var(--color-success);
-    font-size: 13px;
-
-    .success-icon {
-        font-family: "Segoe MDL2 Assets", sans-serif;
-        font-size: 16px;
-    }
-}
-
-.results-meta-bar {
-    @include flex(flex, row, nowrap, flex-start, center, 12px);
-    padding: 0;
-    font-size: 11px;
-    color: var(--text-muted);
-    background: var(--surface);
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-    user-select: none;
-    flex: 1;
-}
-
-.results-top-bar {
-    @include flex(flex, row, nowrap, space-between, center, 12px);
-
-    padding: 5px 14px;
-}
-
-.meta-timing {
-    margin-left: auto;
-    font-family: "Consolas", monospace;
-    color: var(--interactive);
-    opacity: 0.8;
-    @include flex(flex, row, nowrap, flex-start, center, 4px);
-
-    &::before {
-        content: '\E916';
-        font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 11px;
-    }
+    background: var(--success-bg);
+    color: var(--success-text);
 }
 
 .results-table-wrapper {
@@ -453,54 +379,59 @@
 }
 
 .results-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12.5px;
 
-    th, td {
-        padding: 6px 10px;
+    th,
+    td {
+        height: 32px;
+        padding: 0 10px;
         text-align: left;
-        border-bottom: 1px solid var(--border-color);
         white-space: nowrap;
-        max-width: 300px;
+        max-width: 320px;
         overflow: hidden;
         text-overflow: ellipsis;
+        border-right: 1px solid var(--border-subtle);
+        border-bottom: 1px solid var(--border-subtle);
     }
 
     th {
-        background: var(--surface);
-        font-weight: 600;
-        color: var(--text);
         position: sticky;
         top: 0;
         z-index: 1;
+        background: var(--bg-subtle);
+        border-bottom-color: var(--border);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
         user-select: none;
     }
 
     td {
-        background: var(--surface-alt);
-        color: var(--text-color);
+        color: var(--text);
 
         &.null-cell {
-            color: var(--text-color);
-            opacity: 0.5;
+            color: var(--text-faint);
             font-style: italic;
         }
     }
 
     tr:hover td {
-        background: color-mix(in srgb, var(--interactive) 8%, var(--surface-alt));
+        background: var(--bg-row-hover);
     }
 }
 
 .results-empty-hint,
 .empty-hint,
 .loading-hint {
-    @include flex(flex, column, nowrap, center, center, 0);
     flex: 1;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-style: italic;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 32px;
+    color: var(--text-faint);
+    font-size: 12.5px;
     user-select: none;
 }

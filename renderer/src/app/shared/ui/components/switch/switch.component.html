@@ -12,9 +12,10 @@
     type="checkbox"
     [id]="id"
     [disabled]="disabled()"
+    [checked]="value()"
     (change)="handleInput($event)"
     (focus)="handleFocus()"
     (blur)="handleBlur()"
     #input/>
 
-<div class="switch" (click)="toggle()"></div>
+<div class="switch" role="switch" [attr.aria-checked]="value()" (click)="toggle()"></div>

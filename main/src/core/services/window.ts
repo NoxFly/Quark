@@ -424,6 +424,77 @@ export class Window {
     }
 
     /**
+     * Vide une table et enregistre l'effet dans le diff de session.
+     *
+     * Jusqu'à `BULK_DETAIL_LIMIT` lignes, chacune est journalisée comme une
+     * suppression, avec son image ; au-delà, une entrée récapitulative couvre
+     * l'opération et les lignes déjà suivies deviennent des suppressions.
+     * @returns Le nombre de lignes supprimées.
+     */
+    public async truncateTable(table: string): Promise<number> {
+        const images = await this.captureTable(table);
+        const deleted = await this.database.truncateTable(table);
+
+        if (images) {
+            for (const [rowid, image] of images) {
+                this._sessionDiff.recordDelete(table, rowid, image);
+            }
+        }
+        else {
+            this._sessionDiff.recordOpaque({
+                category: "bulk",
+                label: `Table ${table} emptied`,
+                detail: `DELETE FROM ${table}`,
+                table,
+                rowsAffected: deleted,
+            });
+
+            this._sessionDiff.markTableAsDeleted(table);
+        }
+
+        this.notifySessionDiffChanged();
+
+        return deleted;
+    }
+
+    /**
+     * Lit toutes les lignes d'une table pour le journal, si elle ne dépasse pas
+     * le seuil de détail.
+     * @returns Les images par rowid, ou `null` si la table est trop grande ou si
+     * ses lignes n'ont pas d'identifiant exploitable.
+     */
+    private async captureTable(table: string): Promise<Map<number, DbRecord> | null> {
+        try {
+            // Une ligne de plus que le seuil suffit à savoir qu'on le dépasse.
+            const { records } = await this.database.getTableData(table, 0, BULK_DETAIL_LIMIT + 1);
+
+            if (records.length > BULK_DETAIL_LIMIT) {
+                return null;
+            }
+
+            const images = new Map<number, DbRecord>();
+
+            for (const record of records) {
+                const rowid = record["rowid"];
+
+                if (typeof rowid !== "number" && typeof rowid !== "string") {
+                    return null;
+                }
+
+                // L'identifiant d'un document MongoDB est une chaîne : le journal ne
+                // s'en sert que comme clé, comme pour `deleteRows`.
+                images.set(rowid as number, record);
+            }
+
+            return images;
+        }
+        catch (error) {
+            Logger.warn(`Session diff: unable to capture ${table} before emptying it: ${errorMessage(error)}`);
+            return null;
+        }
+    }
+
+    /**
      * Insère une ligne et enregistre l'effet dans le diff de session.
      * @returns Le rowid créé et l'image de la ligne insérée.
      */

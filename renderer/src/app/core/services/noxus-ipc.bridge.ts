@@ -73,11 +73,15 @@ export function createIpcBridge(client: NoxusRequester): IpcRendererBridge {
 
         // Base de données
         openFile: filePath => post("db/open-file", { filePath }, NO_TIMEOUT),
-        submitPassword: password => post("db/submit-password", { password }, NO_TIMEOUT),
+        submitPassword: (password, remember) => post("db/submit-password", { password, remember }, NO_TIMEOUT),
         closeFile: () => post("db/close"),
         refreshDatabase: () => post("db/refresh", undefined, NO_TIMEOUT),
         setDriverType: type => post("db/set-driver-type", { type }),
         connectNetwork: body => post("db/connect-network", body, NO_TIMEOUT),
+        connectRemoteSqlite: body => post("db/connect-remote-sqlite", body, NO_TIMEOUT),
+        // L'échéance est portée par le main (`timeoutSeconds`) : celle du client
+        // couperait un test légitime configuré au-delà de 30 s.
+        testConnection: body => post("db/test-connection", body, NO_TIMEOUT),
         getSchema: () => get("db/schema", undefined, NO_TIMEOUT),
         getRecentDatabases: () => get("db/recent"),
         getAllDriverInfos: () => get("db/driver-infos"),
@@ -104,6 +108,7 @@ export function createIpcBridge(client: NoxusRequester): IpcRendererBridge {
         createTable: body => post("db/create-table", body),
         alterTable: action => post("db/alter-table", action, NO_TIMEOUT),
         dropTable: table => post("db/drop-table", { table }),
+        truncateTable: table => post("db/truncate-table", { table }, NO_TIMEOUT),
         changePassword: body => post("db/change-password", body, NO_TIMEOUT),
 
         // Coffre de connexions
@@ -118,6 +123,12 @@ export function createIpcBridge(client: NoxusRequester): IpcRendererBridge {
         connConnect: id => post("connections/connect", { id }, NO_TIMEOUT),
         connExport: (ids, passphrase) => post("connections/export", { ids, passphrase }, NO_TIMEOUT),
         connImport: passphrase => post("connections/import", { passphrase }, NO_TIMEOUT),
+        connFolders: () => get("connections/folders"),
+        connFolderCreate: input => post("connections/folder-create", { input }),
+        connFolderUpdate: (id, input) => post("connections/folder-update", { id, input }),
+        connFolderDelete: id => post("connections/folder-delete", { id }),
+        // Rechiffrement du coffre (scrypt) : durée non bornée sur une machine lente.
+        connSetMasterPassword: body => post("connections/master-password", body, NO_TIMEOUT),
 
         // Événements poussés par le main
         onNavigationRequested: callback => listen("navigate-to", callback),

@@ -15,114 +15,96 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
-
 :host {
     display: contents;
 }
 
-.segoe-icon {
-    font-family: "Segoe Fluent Icons", sans-serif;
-    font-size: 12px;
-}
-
 .tabs-bar {
-    @include flex(flex, row, nowrap, flex-start, stretch, 0);
-    height: 34px;
-    background: var(--surface);
+    height: var(--tabs-height);
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-panel);
     border-bottom: 1px solid var(--border);
     overflow-x: auto;
     overflow-y: hidden;
-    flex-shrink: 0;
+    flex: none;
 
-    // Masquer la scrollbar sur la barre d'onglets
+    // La molette fait défiler les onglets : la barre de défilement serait redondante.
     scrollbar-width: none;
+
     &::-webkit-scrollbar {
         display: none;
     }
 }
 
 .tab {
-    @include flex(flex, row, nowrap, flex-start, center, 0);
-    height: 100%;
-    padding: 0 8px 0 10px;
-    gap: 6px;
-    cursor: pointer;
-    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px 0 14px;
+    min-width: 120px;
+    max-width: 220px;
+    flex: none;
     border-right: 1px solid var(--border);
+    border-top: 2px solid transparent;
+    cursor: pointer;
+    font-size: 12.5px;
     color: var(--text-muted);
-    font-size: 12px;
+    background: transparent;
     user-select: none;
-    transition: background 0.15s, color 0.15s;
-    position: relative;
-
-    &::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: transparent;
-        transition: background 0.15s;
-    }
 
     &:hover {
-        background: var(--surface-alt);
-        color: var(--text-color);
-    }
-
-    &.dragging {
-        opacity: 0.4;
-    }
-
-    &.drag-over {
-        background: color-mix(in srgb, var(--interactive) 15%, var(--surface-alt));
-
-        &::after {
-            background: var(--interactive);
-        }
+        background: var(--bg-app);
     }
 
     &.active {
-        background: var(--surface-alt);
-        color: var(--text-color);
-        font-weight: 500;
-
-        &::after {
-            background: var(--interactive);
-        }
+        background: var(--bg-app);
+        color: var(--text);
+        border-top-color: var(--accent);
     }
+
+    &.dragging {
+        opacity: .4;
+    }
+
+    &.drag-over {
+        background: var(--bg-accent-soft);
+        border-top-color: var(--accent-ring);
+    }
+}
+
+.tab-icon {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    flex: none;
 }
 
 .tab-label {
     flex: 1;
+    min-width: 0;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .tab-close {
-    --btn-padding: 5px;
     width: 18px;
     height: 18px;
-    border-radius: 3px;
-    background: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    padding: 0;
     border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    font-size: 11px;
     color: var(--text-muted);
-    font-size: 9px;
     cursor: pointer;
-    @include flex(flex, row, nowrap, center, center, 0);
-    flex-shrink: 0;
-    transition: background 0.15s, color 0.15s;
-    opacity: 0;
-
-    .tab:hover & {
-        opacity: 1;
-    }
 
     &:hover {
-        background: color-mix(in srgb, var(--color-danger) 15%, transparent);
-        color: var(--color-danger);
+        background: var(--bg-hover-strong);
+        color: var(--text);
     }
 }

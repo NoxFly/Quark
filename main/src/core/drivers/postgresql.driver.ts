@@ -38,6 +38,10 @@ export class PostgresqlDriver extends NetworkSqlDriver {
             user: p.user,
             password: p.password,
             database: p.database,
+            // Équivalent de `sslmode=require` : chiffré, sans vérification de l'autorité.
+            ssl: this.sslRequested ? { rejectUnauthorized: false } : undefined,
+            // `pg` n'a aucun délai par défaut (0 = attente illimitée).
+            connectionTimeoutMillis: this.connectTimeoutMs,
         });
 
         await this.client.connect();

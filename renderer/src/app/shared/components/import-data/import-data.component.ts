@@ -15,13 +15,15 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, inject, input, OnInit, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import type { DbRecord } from "@shared/types";
 import { ButtonComponent } from "@ui/button/button.component";
+import { SegmentedComponent } from "src/app/shared/ui/components/segmented/segmented.component";
+import type { SegmentedOption } from "src/app/shared/ui/ui.types";
 
 /**
  * Modal d'import de données (CSV ou JSON).
@@ -35,7 +37,7 @@ import { ButtonComponent } from "@ui/button/button.component";
     templateUrl: "./import-data.component.html",
     styleUrl: "./import-data.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent],
+    imports: [FormsModule, ButtonComponent, SegmentedComponent],
 })
 export class ImportDataComponent implements OnInit {
     private readonly noxus = inject(NoxusService);
@@ -49,6 +51,17 @@ export class ImportDataComponent implements OnInit {
     public dismiss?: (data?: { imported: boolean } | null) => void;
 
     protected readonly step = signal<1 | 2 | 3>(1);
+
+    /** Formats proposés : leurs noms ne se traduisent pas. */
+    protected readonly formatOptions: SegmentedOption<"csv" | "json">[] = [
+        { value: "csv", label: "CSV" },
+        { value: "json", label: "JSON" },
+    ];
+
+    protected readonly modeOptions = computed<SegmentedOption<"insert" | "upsert">[]>(() => [
+        { value: "insert", label: this.i18n.t("importData.modeInsert") },
+        { value: "upsert", label: this.i18n.t("importData.modeUpsert") },
+    ]);
     protected readonly format = signal<"csv" | "json">("csv");
     protected readonly importMode = signal<"insert" | "upsert">("insert");
     protected readonly rawData = signal<string>("");

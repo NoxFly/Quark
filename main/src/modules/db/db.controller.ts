@@ -16,6 +16,7 @@
  */
 
 import { Controller, Get, inject, Post, type Request } from "@noxfly/noxus/main";
+import type { ConnectionTestResult } from "@shared/connection";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import type {
@@ -42,6 +43,7 @@ import type {
     R_OpenFileResponse,
     R_PasswordBody,
     R_PasswordResponse,
+    R_RemoteSqliteBody,
     R_SqlExecBody,
     R_SqlExecResponse,
     R_SqlRowsBody,
@@ -53,6 +55,7 @@ import type {
     R_StoredProcModifyBody,
     R_TableDataBody,
     R_TableDataResponse,
+    R_TestConnectionBody,
     R_TransactionAction,
     R_UpdateCellBody,
     StoredProcedureDetail,
@@ -61,6 +64,7 @@ import type {
 import { getAllDriverInfos } from "src/core/drivers/driver-registry";
 import type { Window } from "src/core/services/window";
 import { Application } from "src/modules/application";
+import { ConnectionsService } from "src/modules/connections/connections.service";
 import { DbService } from "src/modules/db/db.service";
 
 /**
@@ -74,6 +78,7 @@ import { DbService } from "src/modules/db/db.service";
 export class DbController {
     private readonly application = inject(Application);
     private readonly dbService = inject(DbService);
+    private readonly connections = inject(ConnectionsService);
 
     // --- Connexion ---
 
@@ -85,12 +90,14 @@ export class DbController {
 
     @Post("submit-password")
     public async submitPassword(request: Request): Promise<R_PasswordResponse> {
-        const { password } = request.body as R_PasswordBody;
-        const window = this.window(request);
+        const { password, remember } = request.body as R_PasswordBody;
+        const database = await this.dbService.submitPassword(this.window(request), password, remember === true);
 
-        await window.unlockDatabase(password);
+        if (!database) {
+            throw new Error("Database is not open");
+        }
 
-        return { database: (await window.getDatabaseSchema())! };
+        return { database };
     }
 
     @Post("close")
@@ -118,6 +125,26 @@ export class DbController {
     public async connectNetwork(request: Request): Promise<R_ConnectNetworkResponse> {
         await this.dbService.openNetworkConnection(this.window(request), request.body as R_NetworkConnectBody);
         return { connected: true };
+    }
+
+    /**
+     * Base SQLite distante (libSQL / Turso). Comme une connexion réseau, le
+     * schéma est chargé à part.
+     */
+    @Post("connect-remote-sqlite")
+    public async connectRemoteSqlite(request: Request): Promise<R_ConnectNetworkResponse> {
+        await this.dbService.openRemoteSqlite(this.window(request), request.body as R_RemoteSqliteBody);
+        return { connected: true };
+    }
+
+    /**
+     * Test d'une connexion, sans effet sur la base de la fenêtre. Un `POST` : le
+     * test ouvre une connexion sur le serveur, ce n'est pas une simple lecture.
+     */
+    @Post("test-connection")
+    public async testConnection(request: Request): Promise<ConnectionTestResult> {
+        const body = this.connections.withStoredSecret(request.body as R_TestConnectionBody);
+        return await this.dbService.testConnection(this.window(request), body);
     }
 
     @Get("schema")
@@ -262,10 +289,16 @@ export class DbController {
         await this.dbService.dropTable(this.window(request), table);
     }
 
+    @Post("truncate-table")
+    public async truncateTable(request: Request): Promise<void> {
+        const { table } = request.body as { table: string };
+        await this.dbService.truncateTable(this.window(request), table);
+    }
+
     @Post("change-password")
     public async changePassword(request: Request): Promise<void> {
         const { newPassword } = request.body as R_ChangePasswordBody;
-        await this.window(request).database.changePassword(newPassword);
+        await this.dbService.changePassword(this.window(request), newPassword);
     }
 
     // --- Procédures stockées (MSSQL / Azure) ---

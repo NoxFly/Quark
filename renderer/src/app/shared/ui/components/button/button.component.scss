@@ -15,24 +15,25 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use 'src/theme/mixins.scss' as *;
-
+// Boutons de la maquette. Chaque couleur fournit ses variables `--c-*`, le
+// remplissage (`data-fill`) décide lesquelles s'appliquent :
+//   solid   : fond plein (primaire accent, danger plein…) ; les couleurs neutres
+//             y prennent l'allure « secondaire » (fond du champ + bordure de contrôle) ;
+//   outline : fond du champ + bordure de contrôle, texte dans la teinte de la couleur ;
+//   clear   : ni fond ni bordure au repos, fond et bordure teintés au survol
+//             (bouton « Supprimer » discret de la maquette).
+// Les variables publiques `--btn-height`, `--btn-padding`, `--btn-width`,
+// `--btn-radius` et `--btn-font-size` restent surchargeables par les appelants.
 
 :host {
-    margin: 10px;
     display: inline-block;
     position: relative;
-
-    &.round ::ng-deep button {
-        border-radius: 20em;
-    }
+    margin: 0;
+    vertical-align: middle;
 
     a {
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        inset: 0;
         z-index: 2;
         opacity: 0;
 
@@ -41,206 +42,253 @@
         }
     }
 
-    ::ng-deep {
-        button {
-            @include flex;
+    &.round button {
+        border-radius: 20em;
+    }
 
-            background: var(--bg-color);
-            color: var(--fg-color);
-            width: var(--btn-width, fit-content);
-
-            a {
-                color: var(--fg-color);
-                text-decoration: none;
-                display: inline-block;
-            }
-
-            ui-icon {
-                --icon-size: calc(var(--btn-height, 40px) * 0.4);
-
-                margin: 0;
-            }
-
-            &.icon-left {
-                .content {
-                    margin-left: 6px;
-                }
-            }
-
-            &.icon-right {
-                flex-direction: row-reverse;
-
-                ui-icon {
-                    font-size: calc(var(--btn-height, 40px) * 0.4);
-                    margin-left: 6px;
-                }
-            }
-
-            &[disabled] {
-                opacity: 0.5;
-                cursor: default;
-                pointer-events: none;
-                filter: grayscale(100%);
-            }
-        }
-
-        &[data-color="default"] {
-            --bg-color: var(--background-color-shade);
-            --fg-color: var(--text-color);
-        }
-
-        &[data-color="success"] {
-            --bg-color: color-mix(in srgb, var(--status-success), #fff 85%);
-            --fg-color: var(--status-success-fg);
-        }
-
-        &[data-color="warning"] {
-            --bg-color: var(--status-warning-emphasis);
-            --fg-color: var(--status-warning-fg);
-        }
-
-        &[data-color="danger"] {
-            --bg-color: color-mix(in srgb, var(--status-danger), #fff 10%);
-            --fg-color: var(--status-danger-fg);
-        }
-
-        &[data-color="medium"] {
-            --bg-color: var(--neutral);
-            --fg-color: var(--neutral-fg);
-        }
-
-        &[data-color="dark"] {
-            --bg-color: var(--surface-dark);
-            --fg-color: var(--text-inverse);
-        }
-
-        &[data-color="light"] {
-            --bg-color: var(--surface-alt);
-            --fg-color: var(--text);
-        }
-
-        &[data-color="primary"] {
-            --bg-color: var(--interactive);
-            --fg-color: var(--interactive-fg);
-        }
-
-        &[data-color="secondary"] {
-            --bg-color: var(--accent-secondary);
-            --fg-color: var(--accent-secondary-fg);
-        }
-
-        &[data-color="tertiary"] {
-            --bg-color: var(--accent-tertiary);
-            --fg-color: var(--accent-tertiary-fg);
-        }
-
-        &[data-color="primary-gradient"] {
-            @extend .gradient-btn;
-
-            --bg-color: linear-gradient(45deg, var(--interactive-hover), var(--interactive));
-            --fg-color: var(--interactive-fg);
-
-            transition: filter .2s;
-
-            button {
-                border: 1px solid transparent;
-            }
-
-            &:hover {
-                filter: brightness(1.2);
-            }
-        }
-
-        &[data-color="danger-gradient"] {
-            @extend .gradient-btn;
-
-            --bg-color: linear-gradient(45deg, var(--status-danger-emphasis), var(--status-danger));
-            --fg-color: var(--status-danger-fg);
-
-            button {
-                border: 1px solid transparent;
-            }
-
-            &:hover {
-                filter: brightness(1.1);
-            }
-        }
-
-        &[data-color="success-gradient"] {
-            @extend .gradient-btn;
-
-            --bg-color: linear-gradient(45deg, var(--status-success), var(--status-success-subtle));
-            --fg-color: var(--status-success-fg);
-
-            button {
-                border: 1px solid transparent;
-            }
-
-            &:hover {
-                filter: brightness(1.1);
-            }
-        }
-
-        &[data-color="warning-gradient"] {
-            @extend .gradient-btn;
-
-            --bg-color: linear-gradient(45deg, var(--status-warning-emphasis), var(--status-warning-subtle));
-            --fg-color: var(--status-warning-fg);
-
-            button {
-                border: 1px solid transparent;
-            }
-
-            &:hover {
-                filter: brightness(1.1);
-            }
-        }
-
-        &[data-color="windows"],
-        &[data-color="windows-error"],
-        &[data-color="windows-light"] {
-            --bg-color: transparent;
-            --fg-color: var(--text-color);
-            // --btn-radius: 0;
-
-            --btn-width: fit-content;
-            --btn-padding: 12px 15px;
-
-            // font-size: .8rem;
-            border: 1px solid transparent;
-
-            &:hover {
-                --bg-color: color-mix(in srgb, var(--neutral), transparent 90%);
-                border-color: color-mix(in srgb, var(--neutral), transparent 70%);
-                outline: none;
-            }
-        }
-
-        &[data-color="windows-error"] {
-            --fg-color: var(--status-danger);
-
-            &:hover {
-                --bg-color: color-mix(in srgb, var(--status-danger), transparent 90%);
-                border-color: color-mix(in srgb, var(--status-danger), transparent 70%);
-                outline: none;
-            }
-        }
-
-        &[data-color="windows-light"] {
-            --fg-color: var(--surface);
-
-            &:hover {
-                --bg-color: color-mix(in srgb, var(--surface), transparent 90%);
-                border-color: color-mix(in srgb, var(--surface), transparent 70%);
-                outline: none;
-            }
-        }
+    // Bouton icône seule. Détecté en CSS : le texte projeté (souvent traduit par une
+    // pipe) n'existe pas encore au `ngOnInit`, une détection en TypeScript le masquait.
+    .content:empty {
+        display: none;
     }
 }
 
+button {
+    // Neutre par défaut (= secondaire).
+    --c-bg: var(--bg-input);
+    --c-fg: var(--text);
+    --c-border: var(--border-control);
+    --c-hover: var(--bg-panel);
+    --c-hover-border: var(--border-control);
+    --c-active: var(--bg-hover);
+    --c-tone: var(--text);
+    --c-soft: var(--bg-hover);
+    --c-soft-border: transparent;
+    --c-weight: 400;
+    --c-pad-x: 14px;
 
-.gradient-btn {
-    padding: var(--btn-padding, 7px 27px);
-    background-size: calc(100% + 4px) calc(100% + 4px);
-    background-position: -2px -2px;
+    --_bg: var(--c-bg);
+    --_fg: var(--c-fg);
+    --_border: var(--c-border);
+    --_hover: var(--c-hover);
+    --_hover-border: var(--c-hover-border);
+    --_active: var(--c-active);
+    --_weight: var(--c-weight);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+    width: var(--btn-width, fit-content);
+    height: var(--btn-height, var(--_h, 30px));
+    margin: 0;
+    padding: var(--btn-padding, 0 var(--_pad-x, var(--c-pad-x)));
+    border: 1px solid var(--_border);
+    border-radius: var(--btn-radius, var(--radius-m));
+    background: var(--_bg);
+    color: var(--_fg);
+    font-family: inherit;
+    font-size: var(--btn-font-size, var(--_fs, 12px));
+    font-weight: var(--_weight);
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s, border-color .12s, color .12s;
+
+    &:hover {
+        background: var(--_hover);
+        border-color: var(--_hover-border);
+    }
+
+    &:active {
+        background: var(--_active);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: 1px;
+    }
+
+    &[disabled] {
+        opacity: .5;
+        cursor: default;
+        pointer-events: none;
+    }
+
+    ::ng-deep ui-icon {
+        --icon-size: 14px;
+
+        margin: 0;
+        line-height: 1;
+
+        .unicode-icon {
+            margin: 0;
+        }
+    }
+
+    &.icon-right {
+        flex-direction: row-reverse;
+    }
+
+    .content {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    // --- Tailles ---
+
+    &[data-size="small"] {
+        --_h: 28px;
+        --_pad-x: 12px;
+    }
+
+    &[data-size="medium"] {
+        --_h: 30px;
+    }
+
+    &[data-size="large"] {
+        --_h: 32px;
+        --_fs: 13px;
+    }
+
+    // --- Couleurs ---
+
+    &[data-color="primary"],
+    &[data-color="primary-gradient"] {
+        --c-bg: var(--accent);
+        --c-fg: var(--accent-fg);
+        --c-border: transparent;
+        --c-hover: var(--accent-hover);
+        --c-hover-border: transparent;
+        --c-active: var(--accent-active);
+        --c-tone: var(--accent-hover);
+        --c-soft: var(--bg-accent-soft);
+        --c-soft-border: var(--accent-ring);
+        --c-weight: 600;
+        --c-pad-x: 16px;
+    }
+
+    &[data-color="danger"],
+    &[data-color="danger-gradient"] {
+        --c-bg: var(--danger);
+        --c-fg: var(--accent-fg);
+        --c-border: transparent;
+        --c-hover: var(--danger-hover);
+        --c-hover-border: transparent;
+        --c-active: var(--danger-hover);
+        --c-tone: var(--danger);
+        --c-soft: var(--danger-bg);
+        --c-soft-border: var(--danger-border);
+        --c-weight: 600;
+        --c-pad-x: 16px;
+    }
+
+    &[data-color="success"],
+    &[data-color="success-gradient"] {
+        --c-bg: var(--success);
+        --c-fg: var(--accent-fg);
+        --c-border: transparent;
+        --c-hover: var(--success-text);
+        --c-hover-border: transparent;
+        --c-active: var(--success-text);
+        --c-tone: var(--success);
+        --c-soft: var(--success-bg);
+        --c-weight: 600;
+        --c-pad-x: 16px;
+    }
+
+    &[data-color="warning"],
+    &[data-color="warning-gradient"] {
+        --c-bg: var(--warning);
+        --c-fg: var(--accent-fg);
+        --c-border: transparent;
+        --c-hover: var(--warning-hover);
+        --c-hover-border: transparent;
+        --c-active: var(--warning-hover);
+        --c-tone: var(--warning-text);
+        --c-soft: var(--warning-bg);
+        --c-soft-border: var(--warning-border);
+        --c-weight: 600;
+        --c-pad-x: 16px;
+    }
+
+    &[data-color="dark"] {
+        --c-bg: var(--toast-bg);
+        --c-fg: var(--toast-fg);
+        --c-border: transparent;
+        --c-hover: color-mix(in srgb, var(--toast-bg), var(--toast-fg) 12%);
+        --c-hover-border: transparent;
+        --c-active: color-mix(in srgb, var(--toast-bg), var(--toast-fg) 20%);
+        --c-weight: 600;
+    }
+
+    &[data-color="medium"] {
+        --c-fg: var(--text-secondary);
+        --c-tone: var(--text-secondary);
+    }
+
+    // Couleurs « fantômes » : sans fond ni bordure au repos, quel que soit le remplissage.
+    &[data-color="tertiary"],
+    &[data-color="transparent"],
+    &[data-color="windows"],
+    &[data-color="windows-light"],
+    &[data-color="windows-error"] {
+        --c-bg: transparent;
+        --c-fg: var(--text-secondary);
+        --c-border: transparent;
+        --c-hover: var(--bg-hover);
+        --c-hover-border: transparent;
+        --c-active: var(--bg-hover-strong);
+        --c-tone: var(--text-secondary);
+        --c-soft: var(--bg-hover);
+    }
+
+    &[data-color="windows-light"] {
+        --c-fg: var(--toast-fg);
+        --c-tone: var(--toast-fg);
+        --c-hover: color-mix(in srgb, var(--toast-fg), transparent 88%);
+        --c-soft: color-mix(in srgb, var(--toast-fg), transparent 88%);
+        --c-active: color-mix(in srgb, var(--toast-fg), transparent 80%);
+    }
+
+    &[data-color="windows-error"] {
+        --c-fg: var(--danger);
+        --c-tone: var(--danger);
+        --c-hover: var(--danger-bg);
+        --c-hover-border: var(--danger-border);
+        --c-soft: var(--danger-bg);
+        --c-soft-border: var(--danger-border);
+        --c-active: var(--danger-bg);
+    }
+
+    // --- Remplissages ---
+
+    &[data-fill="outline"] {
+        --_bg: var(--bg-input);
+        --_fg: var(--c-tone);
+        --_border: var(--border-control);
+        --_hover: var(--bg-panel);
+        --_hover-border: var(--border-control);
+        --_active: var(--bg-hover);
+        --_weight: 400;
+        --_pad-x: 14px;
+    }
+
+    &[data-fill="clear"] {
+        --_bg: transparent;
+        --_fg: var(--c-tone);
+        --_border: transparent;
+        --_hover: var(--c-soft);
+        --_hover-border: var(--c-soft-border);
+        --_active: var(--c-soft);
+        --_weight: 400;
+        --_pad-x: 12px;
+    }
+
+    &[data-fill="outline"][data-size="small"] {
+        --_pad-x: 12px;
+    }
 }

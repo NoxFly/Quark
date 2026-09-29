@@ -15,207 +15,206 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use 'src/theme/mixins.scss' as *;
-@use 'src/theme/animations.scss' as *;
+// Toast de la maquette : pastille sombre en bas à droite, au-dessus de la barre
+// d'état. Toutes les couleurs gardent ce fond sombre ; une couleur de statut ne
+// fait que teinter le liseré gauche.
 
 :host {
-    --margin-vert: 10px;
-    --margin-hor: 10px;
+    --toast-margin-x: 16px;
+    // Au-dessus de la barre d'état (24 px) : valeur de la maquette.
+    --toast-margin-y: 36px;
+    --toast-tone: transparent;
     --toast-tx: 0px;
-    --toast-ty: 0px;
-    --toast-leave-tx: 0;
-    --toast-leave-ty: 0;
+    --toast-leave-tx: 0px;
+    --toast-leave-ty: 8px;
 
-    position: absolute;
-    top: var(--toast-top);
-    bottom: var(--toast-bottom);
-    left: var(--toast-left);
-    right: var(--toast-right);
-    transform: translate(var(--toast-tx), var(--toast-ty));
-    background: var(--toast-background);
-    color: var(--toast-color);
+    position: fixed;
+    top: var(--toast-top, auto);
+    bottom: var(--toast-bottom, auto);
+    left: var(--toast-left, auto);
+    right: var(--toast-right, auto);
+    z-index: 120;
+    max-width: 360px;
+    transform: translateX(var(--toast-tx));
+    background: var(--toast-bg);
+    color: var(--toast-fg);
     border-radius: 5px;
-    border: 1px solid color-mix(in srgb, var(--toast-color), #0000 80%);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
-    transition: all .2s ease;
+    box-shadow: inset 3px 0 0 var(--toast-tone), var(--shadow-menu);
+    font-size: 12.5px;
     overflow: hidden;
-    z-index: 60;
+    user-select: none;
+    transition: opacity .15s ease, transform .15s ease;
 
     @starting-style {
         opacity: 0;
-        transform: translate(var(--toast-leave-tx), var(--toast-leave-ty));
+        transform: translate(var(--toast-tx), var(--toast-leave-ty));
     }
 
+    &.ephemeral .toast-duration-bar::before {
+        animation: toastDurationBar var(--toast-duration) forwards linear;
+    }
+
+    // La barre s'arrête à la fermeture : la fin de son animation remonterait jusqu'à
+    // l'hôte et interromprait celle de sortie.
     &.disappearing {
-        animation: toastLeave .2s forwards;
-    }
+        animation: toastLeave .15s forwards;
 
-    &.ephemeral {
         .toast-duration-bar::before {
-            animation: toastDurationBar var(--toast-duration) forwards linear;
+            animation: none;
+            width: 0;
         }
     }
-
 
     /* POSITIONS */
 
     &[data-toast-position="top-left"] {
-        --toast-top: var(--margin-vert);
-        --toast-left: var(--margin-hor);
-        --toast-leave-tx: -10px;
+        --toast-top: var(--toast-margin-x);
+        --toast-left: var(--toast-margin-x);
+        --toast-leave-ty: -8px;
     }
 
     &[data-toast-position="top-center"] {
-        --toast-top: var(--margin-vert);
+        --toast-top: var(--toast-margin-x);
         --toast-left: 50%;
         --toast-tx: -50%;
-        --toast-leave-tx: -50%;
-        --toast-leave-ty: -100%;
+        --toast-leave-ty: -8px;
     }
 
     &[data-toast-position="top-right"] {
-        --toast-top: var(--margin-vert);
-        --toast-right: var(--margin-hor);
-        --toast-leave-tx: 10px;
+        --toast-top: var(--toast-margin-x);
+        --toast-right: var(--toast-margin-x);
+        --toast-leave-ty: -8px;
     }
 
     &[data-toast-position="bottom-left"] {
-        --toast-bottom: var(--margin-vert);
-        --toast-left: var(--margin-hor);
-        --toast-leave-tx: -10px;
+        --toast-bottom: var(--toast-margin-y);
+        --toast-left: var(--toast-margin-x);
     }
 
     &[data-toast-position="bottom-center"] {
-        --toast-bottom: var(--margin-vert);
+        --toast-bottom: var(--toast-margin-y);
         --toast-left: 50%;
         --toast-tx: -50%;
-        --toast-leave-tx: -50%;
-        --toast-leave-ty: 100%;
     }
 
     &[data-toast-position="bottom-right"] {
-        --toast-bottom: var(--margin-vert);
-        --toast-right: var(--margin-hor);
-        --toast-leave-tx: 20px;
+        --toast-bottom: var(--toast-margin-y);
+        --toast-right: var(--toast-margin-x);
     }
 
-
-
-    /* COULEURS */
+    /* COULEURS : liseré seulement */
 
     &[data-toast-type="success"] {
-        --toast-background: color-mix(in srgb, var(--status-success-emphasis), #fff 85%);
-        --toast-color: var(--status-success-emphasis);
+        --toast-tone: var(--success);
     }
 
     &[data-toast-type="warning"] {
-        --toast-background: var(--status-warning);
-        --toast-color: var(--status-warning-fg);
+        --toast-tone: var(--warning);
     }
 
     &[data-toast-type="danger"] {
-        --toast-background: color-mix(in srgb, var(--status-danger), #fff 10%);
-        --toast-color: var(--status-danger-fg);
-    }
-
-    &[data-toast-type="medium"] {
-        --toast-background: var(--neutral);
-        --toast-color: var(--neutral-fg);
-    }
-
-    &[data-toast-type="default"] {
-        --toast-background: var(--surface-raised);
-        --toast-color: var(--text);
-    }
-
-    &[data-toast-type="dark"] {
-        --toast-background: var(--surface-dark);
-        --toast-color: var(--text-inverse);
-    }
-
-    &[data-toast-type="light"] {
-        --toast-background: var(--surface-alt);
-        --toast-color: var(--text);
+        --toast-tone: var(--danger);
     }
 
     &[data-toast-type="primary"] {
-        --toast-background: var(--interactive);
-        --toast-color: var(--interactive-fg);
+        --toast-tone: var(--accent);
     }
+}
 
-    &[data-toast-type="secondary"] {
-        --toast-background: var(--accent-secondary-subtle);
-        --toast-color: var(--accent-secondary-fg);
+.toast-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+}
+
+.message {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+// Spinner « occupé » de la maquette.
+.toast-spinner {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border-radius: 7px;
+    border: 2px solid color-mix(in srgb, var(--toast-fg), transparent 70%);
+    border-top-color: var(--toast-fg);
+    animation: qspin .8s linear infinite;
+}
+
+.actions {
+    display: flex;
+    gap: 4px;
+    flex: none;
+}
+
+.toast-action {
+    height: 22px;
+    padding: 0 8px;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--accent-ring);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+        background: color-mix(in srgb, var(--toast-fg), transparent 88%);
     }
+}
 
-    &[data-toast-type="tertiary"] {
-        --bg-color: var(--accent-tertiary-subtle);
-        --fg-color: var(--accent-tertiary-fg);
+.close-button {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--toast-fg);
+    font-size: 11px;
+    opacity: .7;
+    cursor: pointer;
+
+    &:hover {
+        opacity: 1;
+        background: color-mix(in srgb, var(--toast-fg), transparent 88%);
     }
+}
 
-    .toast-content {
-        padding: 6px 25px;
-        font-size: var(--toast-font-size, .9rem);
-        user-select: none;
+.toast-duration-bar {
+    height: 2px;
 
-        &.closable {
-            padding-right: 60px;
-        }
-    }
-
-    .toast-duration-bar {
+    &::before {
+        content: "";
+        display: block;
         width: 100%;
-        height: 4px;
-        position: relative;
-
-        &::before {
-            content: '';
-            height: 100%;
-            width: 100%;
-            background: color-mix(in srgb, var(--toast-color), #0000 80%);
-            display: block;
-        }
-    }
-
-    .message {
-        margin: 5px 0;
-    }
-
-    .close-button {
-        --btn-fg: var(--toast-color);
-        --btn-bg: transparent;
-
-        --btn-padding: 5px 8px;
-
-        color: var(--toast-color);
-        font-size: 1.2rem;
-        position: absolute;
-        top: 50%;
-        right: 6px;
-        transform: translateY(-50%);
-        line-height: 1;
+        height: 100%;
+        background: color-mix(in srgb, var(--toast-fg), transparent 75%);
     }
 }
 
 @keyframes toastLeave {
-    0% {
-        opacity: 1;
-        transform: translate(var(--toast-tx), var(--toast-ty));
-    }
-
-    100% {
+    to {
         opacity: 0;
-        transform: translate(var(--toast-leave-tx), var(--toast-leave-ty));
+        transform: translate(var(--toast-tx), var(--toast-leave-ty));
     }
 }
 
-
 @keyframes toastDurationBar {
-    0% {
+    from {
         width: 100%;
     }
 
-    100% {
+    to {
         width: 0;
     }
 }

@@ -6,34 +6,40 @@
 
 <div class="alert-backdrop"></div>
 
-<div class="alert-content">
-    @if(title()) {
-        <h4>{{ title() }}</h4>
-    }
+<div class="alert-content" role="alertdialog" aria-modal="true">
+    <div class="alert-body">
+        <div class="alert-badge" aria-hidden="true">{{ badge() }}</div>
 
-    @if(message()) {
-        <p class="message" [innerHTML]="getPrettyMessage() | bypass: 'html'"></p>
-    }
+        <div class="alert-text">
+            @if(title()) {
+                <h4 class="alert-title">{{ title() }}</h4>
+            }
 
-    @if(hasDetails()) {
-        <div class="details">
-            <button class="btn-details clear btn-primary" [class]="{ opened: detailsOpened() }" (click)="toggleDetails()">
-                {{ detailsOpened() ? 'Cacher' : 'Afficher' }} les détails
-            </button>
+            @if(message()) {
+                <div class="message" [innerHTML]="getPrettyMessage() | bypass: 'html'"></div>
+            }
 
-            @if(detailsOpened()) {
-                <div [innerHTML]="formattedDetails() | bypass: 'html'"></div>
+            @if(hasDetails()) {
+                <div class="details">
+                    <button type="button" class="btn-details" [class.opened]="detailsOpened()" (click)="toggleDetails()">
+                        {{ i18n.t(detailsOpened() ? 'ui.alert.hideDetails' : 'ui.alert.showDetails') }}
+                    </button>
+
+                    @if(detailsOpened()) {
+                        <div class="details-content" [innerHTML]="formattedDetails() | bypass: 'html'"></div>
+                    }
+                </div>
             }
         </div>
-    }
+    </div>
 
     @if(hasActions()) {
         <div class="actions">
-            @for(action of actions(); track action.text) {
+            @for(action of actions(); track $index) {
                 <ui-button
                     type="button"
                     [class]="'btn-' + getButtonRoleClass(action)"
-                    [color]="action.color ?? getButtonRoleClass(action)"
+                    [color]="actionColor(action)"
                     [icon]="action.icon ?? null"
                     (click)="onActionClicked(action)">
                     {{ action.text }}

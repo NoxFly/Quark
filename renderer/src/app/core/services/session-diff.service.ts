@@ -15,8 +15,9 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { computed, inject, Injectable, signal } from "@angular/core";
+import { computed, effect, inject, Injectable, Injector, signal, untracked } from "@angular/core";
 import type { SessionDiffSnapshot, SessionDiffSummary } from "@shared/session-diff";
+import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 
 /** Compteurs d'un diff vide. */
@@ -33,6 +34,7 @@ const EMPTY_SUMMARY: SessionDiffSummary = { tables: 0, rows: 0, opaque: 0 };
 @Injectable({ providedIn: "root" })
 export class SessionDiffService {
     private readonly noxus = inject(NoxusService);
+    private readonly injector = inject(Injector);
 
     /** Dernier instantané chargé, `null` tant qu'aucun chargement n'a eu lieu. */
     public readonly snapshot = signal<SessionDiffSnapshot | null>(null);
@@ -52,6 +54,15 @@ export class SessionDiffService {
         return summary.rows > 0 || summary.opaque > 0;
     });
 
+    /**
+     * Horodatage d'ouverture de la transaction courante, `null` hors transaction.
+     * Une modification postérieure est « en attente » ; les autres sont validées.
+     * Le main ne le transmet pas : il est relevé côté renderer au passage de
+     * `inTransaction` à vrai (après un rechargement de la fenêtre en pleine
+     * transaction, il vaut donc l'heure du rechargement).
+     */
+    public readonly transactionStartedAt = signal<number | null>(null);
+
     /** La page de diff est affichée : l'instantané doit suivre les modifications. */
     private live = false;
 
@@ -60,6 +71,15 @@ export class SessionDiffService {
      * À appeler une seule fois, au démarrage de l'application.
      */
     public listen(): void {
+        // `DatabaseService` dépend de ce service : il est résolu ici, après la
+        // construction des deux, et non par `inject()` dans un champ.
+        const dbService = this.injector.get(DatabaseService);
+
+        effect(() => {
+            const open = dbService.inTransaction();
+            untracked(() => this.transactionStartedAt.set(open ? Date.now() : null));
+        }, { injector: this.injector });
+
         this.noxus.ipc.onSessionDiffChanged(summary => {
             this.summary.set(summary);
 
@@ -84,6 +104,16 @@ export class SessionDiffService {
         if (live) {
             void this.load();
         }
+    }
+
+    /**
+     * @description Indique si une modification faite à cet instant n'est pas encore validée.
+     * @param timestamp - Horodatage de la modification (ms).
+     */
+    public isPending(timestamp: number): boolean {
+        const startedAt = this.transactionStartedAt();
+
+        return startedAt !== null && timestamp >= startedAt;
     }
 
     /**

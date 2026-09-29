@@ -17,58 +17,117 @@
 
 import { app } from "electron/main";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { randomBytes, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type {
+    ConnectionFolder,
+    ConnectionFolderInput,
+    ConnectionMasterPasswordBody,
     ConnectionProfile,
     ConnectionProfileInput,
+    ConnectionTag,
     ConnectionVaultStatus,
+    SqliteSourceMode,
 } from "@shared/connection";
 import type { DatabaseDriverType } from "@shared/driver";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import { decryptFromXml, encryptToXml } from "src/core/services/connection-crypto";
-
-/** Profil complet tel que persisté (inclut le secret, jamais exposé au renderer). */
-interface StoredProfile extends Omit<ConnectionProfile, "hasPassword"> {
-    password?: string;
-}
+import type { StoredConnectionProfile } from "src/core/services/connection-store.types";
+import { electronKeychain } from "src/core/services/system-keychain";
+import type { SystemKeychain } from "src/core/services/system-keychain.types";
 
 const PAYLOAD_ROOT = "connections";
+
+/**
+ * Version du contenu déchiffré. La 2 ajoute les dossiers et les champs de profil
+ * (source SQLite, URI, SSL, étiquette, notes…) ; un coffre en version 1 se lit
+ * sans perte, les champs absents prenant leur valeur par défaut.
+ */
+const PAYLOAD_VERSION = "2";
+
+/** Nom du dossier créé pour un coffre qui n'en a aucun (coffre antérieur aux dossiers). */
+const DEFAULT_FOLDER_NAME = "Connexions";
+
+const CONNECTION_TAGS = new Set<ConnectionTag>(["production", "client", "local", "other"]);
+
+/** Longueur de la clé aléatoire qui remplace le mot de passe maître quand il est désactivé. */
+const KEYCHAIN_SECRET_BYTES = 32;
 
 const payloadParser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
     parseAttributeValue: false,
-    isArray: (name) => name === "connection",
+    isArray: (name) => name === "connection" || name === "folder",
 });
-const payloadBuilder = new XMLBuilder({ ignoreAttributes: false, attributeNamePrefix: "@_", format: true });
+// `suppressBooleanAttributes` écrirait `ssl="true"` en attribut nu (`ssl`), que le
+// parseur ignore : l'option serait perdue à la relecture.
+const payloadBuilder = new XMLBuilder({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    format: true,
+    suppressBooleanAttributes: false,
+});
+
+/** Contenu déchiffré du coffre (ou d'un export). */
+interface VaultPayload {
+    folders: ConnectionFolder[];
+    profiles: StoredConnectionProfile[];
+}
 
 /**
  * Coffre des profils de connexion sauvegardés.
  *
- * Persiste les profils (identifiants inclus) dans un fichier XML chiffré par une
- * clé dérivée d'un mot de passe maître. Le coffre démarre verrouillé : il doit
- * être déverrouillé une fois par session avant tout accès aux profils.
- * Permet aussi d'exporter/importer des profils via des fichiers XML chiffrés par
- * une passphrase indépendante, pour partager l'accès à une base.
+ * Persiste les profils (identifiants inclus) et leurs dossiers dans un fichier XML
+ * chiffré. La clé est dérivée soit d'un mot de passe maître saisi une fois par
+ * session, soit — mot de passe maître désactivé — d'un secret aléatoire lui-même
+ * protégé par le trousseau du système (`connections.key`) : le coffre se
+ * déverrouille alors seul. Permet aussi d'exporter/importer des profils via des
+ * fichiers XML chiffrés par une passphrase indépendante, pour partager l'accès à
+ * une base.
  */
 export class ConnectionStore {
     private readonly filePath: string;
+    private readonly keyFilePath: string;
     private masterPassword: string | null = null;
-    private profiles: StoredProfile[] = [];
+    private profiles: StoredConnectionProfile[] = [];
+    private folders: ConnectionFolder[] = [];
     private unlocked = false;
     private pendingSave: Promise<void> = Promise.resolve();
 
-    public constructor() {
-        this.filePath = join(app.getPath("userData"), "connections.xml");
+    /**
+     * @param keychain - Trousseau du système (factice dans les tests).
+     */
+    public constructor(private readonly keychain: SystemKeychain = electronKeychain) {
+        const directory = app.getPath("userData");
+        this.filePath = join(directory, "connections.xml");
+        this.keyFilePath = join(directory, "connections.key");
     }
 
     /**
-     * Retourne l'état courant du coffre.
+     * Retourne l'état courant du coffre. Sans mot de passe maître, le coffre est
+     * déverrouillé au passage par le trousseau : c'est la première chose que
+     * demande le renderer.
      */
-    public getStatus(): ConnectionVaultStatus {
-        return { initialized: existsSync(this.filePath), unlocked: this.unlocked };
+    public async getStatus(): Promise<ConnectionVaultStatus> {
+        const initialized = existsSync(this.filePath);
+        const masterPasswordEnabled = !existsSync(this.keyFilePath);
+
+        if (initialized && !masterPasswordEnabled && !this.unlocked) {
+            await this.unlockWithKeychain();
+        }
+
+        return {
+            initialized,
+            unlocked: this.unlocked,
+            // Relu : un secret périmé a pu être supprimé par la tentative ci-dessus.
+            masterPasswordEnabled: !existsSync(this.keyFilePath),
+        };
+    }
+
+    /** Le coffre est déverrouillé pour la session (lecture sans effet de bord). */
+    public get isUnlocked(): boolean {
+        return this.unlocked;
     }
 
     /**
@@ -83,14 +142,14 @@ export class ConnectionStore {
             throw new Error("Master password cannot be empty");
         }
 
-        this.masterPassword = masterPassword;
-        this.profiles = [];
-        this.unlocked = true;
+        await this.removeKeyFile();
+        this.openEmpty(masterPassword);
         await this.save();
     }
 
     /**
-     * Déverrouille le coffre avec le mot de passe maître.
+     * Déverrouille le coffre avec le mot de passe maître. Sans mot de passe
+     * maître, le trousseau du système suffit et `masterPassword` est ignoré.
      * @returns `true` si le déverrouillage réussit, `false` si le mot de passe est incorrect.
      */
     public async unlock(masterPassword: string): Promise<boolean> {
@@ -98,21 +157,11 @@ export class ConnectionStore {
             return false;
         }
 
-        try {
-            const xml = await readFile(this.filePath, "utf-8");
-            const plaintext = await decryptFromXml(xml, masterPassword);
-            this.profiles = this.parseProfiles(plaintext);
-            this.masterPassword = masterPassword;
-            this.unlocked = true;
+        if (existsSync(this.keyFilePath) && await this.unlockWithKeychain()) {
             return true;
         }
-        catch {
-            // Échec de déchiffrement = mauvais mot de passe (ou fichier corrompu).
-            this.masterPassword = null;
-            this.profiles = [];
-            this.unlocked = false;
-            return false;
-        }
+
+        return await this.unlockWith(masterPassword);
     }
 
     /**
@@ -121,7 +170,29 @@ export class ConnectionStore {
     public lock(): void {
         this.masterPassword = null;
         this.profiles = [];
+        this.folders = [];
         this.unlocked = false;
+    }
+
+    /**
+     * Active ou désactive le mot de passe maître.
+     *
+     * - activer : le coffre est rechiffré avec le nouveau mot de passe, puis le
+     *   secret du trousseau est supprimé (même effet qu'un changement de mot de passe
+     *   quand il était déjà actif) ;
+     * - désactiver : le mot de passe actuel est vérifié, puis le coffre est rechiffré
+     *   avec un secret aléatoire confié au trousseau du système.
+     *
+     * @throws Si le mot de passe est vide ou incorrect, si le coffre est verrouillé,
+     * ou si le trousseau du système est indisponible (désactivation).
+     */
+    public async setMasterPassword(body: ConnectionMasterPasswordBody): Promise<void> {
+        if (body.enabled) {
+            await this.enableMasterPassword(body.masterPassword);
+        }
+        else {
+            await this.disableMasterPassword(body.masterPassword);
+        }
     }
 
     /**
@@ -139,7 +210,7 @@ export class ConnectionStore {
         this.ensureUnlocked();
 
         const now = Date.now();
-        const profile: StoredProfile = {
+        const profile: StoredConnectionProfile = {
             ...this.normalizeInput(input),
             id: randomUUID(),
             password: input.password ?? "",
@@ -160,18 +231,16 @@ export class ConnectionStore {
     public async update(id: string, input: ConnectionProfileInput): Promise<ConnectionProfile> {
         this.ensureUnlocked();
 
-        const existing = this.profiles.find(p => p.id === id);
-        if (!existing) {
-            throw new Error(`Connection profile not found: ${id}`);
-        }
+        const existing = this.requireProfile(id);
 
-        const updated: StoredProfile = {
+        const updated: StoredConnectionProfile = {
             ...existing,
             ...this.normalizeInput(input),
             id: existing.id,
             password: input.password ?? existing.password,
             createdAt: existing.createdAt,
             updatedAt: Date.now(),
+            lastConnectedAt: existing.lastConnectedAt,
         };
 
         this.profiles = this.profiles.map(p => (p.id === id ? updated : p));
@@ -192,14 +261,104 @@ export class ConnectionStore {
      * Récupère le profil complet (secret inclus) pour établir une connexion.
      * Usage interne au main uniquement.
      */
-    public getProfile(id: string): StoredProfile | null {
+    public getProfile(id: string): StoredConnectionProfile | null {
         this.ensureUnlocked();
         return this.profiles.find(p => p.id === id) ?? null;
     }
 
     /**
+     * Date la dernière connexion réussie à un profil (tri « récents » du gestionnaire).
+     * Sans effet sur `updatedAt` : se connecter ne modifie pas le profil.
+     */
+    public async markConnected(id: string): Promise<void> {
+        this.ensureUnlocked();
+
+        const profile = this.requireProfile(id);
+        profile.lastConnectedAt = Date.now();
+        await this.save();
+    }
+
+    // --- Dossiers ---
+
+    /**
+     * Liste les dossiers, dans leur ordre d'affichage.
+     */
+    public listFolders(): ConnectionFolder[] {
+        this.ensureUnlocked();
+        return this.sortedFolders().map(folder => ({ ...folder }));
+    }
+
+    /**
+     * Crée un dossier, placé après les autres.
+     * @throws Si le nom est vide.
+     */
+    public async createFolder(input: ConnectionFolderInput): Promise<ConnectionFolder> {
+        this.ensureUnlocked();
+
+        const folder: ConnectionFolder = {
+            id: randomUUID(),
+            name: this.requireFolderName(input),
+            order: this.folders.reduce((max, current) => Math.max(max, current.order), -1) + 1,
+        };
+
+        this.folders.push(folder);
+        await this.save();
+        return { ...folder };
+    }
+
+    /**
+     * Renomme un dossier.
+     * @throws Si le dossier n'existe pas ou si le nom est vide.
+     */
+    public async updateFolder(id: string, input: ConnectionFolderInput): Promise<ConnectionFolder> {
+        this.ensureUnlocked();
+
+        const folder = this.folders.find(f => f.id === id);
+
+        if (!folder) {
+            throw new Error(`Connection folder not found: ${id}`);
+        }
+
+        folder.name = this.requireFolderName(input);
+        await this.save();
+        return { ...folder };
+    }
+
+    /**
+     * Supprime un dossier ; ses profils rejoignent le premier dossier restant.
+     * @throws Si le dossier n'existe pas, ou s'il est le dernier : un profil doit
+     * toujours avoir un dossier où s'afficher.
+     */
+    public async deleteFolder(id: string): Promise<void> {
+        this.ensureUnlocked();
+
+        if (!this.folders.some(f => f.id === id)) {
+            throw new Error(`Connection folder not found: ${id}`);
+        }
+
+        const [target] = this.sortedFolders().filter(f => f.id !== id);
+
+        if (!target) {
+            throw new Error("The last connection folder cannot be deleted");
+        }
+
+        this.folders = this.folders.filter(f => f.id !== id);
+
+        for (const profile of this.profiles) {
+            if (profile.folderId === id) {
+                profile.folderId = target.id;
+            }
+        }
+
+        await this.save();
+    }
+
+    // --- Export / import ---
+
+    /**
      * Exporte les profils sélectionnés dans un document XML chiffré par `passphrase`.
      * Le chiffrement est indépendant du mot de passe maître pour permettre le partage.
+     * Les dossiers des profils exportés les accompagnent.
      */
     public async exportProfiles(ids: string[], passphrase: string): Promise<string> {
         this.ensureUnlocked();
@@ -208,14 +367,19 @@ export class ConnectionStore {
         }
 
         const selected = this.profiles.filter(p => ids.includes(p.id));
-        const plaintext = this.serializeProfiles(selected);
-        return await encryptToXml(plaintext, passphrase);
+        const folderIds = new Set(selected.map(p => p.folderId));
+        const folders = this.folders.filter(f => folderIds.has(f.id));
+        // `lastConnectedAt` décrit l'usage local, pas la connexion partagée.
+        const exported = selected.map(({ lastConnectedAt: _lastConnectedAt, ...profile }) => profile);
+
+        return await encryptToXml(this.serializePayload({ folders, profiles: exported }), passphrase);
     }
 
     /**
      * Importe des profils depuis un document XML chiffré par `passphrase`.
      * Chaque profil importé reçoit un nouvel identifiant et est re-chiffré sous
-     * le mot de passe maître du coffre local.
+     * la clé du coffre local. Un dossier importé rejoint le dossier local du même
+     * nom, ou est créé.
      * @returns Le nombre de profils importés.
      * @throws Si la passphrase est incorrecte.
      */
@@ -223,15 +387,25 @@ export class ConnectionStore {
         this.ensureUnlocked();
 
         const plaintext = await decryptFromXml(xml, passphrase);
-        const imported = this.parseProfiles(plaintext);
+        const imported = this.parsePayload(plaintext);
+        const folderMapping = this.mergeImportedFolders(imported.folders);
         const now = Date.now();
 
-        for (const profile of imported) {
-            this.profiles.push({ ...profile, id: randomUUID(), createdAt: now, updatedAt: now });
+        for (const profile of imported.profiles) {
+            const folderId = profile.folderId ? folderMapping.get(profile.folderId) : undefined;
+
+            this.profiles.push({
+                ...profile,
+                id: randomUUID(),
+                folderId,
+                createdAt: now,
+                updatedAt: now,
+                lastConnectedAt: undefined,
+            });
         }
 
         await this.save();
-        return imported.length;
+        return imported.profiles.length;
     }
 
     // --- Helpers privés ---
@@ -242,10 +416,217 @@ export class ConnectionStore {
         }
     }
 
+    private requireProfile(id: string): StoredConnectionProfile {
+        const profile = this.profiles.find(p => p.id === id);
+
+        if (!profile) {
+            throw new Error(`Connection profile not found: ${id}`);
+        }
+
+        return profile;
+    }
+
+    private requireFolderName(input: ConnectionFolderInput): string {
+        const name = input.name?.trim() ?? "";
+
+        if (!name) {
+            throw new Error("Folder name cannot be empty");
+        }
+
+        return name;
+    }
+
+    private sortedFolders(): ConnectionFolder[] {
+        return [...this.folders].sort((a, b) => a.order - b.order);
+    }
+
+    /**
+     * Associe chaque dossier importé à un dossier local : celui du même nom s'il
+     * existe, sinon un nouveau dossier ajouté à la fin.
+     * @returns Identifiant importé → identifiant local.
+     */
+    private mergeImportedFolders(imported: ConnectionFolder[]): Map<string, string> {
+        const mapping = new Map<string, string>();
+        let nextOrder = this.folders.reduce((max, current) => Math.max(max, current.order), -1) + 1;
+
+        for (const folder of imported) {
+            const existing = this.folders.find(f => f.name.toLowerCase() === folder.name.toLowerCase());
+
+            if (existing) {
+                mapping.set(folder.id, existing.id);
+                continue;
+            }
+
+            const created: ConnectionFolder = { id: randomUUID(), name: folder.name, order: nextOrder++ };
+            this.folders.push(created);
+            mapping.set(folder.id, created.id);
+        }
+
+        return mapping;
+    }
+
+    /**
+     * Charge un coffre vide en mémoire, déverrouillé sous `secret`.
+     */
+    private openEmpty(secret: string): void {
+        this.masterPassword = secret;
+        this.profiles = [];
+        this.folders = [];
+        this.ensureDefaultFolder();
+        this.unlocked = true;
+    }
+
+    /**
+     * Garantit qu'au moins un dossier existe : un coffre antérieur aux dossiers,
+     * ou dont tous les dossiers ont disparu, reçoit un dossier par défaut.
+     * @returns `true` si un dossier a été créé.
+     */
+    private ensureDefaultFolder(): boolean {
+        if (this.folders.length > 0) {
+            return false;
+        }
+
+        this.folders = [{ id: randomUUID(), name: DEFAULT_FOLDER_NAME, order: 0 }];
+        return true;
+    }
+
+    /**
+     * Déchiffre le coffre avec `secret` et le charge en mémoire.
+     * @returns `false` si le secret est incorrect (ou le fichier corrompu).
+     */
+    private async unlockWith(secret: string): Promise<boolean> {
+        try {
+            const xml = await readFile(this.filePath, "utf-8");
+            const payload = this.parsePayload(await decryptFromXml(xml, secret));
+
+            this.masterPassword = secret;
+            this.profiles = payload.profiles;
+            this.folders = payload.folders;
+            this.unlocked = true;
+        }
+        catch {
+            // Échec de déchiffrement = mauvais mot de passe (ou fichier corrompu).
+            this.lock();
+            return false;
+        }
+
+        // Écrit aussitôt le dossier par défaut : son identifiant doit rester stable
+        // d'une session à l'autre, les profils qu'on y range s'y référant.
+        if (this.ensureDefaultFolder()) {
+            await this.save();
+        }
+
+        return true;
+    }
+
+    /**
+     * Déverrouille le coffre par le secret confié au trousseau du système.
+     *
+     * Un secret que le trousseau déchiffre mais qui n'ouvre pas le coffre est
+     * périmé (interruption pendant une réactivation du mot de passe maître) : il est
+     * supprimé, et le coffre redevient protégé par son mot de passe maître.
+     */
+    private async unlockWithKeychain(): Promise<boolean> {
+        const secret = await this.readKeychainSecret();
+
+        if (secret === null) {
+            return false;
+        }
+
+        if (await this.unlockWith(secret)) {
+            return true;
+        }
+
+        await this.removeKeyFile();
+        return false;
+    }
+
+    private async readKeychainSecret(): Promise<string | null> {
+        if (!existsSync(this.keyFilePath) || !this.keychain.isAvailable()) {
+            return null;
+        }
+
+        try {
+            return this.keychain.decrypt(await readFile(this.keyFilePath));
+        }
+        catch {
+            return null;
+        }
+    }
+
+    private async enableMasterPassword(masterPassword: string): Promise<void> {
+        if (!masterPassword) {
+            throw new Error("Master password cannot be empty");
+        }
+
+        if (!existsSync(this.filePath)) {
+            await this.initialize(masterPassword);
+            return;
+        }
+
+        if (!this.unlocked && existsSync(this.keyFilePath)) {
+            await this.unlockWithKeychain();
+        }
+
+        this.ensureUnlocked();
+
+        // Le coffre est rechiffré avant la suppression du secret : interrompu entre
+        // les deux, il reste ouvrable par le nouveau mot de passe, et le secret
+        // devenu périmé est écarté à la prochaine lecture.
+        this.masterPassword = masterPassword;
+        await this.save();
+        await this.removeKeyFile();
+    }
+
+    private async disableMasterPassword(currentPassword: string): Promise<void> {
+        if (!this.keychain.isAvailable()) {
+            throw new Error("The system keychain is not available on this computer: the master password cannot be disabled.");
+        }
+
+        if (existsSync(this.keyFilePath)) {
+            return;
+        }
+
+        const secret = randomBytes(KEYCHAIN_SECRET_BYTES).toString("base64");
+
+        if (!existsSync(this.filePath)) {
+            await this.writeKeyFile(secret);
+            this.openEmpty(secret);
+            await this.save();
+            return;
+        }
+
+        if (!currentPassword || !(await this.unlockWith(currentPassword))) {
+            throw new Error("Invalid master password");
+        }
+
+        // Le secret est écrit avant le rechiffrement : dans l'ordre inverse, une
+        // interruption laisserait un coffre chiffré par une clé perdue.
+        await this.writeKeyFile(secret);
+
+        try {
+            this.masterPassword = secret;
+            await this.save();
+        }
+        catch (error) {
+            this.masterPassword = currentPassword;
+            await this.removeKeyFile();
+            throw error;
+        }
+    }
+
+    private async writeKeyFile(secret: string): Promise<void> {
+        await writeFile(this.keyFilePath, this.keychain.encrypt(secret), { mode: 0o600 });
+    }
+
+    private async removeKeyFile(): Promise<void> {
+        await rm(this.keyFilePath, { force: true });
+    }
+
     /**
      * Convertit un profil stocké en version publique (sans secret).
      */
-    private toPublic(profile: StoredProfile): ConnectionProfile {
+    private toPublic(profile: StoredConnectionProfile): ConnectionProfile {
         const { password, ...rest } = profile;
         return { ...rest, hasPassword: !!password };
     }
@@ -254,16 +635,27 @@ export class ConnectionStore {
      * Filtre les champs d'entrée selon le mode de connexion pour éviter de
      * persister des champs incohérents (ex: host sur une connexion fichier).
      */
-    private normalizeInput(input: ConnectionProfileInput): Omit<StoredProfile, "id" | "password" | "createdAt" | "updatedAt"> {
+    private normalizeInput(input: ConnectionProfileInput): Omit<StoredConnectionProfile, "id" | "password" | "createdAt" | "updatedAt"> {
         const base = {
             name: input.name,
             color: input.color,
             driverType: input.driverType,
             connectionType: input.connectionType,
+            folderId: input.folderId || undefined,
+            tag: input.tag && CONNECTION_TAGS.has(input.tag) ? input.tag : undefined,
+            notes: input.notes || undefined,
         };
 
         if (input.connectionType === "file") {
-            return { ...base, filePath: input.filePath };
+            if (input.sqliteMode === "url" || input.driverType === "libsql") {
+                return { ...base, sqliteMode: "url", url: input.url?.trim() || undefined };
+            }
+
+            return { ...base, sqliteMode: input.sqliteMode ? "file" : undefined, filePath: input.filePath };
+        }
+
+        if (input.driverType === "libsql") {
+            return { ...base, sqliteMode: "url", url: input.url?.trim() || undefined };
         }
 
         return {
@@ -275,26 +667,32 @@ export class ConnectionStore {
             authMode: input.authMode,
             clientId: input.clientId,
             tenantId: input.tenantId,
+            uri: input.driverType === "mongodb" ? input.uri?.trim() || undefined : undefined,
+            ssl: input.ssl,
         };
     }
 
     /**
-     * Sérialise une liste de profils en XML clair (avant chiffrement).
+     * Sérialise dossiers et profils en XML clair (avant chiffrement).
      */
-    private serializeProfiles(profiles: StoredProfile[]): string {
-        const payload = {
+    private serializePayload(payload: VaultPayload): string {
+        return payloadBuilder.build({
             [PAYLOAD_ROOT]: {
-                "@_version": "1",
-                connection: profiles.map(p => this.profileToXmlNode(p)),
+                "@_version": PAYLOAD_VERSION,
+                folder: payload.folders.map(folder => ({
+                    "@_id": folder.id,
+                    "@_name": folder.name,
+                    "@_order": String(folder.order),
+                })),
+                connection: payload.profiles.map(p => this.profileToXmlNode(p)),
             },
-        };
-        return payloadBuilder.build(payload);
+        });
     }
 
     /**
      * Transforme un profil en nœud XML (attributs uniquement, champs vides omis).
      */
-    private profileToXmlNode(profile: StoredProfile): Record<string, string> {
+    private profileToXmlNode(profile: StoredConnectionProfile): Record<string, string> {
         const node: Record<string, string> = {
             "@_id": profile.id,
             "@_name": profile.name,
@@ -304,7 +702,7 @@ export class ConnectionStore {
             "@_updatedAt": String(profile.updatedAt),
         };
 
-        const optional: Record<string, string | number | undefined> = {
+        const optional: Record<string, string | number | boolean | undefined> = {
             "@_color": profile.color,
             "@_filePath": profile.filePath,
             "@_host": profile.host,
@@ -314,6 +712,14 @@ export class ConnectionStore {
             "@_authMode": profile.authMode,
             "@_clientId": profile.clientId,
             "@_tenantId": profile.tenantId,
+            "@_sqliteMode": profile.sqliteMode,
+            "@_url": profile.url,
+            "@_uri": profile.uri,
+            "@_ssl": profile.ssl,
+            "@_folderId": profile.folderId,
+            "@_tag": profile.tag,
+            "@_notes": profile.notes,
+            "@_lastConnectedAt": profile.lastConnectedAt,
             "@_password": profile.password,
         };
 
@@ -327,57 +733,67 @@ export class ConnectionStore {
     }
 
     /**
-     * Parse un XML clair de profils en objets `StoredProfile`.
+     * Parse un XML clair de dossiers et de profils. Accepte les deux versions du
+     * format : un attribut absent laisse le champ à sa valeur par défaut.
      */
-    private parseProfiles(xml: string): StoredProfile[] {
+    private parsePayload(xml: string): VaultPayload {
         const parsed = payloadParser.parse(xml) as Record<string, unknown>;
-        const root = parsed[PAYLOAD_ROOT] as { connection?: Record<string, string>[] } | undefined;
-        const nodes = root?.connection ?? [];
+        const root = parsed[PAYLOAD_ROOT] as {
+            connection?: Record<string, string>[];
+            folder?: Record<string, string>[];
+        } | undefined;
 
-        return nodes.map(node => {
-            const portRaw = node["@_port"];
-            const profile: StoredProfile = {
-                id: node["@_id"] ?? randomUUID(),
-                name: node["@_name"] ?? "",
-                driverType: (node["@_driverType"] ?? "sqlite") as DatabaseDriverType,
-                connectionType: node["@_connectionType"] === "network" ? "network" : "file",
-                createdAt: Number(node["@_createdAt"]) || Date.now(),
-                updatedAt: Number(node["@_updatedAt"]) || Date.now(),
-            };
+        const folders = (root?.folder ?? [])
+            .filter(node => node["@_id"] !== undefined)
+            .map((node, index) => ({
+                id: String(node["@_id"]),
+                name: String(node["@_name"] ?? DEFAULT_FOLDER_NAME),
+                order: Number.isFinite(Number(node["@_order"])) ? Number(node["@_order"]) : index,
+            }));
 
-            if (node["@_color"] !== undefined) {
-                profile.color = String(node["@_color"]);
-            }
-            if (node["@_filePath"] !== undefined) {
-                profile.filePath = String(node["@_filePath"]);
-            }
-            if (node["@_host"] !== undefined) {
-                profile.host = String(node["@_host"]);
-            }
-            if (portRaw !== undefined) {
-                profile.port = Number(portRaw);
-            }
-            if (node["@_username"] !== undefined) {
-                profile.username = String(node["@_username"]);
-            }
-            if (node["@_database"] !== undefined) {
-                profile.database = String(node["@_database"]);
-            }
-            if (node["@_authMode"] === "service-principal" || node["@_authMode"] === "sql") {
-                profile.authMode = node["@_authMode"];
-            }
-            if (node["@_clientId"] !== undefined) {
-                profile.clientId = String(node["@_clientId"]);
-            }
-            if (node["@_tenantId"] !== undefined) {
-                profile.tenantId = String(node["@_tenantId"]);
-            }
-            if (node["@_password"] !== undefined) {
-                profile.password = String(node["@_password"]);
-            }
+        return { folders, profiles: (root?.connection ?? []).map(node => this.parseProfileNode(node)) };
+    }
 
-            return profile;
-        });
+    private parseProfileNode(node: Record<string, string>): StoredConnectionProfile {
+        const text = (key: string): string | undefined => (node[key] !== undefined ? String(node[key]) : undefined);
+        const portRaw = node["@_port"];
+        const authMode = node["@_authMode"];
+        const sqliteMode = node["@_sqliteMode"];
+        const tag = node["@_tag"] as ConnectionTag | undefined;
+        const lastConnectedAt = Number(node["@_lastConnectedAt"]);
+
+        const profile: StoredConnectionProfile = {
+            id: node["@_id"] ?? randomUUID(),
+            name: node["@_name"] ?? "",
+            driverType: (node["@_driverType"] ?? "sqlite") as DatabaseDriverType,
+            connectionType: node["@_connectionType"] === "network" ? "network" : "file",
+            createdAt: Number(node["@_createdAt"]) || Date.now(),
+            updatedAt: Number(node["@_updatedAt"]) || Date.now(),
+            color: text("@_color"),
+            filePath: text("@_filePath"),
+            host: text("@_host"),
+            port: portRaw !== undefined ? Number(portRaw) : undefined,
+            username: text("@_username"),
+            database: text("@_database"),
+            authMode: authMode === "service-principal" || authMode === "sql" ? authMode : undefined,
+            clientId: text("@_clientId"),
+            tenantId: text("@_tenantId"),
+            sqliteMode: sqliteMode === "file" || sqliteMode === "url" ? sqliteMode as SqliteSourceMode : undefined,
+            url: text("@_url"),
+            uri: text("@_uri"),
+            ssl: parseBoolean(node["@_ssl"]),
+            folderId: text("@_folderId"),
+            tag: tag && CONNECTION_TAGS.has(tag) ? tag : undefined,
+            notes: text("@_notes"),
+            lastConnectedAt: lastConnectedAt > 0 ? lastConnectedAt : undefined,
+            password: text("@_password"),
+        };
+
+        // Les clés absentes restent absentes : un profil relu est identique à
+        // celui écrit, ce qui garde les comparaisons (et les tests) simples.
+        const definedEntries = Object.entries(profile).filter(([, value]) => value !== undefined);
+
+        return Object.fromEntries(definedEntries) as StoredConnectionProfile;
     }
 
     /**
@@ -388,7 +804,7 @@ export class ConnectionStore {
             throw new Error("Cannot save a locked vault");
         }
 
-        const plaintext = this.serializeProfiles(this.profiles);
+        const plaintext = this.serializePayload({ folders: this.folders, profiles: this.profiles });
         const masterPassword = this.masterPassword;
 
         // Les sauvegardes sont sérialisées : deux écritures concurrentes du même
@@ -402,4 +818,19 @@ export class ConnectionStore {
 
         await write;
     }
+}
+
+/**
+ * Lit un booléen sérialisé en attribut ; toute autre valeur vaut « non renseigné ».
+ */
+function parseBoolean(value: string | undefined): boolean | undefined {
+    if (value === "true") {
+        return true;
+    }
+
+    if (value === "false") {
+        return false;
+    }
+
+    return undefined;
 }

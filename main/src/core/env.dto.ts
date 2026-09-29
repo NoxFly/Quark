@@ -32,6 +32,12 @@ export interface Environment {
     publicDir: string;
     rendererDir: string;
     os: OSType;
+    /**
+     * Exécutable d'origine de la version portable Windows, `null` pour une version
+     * installée. La version portable s'extrait à chaque lancement dans un dossier
+     * temporaire : `process.execPath` y pointe et disparaît à la fermeture.
+     */
+    portableExecutable: string | null;
     product: {
         name: string;
         displayName: string;

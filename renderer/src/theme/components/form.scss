@@ -15,154 +15,139 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use 'src/theme/mixins.scss' as *;
+// Champs natifs : allure des champs de la maquette (32 px, bordure de contrôle,
+// rayon 4, fond du champ, bordure accent au focus). Tout est placé sous `:where()`
+// (spécificité nulle) : un composant qui style ses propres champs l'emporte
+// toujours, sans devoir surenchérir. La case à cocher est stylée dans `common.scss`.
 
-input:not(:where([type="checkbox"], [type="radio"])) {
-    min-width: 150px;
-    padding: 6px 10px;
-    border: 1px solid transparent;
-    // border-bottom-color: rgba(127, 127, 127, 0.2);
-    background: var(--color-light-shade);
-    color: var(--text-color);
-    border-radius: 3px 3px 0 0;
-    transition: border-color 0.3s ease;
-    font-size: 1rem;
-    font-family: var(--default-font-family);
-    height: 32px;
-    cursor: default;
+:where(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"]),
+    select,
+    textarea
+) {
+    height: var(--input-height, 32px);
+    padding: 0 10px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    background: var(--bg-input);
+    color: var(--text);
+    font: inherit;
+    transition: border-color .12s;
 
-    &:not(:disabled):not(:read-only) {
-        cursor: initial;
-
-        &:hover {
-            border-color: rgba(127, 127, 127, 0.2);
-            border-bottom-color: var(--interactive-subtle);
-        }
-
-        &:focus {
-            border-bottom-color: var(--interactive-hover);
-        }
+    &::placeholder {
+        color: var(--text-faint);
     }
 
-    &[type="date"] {
-        background: var(--color-light-tint);
-        border-radius: 3px;
-        border: 1px solid var(--color-light-shade);
-        width: 150px;
-        min-width: 120px;
-        text-align: center;
-        padding: 8px 0 12px 0;
-        height: 38px;
-        user-select: none;
+    // États eux aussi sous `:where()`, pour ne rien ajouter à la spécificité.
+    &:where(:not(:disabled, :read-only):hover) {
+        border-color: var(--border-control-hover);
+    }
 
-        &:not(:disabled):not(:read-only) {
-            &:hover {
-                border-color: rgba(127, 127, 127, 0.8);
-            }
+    &:where(:focus) {
+        outline: none;
+        border-color: var(--accent);
+    }
 
-            &:focus {
-                border-color: var(--interactive);
-            }
-        }
+    &:where(:disabled) {
+        color: var(--text-disabled);
+        background: var(--bg-subtle);
+        cursor: default;
     }
 }
 
-input[type="date"]::-webkit-inner-spin-button,
-input[type="date"]::-webkit-calendar-picker-indicator {
+:where(textarea) {
+    height: auto;
+    min-height: 80px;
+    padding: 8px 10px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+// Variante monospace (chemins, ports, URI, jetons).
+:where(input.mono, textarea.mono) {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+:where(input[type="date"])::-webkit-inner-spin-button,
+:where(input[type="date"])::-webkit-calendar-picker-indicator {
     display: none;
     -webkit-appearance: none;
 }
 
+:where(input[type="number"])::-webkit-outer-spin-button,
+:where(input[type="number"])::-webkit-inner-spin-button {
+    margin: 0;
+}
 
 label[for] {
     cursor: pointer;
     user-select: none;
 }
 
-input[type="radio"],
-input[type="checkbox"] {
+// Bouton radio, assorti à la case à cocher de la maquette.
+:where(input[type="radio"]) {
     appearance: none;
-    aspect-ratio: 1/1;
-    height: 18px;
-    position: relative;
-    border: 1px solid var(--border-heavy);
-    background: none;
-    transition-duration: .2s;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border: 1.5px solid var(--border-control-hover);
+    border-radius: 50%;
+    background: var(--bg-input);
     cursor: pointer;
+    display: inline-grid;
+    place-content: center;
+    flex: none;
+    transition: background .12s, border-color .12s;
 
-    &::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) scale(.5);
-        width: 50%;
-        aspect-ratio: 1/1;
-        background: linear-gradient(0deg, var(--interactive), var(--interactive-subtle));
-        opacity: 0;
-        transition: opacity 0.3s ease, transform 0.3s ease;
-        border-radius: inherit;
+    &:where(:hover) {
+        border-color: var(--accent);
     }
 
-    &:active {
-        transform: scale(.8);
-    }
+    &:where(:checked) {
+        border-color: var(--accent);
+        background: var(--accent);
 
-    &:checked {
-        border-color: var(--interactive);
-
-        &::after {
-            transform: translate(-50%, -50%) scale(1);
-            opacity: 1;
+        &::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-fg);
         }
     }
-}
 
-input[type="radio"] {
-    border-radius: 100%;
-}
+    &:where(:focus-visible) {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: 1px;
+    }
 
-input[type="checkbox"] {
-    border-radius: 3px;
-
-    &::after {
-        border-radius: 2px;
+    &:where(:disabled) {
+        opacity: .5;
+        cursor: default;
     }
 }
 
+// Champ de formulaire : libellé 12 px au-dessus du contrôle, écart 6 px.
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+
+    > label {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+}
+
+// Libellé cliquable d'une case à cocher / d'un radio.
 .radio-item,
 .checkbox-item {
-    @include flex($disp: inline-flex);
-
-    margin: 10px;
-    gap: 10px;
-}
-
-
-textarea {
-    min-width: 150px;
-    min-height: 80px;
-    padding: 6px 10px;
-    border: 1px solid transparent;
-    border-bottom-color: rgba(127, 127, 127, 0.2);
-    background: var(--color-light);
-    color: var(--text-color);
-    border-radius: 3px 3px 0 0;
-    transition: border-color 0.3s ease;
-    font-size: 1em;
-    font-family: inherit;
-    resize: none;
-    cursor: text;
-    margin: 10px 0;
-
-    &:not(:disabled):not(:read-only) {
-        &:hover {
-            border-color: rgba(127, 127, 127, 0.2);
-            border-bottom-color: var(--interactive-subtle);
-        }
-
-        &:focus {
-            border-bottom-color: var(--interactive-hover);
-        }
-    }
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
 }

@@ -15,229 +15,167 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
+@use "src/theme/components/shell-modal.scss" as *;
+@use "src/app/shared/styles/tool-ui.scss" as tool;
 
-.schema-editor {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
-    width: 500px;
-    max-height: 80vh;
+:host {
+    @include shell-modal(520px);
 }
 
-.modal-header {
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--border-color);
-
-    h2 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text-color);
-    }
+.dialog-footer {
+    @include tool.dialog-footer;
 }
 
-.error-banner {
-    padding: 10px 24px;
-    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
-    color: var(--color-danger);
-    font-size: 13px;
+.error-notice {
+    @include tool.error-notice;
 }
 
-.modal-body {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
-    overflow-y: auto;
-    flex: 1;
-    min-height: 0;
-}
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
 
-.section {
-    padding: 14px 24px;
-    border-bottom: 1px solid var(--border-color);
-
-    // `ui-input` encapsule son champ : un sélecteur `input[type=...]` posé ici
-    // ne l'atteint pas, et son conteneur interne reste à sa largeur par défaut.
-    // La largeur passe donc par la variable que le composant expose.
+    // `ui-input` encapsule son champ : la largeur passe par la variable qu'il expose.
     ui-input {
         --width: 100%;
 
         display: block;
         margin: 0;
     }
-
-    input[type="text"],
-    select {
-        width: 100%;
-        padding: 7px 10px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: var(--surface-alt);
-        color: var(--text-color);
-        font-size: 13px;
-        outline: none;
-        box-sizing: border-box;
-        transition: border-color 0.15s;
-
-        &:focus {
-            border-color: var(--interactive);
-        }
-
-        &:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-    }
 }
 
-.section-header {
-    @include flex(flex, row, nowrap, space-between, center, 0);
-    margin-bottom: 10px;
-}
-
-.section-title {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 10px;
-}
-
-.toggle-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 12px;
-    padding: 2px 6px;
-    border-radius: 4px;
-
-    &:hover {
-        background: var(--surface-alt);
-    }
+.field-label {
+    @include tool.field-label;
 }
 
 .columns-list {
-    @include flex(flex, column, nowrap, stretch, stretch, 4px);
+    @include tool.bordered-box;
+
+    display: flex;
+    flex-direction: column;
 }
 
 .column-row {
-    @include flex(flex, row, nowrap, flex-start, center, 8px);
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: var(--surface-alt);
-    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 2px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    ui-input.col-name-input {
+        --width: 100%;
+
+        flex: 1;
+        min-width: 0;
+    }
 
     &.marked-drop {
-        background: color-mix(in srgb, var(--color-danger) 12%, transparent);
-        border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
+        background: var(--danger-bg);
 
         .col-name-input {
             text-decoration: line-through;
-            opacity: 0.5;
+            opacity: .6;
         }
     }
 }
 
 .col-badges {
-    @include flex(flex, row, nowrap, flex-start, center, 4px);
-    min-width: 40px;
-}
-
-.badge {
-    font-size: 9px;
-    font-weight: 700;
-    padding: 2px 4px;
-    border-radius: 3px;
-
-    &.pk {
-        background: color-mix(in srgb, var(--color-warning) 25%, transparent);
-        color: var(--color-warning);
-    }
-
-    &.fk {
-        background: color-mix(in srgb, var(--interactive) 20%, transparent);
-        color: var(--interactive);
-    }
-}
-
-.col-name-input {
-    flex: 1;
-    padding: 5px 8px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-color);
-    font-size: 13px;
-    outline: none;
-    transition: border-color 0.15s, background 0.15s;
-
-    &:focus {
-        border-color: var(--interactive);
-        background: var(--surface);
-    }
+    display: flex;
+    gap: 4px;
+    width: 44px;
+    flex: none;
 }
 
 .col-type {
+    flex: none;
+    max-width: 110px;
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--text-faint);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.drop-btn,
+.drop-placeholder {
+    width: 24px;
+    height: 24px;
+    flex: none;
 }
 
 .drop-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 12px;
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    color: var(--text-muted);
-    transition: background 0.15s, color 0.15s;
-    @include flex(flex, row, nowrap, center, center, 0);
+    @include tool.button-icon;
 
-    &:hover {
-        background: color-mix(in srgb, var(--color-danger) 15%, transparent);
-        color: var(--color-danger);
+    font-size: 12px;
+
+    &:hover:not(:disabled) {
+        background: var(--danger-bg);
+        color: var(--danger);
     }
 
     &.drop-active {
-        color: var(--color-success);
+        color: var(--success);
 
         &:hover {
-            background: color-mix(in srgb, var(--color-success) 15%, transparent);
+            background: var(--success-bg);
+            color: var(--success-text);
         }
     }
 }
 
-.add-column-form {
-    @include flex(flex, column, nowrap, stretch, stretch, 8px);
-    margin-top: -4px;
+.section-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-muted);
 
-    select {
-        width: 100%;
+    &:hover .section-title {
+        color: var(--text);
     }
 }
 
+.toggle-chevron {
+    font-size: 10px;
+}
+
+.add-column-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .checkbox-label {
-    @include flex(flex, row, nowrap, flex-start, center, 8px);
-    font-size: 13px;
-    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
     cursor: pointer;
 }
 
 .changes-summary {
-    padding: 12px 24px;
-    background: color-mix(in srgb, var(--interactive) 5%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: var(--radius-m);
+    background: var(--bg-accent-soft);
 }
 
 .change-item {
-    font-family: "Consolas", monospace;
-    font-size: 12px;
-    color: var(--interactive);
-    padding: 2px 0;
-}
-
-.modal-actions {
-    @include flex(flex, row, nowrap, flex-end, center, 8px);
-    padding: 16px 24px;
-    border-top: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--accent-hover);
 }

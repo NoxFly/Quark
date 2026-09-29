@@ -1,22 +1,24 @@
-<div class="database-schema">
-    <div class="modal-header">
-        <h2>{{ i18n.t('schemaViewer.title') }}</h2>
+<div class="shell-modal">
+    <div class="shell-modal-header">
+        <div class="shell-modal-title">{{ i18n.t('schemaViewer.title') }}</div>
+        <button type="button" class="shell-modal-close" [attr.aria-label]="i18n.t('schemaViewer.close')" (click)="close()">✕</button>
     </div>
 
-    <div class="modal-body">
+    <div class="shell-modal-body">
         @for (entry of schemaSqls(); track entry.name) {
             <div class="table-block">
-                <div class="table-block-header">
-                    <span class="table-block-name">{{ entry.name }}</span>
-                </div>
+                <div class="table-block-header">{{ entry.name }}</div>
                 <pre class="table-block-sql">{{ entry.sql }}</pre>
             </div>
         }
+        @empty {
+            <div class="empty-hint">{{ i18n.t('erDiagram.noTables') }}</div>
+        }
     </div>
 
-    <div class="modal-actions">
-        <ui-button color="secondary" (click)="close()">{{ i18n.t('schemaViewer.close') }}</ui-button>
-        <ui-button color="secondary" icon="e8c8" (click)="copyAll()">
+    <div class="dialog-footer">
+        <ui-button (click)="close()">{{ i18n.t('schemaViewer.close') }}</ui-button>
+        <ui-button icon="e8c8" (click)="copyAll()">
             {{ copied() ? i18n.t('schemaViewer.copied') : i18n.t('schemaViewer.copyAll') }}
         </ui-button>
         <ui-button color="primary" icon="e74e" (click)="exportSql()">{{ i18n.t('schemaViewer.export') }}</ui-button>

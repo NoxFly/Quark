@@ -39,6 +39,50 @@ export type ConnectionType = "file" | "network";
 export type AzureAuthMode = "sql" | "service-principal";
 
 /**
+ * Étiquette d'un profil, affichée en pastille de couleur dans le gestionnaire.
+ * La couleur est choisie par l'interface : production (rouge), client (ambre),
+ * local (vert), other (accent).
+ */
+export type ConnectionTag = "production" | "client" | "local" | "other";
+
+/**
+ * Source d'une base SQLite : fichier local, ou base servie à distance (libSQL / Turso,
+ * `https://`, `libsql://`, `wss://`). Le jeton d'authentification d'une base distante
+ * est rangé dans le champ secret du profil (`password`).
+ */
+export type SqliteSourceMode = "file" | "url";
+
+/**
+ * Dossier du gestionnaire de connexions. Un profil sans `folderId` (ou dont le
+ * dossier n'existe plus) est rangé dans le premier dossier par l'interface.
+ */
+export interface ConnectionFolder {
+    /** Identifiant unique (UUID). */
+    id: string;
+    /** Nom affiché. */
+    name: string;
+    /** Ordre d'affichage (croissant). */
+    order: number;
+}
+
+/** Données fournies pour créer ou renommer un dossier. */
+export interface ConnectionFolderInput {
+    name: string;
+}
+
+/**
+ * Résultat d'un test de connexion (bouton « Tester »). Le test ouvre puis referme
+ * une connexion éphémère, sans toucher à la base ouverte dans la fenêtre.
+ */
+export interface ConnectionTestResult {
+    ok: boolean;
+    /** Durée de l'établissement de la connexion, en millisecondes (si `ok`). */
+    latencyMs?: number;
+    /** Message d'erreur du driver (si `!ok`). */
+    error?: string;
+}
+
+/**
  * Profil de connexion exposé au renderer.
  * Ne contient JAMAIS le secret (mot de passe) : il reste côté main.
  */
@@ -69,12 +113,28 @@ export interface ConnectionProfile {
     clientId?: string;
     /** Tenant (directory) ID Azure AD — requis pour `service-principal`. */
     tenantId?: string;
+    /** Source SQLite : fichier (`filePath`) ou URL distante (`url`). Défaut `file`. */
+    sqliteMode?: SqliteSourceMode;
+    /** URL d'une base SQLite distante (libSQL / Turso). */
+    url?: string;
+    /** URI de connexion complète (MongoDB). Prioritaire sur hôte / port quand renseignée. */
+    uri?: string;
+    /** Chiffrer la connexion réseau (SSL / TLS). */
+    ssl?: boolean;
+    /** Dossier de rangement. */
+    folderId?: string;
+    /** Étiquette (pastille de couleur). */
+    tag?: ConnectionTag;
+    /** Notes libres. */
+    notes?: string;
     /** Indique qu'un mot de passe est stocké pour ce profil (jamais sa valeur). */
     hasPassword: boolean;
     /** Timestamp de création. */
     createdAt: number;
     /** Timestamp de dernière modification. */
     updatedAt: number;
+    /** Timestamp de la dernière connexion réussie via le gestionnaire (absent : jamais). */
+    lastConnectedAt?: number;
 }
 
 /**
@@ -95,6 +155,13 @@ export interface ConnectionProfileInput {
     authMode?: AzureAuthMode;
     clientId?: string;
     tenantId?: string;
+    sqliteMode?: SqliteSourceMode;
+    url?: string;
+    uri?: string;
+    ssl?: boolean;
+    folderId?: string;
+    tag?: ConnectionTag;
+    notes?: string;
     /** Secret à enregistrer. `undefined` = inchangé (en update) ; "" = aucun mot de passe. */
     password?: string;
 }
@@ -105,6 +172,22 @@ export interface ConnectionVaultStatus {
     initialized: boolean;
     /** Le coffre est déverrouillé pour la session courante. */
     unlocked: boolean;
+    /**
+     * Le coffre est protégé par un mot de passe maître. À `false`, sa clé est
+     * protégée par le trousseau du système (`safeStorage`) et il se déverrouille
+     * sans saisie. Réglage « Mot de passe maître » des paramètres.
+     */
+    masterPasswordEnabled: boolean;
+}
+
+/**
+ * Bascule de la protection du coffre (réglage « Mot de passe maître »).
+ * - activer : `enabled: true` + `masterPassword` (nouveau mot de passe maître) ;
+ * - désactiver : `enabled: false` + `masterPassword` (mot de passe actuel, pour confirmer).
+ */
+export interface ConnectionMasterPasswordBody {
+    enabled: boolean;
+    masterPassword: string;
 }
 
 /** Résultat d'une tentative de connexion à un profil (mêmes champs que l'ouverture DB). */

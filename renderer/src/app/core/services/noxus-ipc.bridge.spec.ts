@@ -84,6 +84,45 @@ describe("createIpcBridge", () => {
         ]);
     });
 
+    it("maps the connection, vault and table maintenance routes", async () => {
+        const { client, requests } = createClient();
+        const ipc = createIpcBridge(client);
+
+        await ipc.submitPassword("pw", true);
+        await ipc.connectRemoteSqlite({ url: "libsql://db.example.io", authToken: "t" });
+        await ipc.testConnection({ kind: "file", filePath: "C:/data/app.db" });
+        await ipc.truncateTable("people");
+        await ipc.connFolders();
+        await ipc.connFolderCreate({ name: "Prod" });
+        await ipc.connFolderUpdate("f-1", { name: "Staging" });
+        await ipc.connFolderDelete("f-1");
+        await ipc.connSetMasterPassword({ enabled: false, masterPassword: "master" });
+
+        expect(requests.map(r => `${r.method} ${r.path}`)).toEqual([
+            "POST db/submit-password",
+            "POST db/connect-remote-sqlite",
+            "POST db/test-connection",
+            "POST db/truncate-table",
+            "GET connections/folders",
+            "POST connections/folder-create",
+            "POST connections/folder-update",
+            "POST connections/folder-delete",
+            "POST connections/master-password",
+        ]);
+        expect(requests.map(r => r.body)).toEqual([
+            { password: "pw", remember: true },
+            { url: "libsql://db.example.io", authToken: "t" },
+            { kind: "file", filePath: "C:/data/app.db" },
+            { table: "people" },
+            undefined,
+            { input: { name: "Prod" } },
+            { id: "f-1", input: { name: "Staging" } },
+            { id: "f-1" },
+            { enabled: false, masterPassword: "master" },
+        ]);
+        expect(requests[2]?.timeout).toBe(0);
+    });
+
     it("disables the timeout of operations whose duration depends on the database", async () => {
         const { client, requests } = createClient();
         const ipc = createIpcBridge(client);

@@ -39,6 +39,11 @@ export const routes: Routes = [
         loadComponent: () => import("./stored-procedure/stored-procedure.page").then((c) => c.StoredProcedurePage),
     },
     {
+        path: "indexes",
+        loadComponent: () => import("src/app/shared/components/index-viewer/index-viewer.component")
+            .then((c) => c.IndexViewerComponent),
+    },
+    {
         path: "session-diff",
         loadComponent: () => import("./session-diff/session-diff.page").then((c) => c.SessionDiffPage),
     },

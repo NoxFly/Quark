@@ -26,14 +26,16 @@ import {
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
+import { SettingsService } from "src/app/core/services/settings.service";
+import { RecentDatabaseItemComponent } from "src/app/shared/components/recent-databases/recent-database-item/recent-database-item.component";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 
 /**
  * Action sheet pour sélectionner une base de données récemment ouverte.
  * S'ouvre via l'événement personnalisé `open-recent-databases` sur le document.
  * Navigation clavier : flèches haut/bas, Enter pour confirmer, Escape pour annuler.
- * Les connexions chiffrées ou réseau déclenchent une demande de mot de passe
- * via l'événement `open-password-prompt`.
+ * Les bases chiffrées ou réseau déclenchent la demande de mot de passe
+ * (modale `app-password-prompt`).
  */
 @Component({
     selector: "app-recent-databases",
@@ -41,6 +43,7 @@ import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
     templateUrl: "./recent-databases.component.html",
     styleUrl: "./recent-databases.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [RecentDatabaseItemComponent],
     host: {
         "(window:keydown)": "onKeydown($event)",
         "(click)": "close()",
@@ -49,6 +52,7 @@ import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 export class RecentDatabasesComponent implements OnInit, OnDestroy {
     private readonly noxus = inject(NoxusService);
     private readonly dbService = inject(DatabaseService);
+    private readonly settings = inject(SettingsService);
     protected readonly i18n = inject(I18nService);
 
     protected readonly isOpen = signal<boolean>(false);
@@ -83,36 +87,15 @@ export class RecentDatabasesComponent implements OnInit, OnDestroy {
     }
 
     /**
-     * Confirme la sélection courante et ouvre la connexion.
-     * Délègue au panneau de saisie de mot de passe si nécessaire.
+     * Confirme la sélection courante et rouvre la base (la demande de mot de
+     * passe éventuelle est gérée par `DatabaseService.openRecentDatabase`).
      */
     protected confirm(): void {
         const entry = this.entries()[this.selectedIndex()];
-        if (!entry) {
-            this.close();
-            return;
-        }
-
         this.isOpen.set(false);
 
-        if (entry.requiresPassword) {
-            document.dispatchEvent(new CustomEvent("open-password-prompt", { detail: entry }));
-            return;
-        }
-
-        if (entry.connectionType === "network") {
-            // Connexion réseau sans mot de passe
-            void this.dbService.connectNetwork({
-                driverType: entry.driverType,
-                host: entry.host ?? "localhost",
-                port: entry.port ?? 0,
-                username: entry.username ?? "",
-                password: "",
-                database: entry.database ?? "",
-            });
-        }
-        else {
-            void this.dbService.openFile(entry.filePath ?? "", entry.driverType);
+        if (entry) {
+            void this.dbService.openRecentDatabase(entry, this.settings.settings().connectionTimeout);
         }
     }
 

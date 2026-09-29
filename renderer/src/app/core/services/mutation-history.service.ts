@@ -102,6 +102,16 @@ export class MutationHistoryService {
     }
 
     /**
+     * @description Retire des deux piles les mutations d'une table, par exemple
+     * après son vidage : leurs lignes n'existent plus, les annuler échouerait.
+     * @param tableName Table concernée.
+     */
+    public clearTable(tableName: string): void {
+        this.undoStack.update(stack => stack.filter(m => m.table !== tableName));
+        this.redoStack.update(stack => stack.filter(m => m.table !== tableName));
+    }
+
+    /**
      * Retourne les mutations de la table courante (pour le diff de transaction).
      */
     public getHistoryForTable(tableName: string): MutationRecord[] {

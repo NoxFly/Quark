@@ -22,6 +22,7 @@ import type { DatabaseCategory, DatabaseDriverType, DriverInfo } from "@shared/d
  */
 const DRIVER_CATEGORIES: Record<DatabaseDriverType, DatabaseCategory> = {
     sqlite: "sql",
+    libsql: "sql",
     mysql: "sql",
     postgresql: "sql",
     oracle: "sql",
@@ -49,6 +50,26 @@ const DRIVER_INFOS: Record<DatabaseDriverType, DriverInfo> = {
             erDiagram: true,
             collections: false,
             networkConnection: false,
+            storedProcedures: false,
+        },
+    },
+    libsql: {
+        type: "libsql",
+        category: "sql",
+        displayName: "SQLite (distant)",
+        capabilities: {
+            // Un serveur libSQL abandonne une transaction interactive au bout de
+            // quelques secondes d'inactivité : incompatible avec le mode transaction.
+            transactions: false,
+            schemaEditing: true,
+            sqlQueries: true,
+            foreignKeys: true,
+            encryption: false,
+            indexes: true,
+            importExport: true,
+            erDiagram: true,
+            collections: false,
+            networkConnection: true,
             storedProcedures: false,
         },
     },

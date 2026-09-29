@@ -24,7 +24,7 @@
     width: 100vw;
     height: 100vh;
     z-index: 10000;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--backdrop);
 
     @include flex($ver: flex-start);
     padding-top: 80px;
@@ -33,10 +33,10 @@
 .theme-sheet {
     min-width: 280px;
     max-width: 360px;
-    background: var(--surface-alt);
-    border: 1px solid rgba(127, 127, 127, 0.25);
-    border-radius: 8px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-menu);
     overflow: hidden;
     animation: sheetFadeIn 0.15s ease-out;
 }
@@ -53,11 +53,13 @@
 }
 
 .theme-header {
-    padding: 10px 14px;
-    font-size: 0.8em;
+    padding: 8px 12px;
+    font-size: 11px;
     font-weight: 600;
-    color: rgba(127, 127, 127, 0.6);
-    border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-muted);
     user-select: none;
 }
 
@@ -68,27 +70,22 @@
 .theme-option {
     @include flex($hor: space-between);
     width: 100%;
-    padding: 8px 14px;
+    padding: 5px 10px;
     background: none;
     border: none;
-    color: var(--text-color);
-    font-size: 0.85em;
+    border-radius: var(--radius-s);
+    color: var(--text);
+    font-size: 12px;
     cursor: pointer;
     text-align: left;
-    transition: background-color 0.08s;
 
-    &:hover {
-        background: rgba(127, 127, 127, 0.12);
-    }
-
+    &:hover,
     &.selected {
-        background: rgba(127, 127, 127, 0.12);
-        color: var(--interactive);
+        background: var(--accent);
+        color: var(--accent-fg);
     }
 
     .theme-check {
-        font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 0.85em;
-        color: var(--interactive);
+        font-size: 10px;
     }
 }

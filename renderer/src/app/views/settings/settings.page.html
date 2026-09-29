@@ -1,0 +1,196 @@
+<!--
+    Interrupteurs : boutons `role="switch"` pilotés par l'état de la source de vérité.
+    `ui-switch` garde sa propre valeur au clic : il ne convient pas à un réglage qui
+    peut être refusé (mot de passe maître annulé, écriture du réglage de mise à jour
+    en échec), où l'interrupteur doit rester sur l'état réel.
+-->
+<aside class="settings-nav">
+    <button type="button" class="back" (click)="back()">← {{ "settings.back" | translate }}</button>
+</aside>
+
+<div class="settings-content">
+    <div class="settings-title">{{ "settings.title" | translate }}</div>
+
+    <div class="sections">
+        <!-- Général -->
+        <section>
+            <div class="section-title">{{ "settings.section.general" | translate }}</div>
+            <div class="card">
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.language" | translate }}</div>
+                        <div class="description">{{ "settings.language.description" | translate }}</div>
+                    </div>
+                    <div class="segmented" role="radiogroup">
+                        @for (option of languageOptions; track option.value) {
+                            <button type="button" role="radio" [class.selected]="i18n.locale() === option.value"
+                                [attr.aria-checked]="i18n.locale() === option.value" (click)="setLocale(option.value)">
+                                {{ label(option) }}
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.theme" | translate }}</div>
+                        <div class="description">{{ "settings.theme.description" | translate }}</div>
+                    </div>
+                    <div class="segmented" role="radiogroup">
+                        @for (option of themeOptions; track option.value) {
+                            <button type="button" role="radio" [class.selected]="themeService.currentTheme() === option.value"
+                                [attr.aria-checked]="themeService.currentTheme() === option.value" (click)="setTheme(option.value)">
+                                {{ label(option) }}
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.autoUpdate" | translate }}</div>
+                        <div class="description">
+                            {{ (updateService.settings().supported ? "settings.autoUpdate.description" : "settings.autoUpdate.unsupported") | translate }}
+                        </div>
+                    </div>
+                    <button type="button" role="switch" class="switch"
+                        [class.on]="updateService.settings().autoUpdate"
+                        [attr.aria-checked]="updateService.settings().autoUpdate"
+                        [disabled]="!updateService.settings().supported"
+                        (click)="toggleAutoUpdate()">
+                        <span class="switch-knob"></span>
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.version" | translate: { version: state.appVersion() } }}</div>
+                        <div class="description">
+                            @if (latestVersion(); as latest) {
+                                {{ "settings.latestVersion" | translate: { version: latest } }}
+                            }
+                            @else {
+                                {{ "settings.version.description" | translate }}
+                            }
+                        </div>
+                    </div>
+                    <ui-button size="small" fill="outline" (click)="checkUpdates()">{{ "settings.checkNow" | translate }}</ui-button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Édition -->
+        <section>
+            <div class="section-title">{{ "settings.section.editing" | translate }}</div>
+            <div class="card">
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.editModeOnStart" | translate }}</div>
+                        <div class="description">{{ "settings.editModeOnStart.description" | translate }}</div>
+                    </div>
+                    <button type="button" role="switch" class="switch" [class.on]="settings().editModeOnStart"
+                        [attr.aria-checked]="settings().editModeOnStart" (click)="settingsService.toggle('editModeOnStart')">
+                        <span class="switch-knob"></span>
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.confirmDeletions" | translate }}</div>
+                        <div class="description">{{ "settings.confirmDeletions.description" | translate }}</div>
+                    </div>
+                    <button type="button" role="switch" class="switch" [class.on]="settings().confirmDeletions"
+                        [attr.aria-checked]="settings().confirmDeletions" (click)="settingsService.toggle('confirmDeletions')">
+                        <span class="switch-knob"></span>
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.autoTransaction" | translate }}</div>
+                        <div class="description">{{ "settings.autoTransaction.description" | translate }}</div>
+                    </div>
+                    <button type="button" role="switch" class="switch" [class.on]="settings().autoTransaction"
+                        [attr.aria-checked]="settings().autoTransaction" (click)="settingsService.toggle('autoTransaction')">
+                        <span class="switch-knob"></span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Affichage -->
+        <section>
+            <div class="section-title">{{ "settings.section.display" | translate }}</div>
+            <div class="card">
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.timestampsAsDates" | translate }}</div>
+                        <div class="description">{{ "settings.timestampsAsDates.description" | translate }}</div>
+                    </div>
+                    <button type="button" role="switch" class="switch" [class.on]="settings().timestampsAsDates"
+                        [attr.aria-checked]="settings().timestampsAsDates" (click)="settingsService.toggle('timestampsAsDates')">
+                        <span class="switch-knob"></span>
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.gridDensity" | translate }}</div>
+                        <div class="description">{{ "settings.gridDensity.description" | translate }}</div>
+                    </div>
+                    <div class="segmented" role="radiogroup">
+                        @for (option of densityOptions; track option.value) {
+                            <button type="button" role="radio" [class.selected]="settings().gridDensity === option.value"
+                                [attr.aria-checked]="settings().gridDensity === option.value" (click)="setDensity(option.value)">
+                                {{ label(option) }}
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Connexions -->
+        <section>
+            <div class="section-title">{{ "settings.section.connections" | translate }}</div>
+            <div class="card">
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.masterPassword" | translate }}</div>
+                        <div class="description">{{ "settings.masterPassword.description" | translate }}</div>
+                    </div>
+                    <button type="button" role="switch" class="switch" [class.on]="masterPasswordEnabled()"
+                        [attr.aria-checked]="masterPasswordEnabled()" (click)="toggleMasterPassword()">
+                        <span class="switch-knob"></span>
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.sslByDefault" | translate }}</div>
+                        <div class="description">{{ "settings.sslByDefault.description" | translate }}</div>
+                    </div>
+                    <button type="button" role="switch" class="switch" [class.on]="settings().sslByDefault"
+                        [attr.aria-checked]="settings().sslByDefault" (click)="settingsService.toggle('sslByDefault')">
+                        <span class="switch-knob"></span>
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="text">
+                        <div class="label">{{ "settings.connectionTimeout" | translate }}</div>
+                        <div class="description">{{ "settings.connectionTimeout.description" | translate }}</div>
+                    </div>
+                    <div class="segmented" role="radiogroup">
+                        @for (option of timeoutOptions; track option.value) {
+                            <button type="button" role="radio" [class.selected]="settings().connectionTimeout === option.value"
+                                [attr.aria-checked]="settings().connectionTimeout === option.value" (click)="setConnectionTimeout(option.value)">
+                                {{ label(option) }}
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>

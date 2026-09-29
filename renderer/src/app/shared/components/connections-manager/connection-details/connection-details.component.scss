@@ -1,0 +1,89 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/app/shared/components/connections-manager/_connections-controls.scss";
+
+:host {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .identity {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .subtitle {
+        font-size: 11.5px;
+        color: var(--text-muted);
+    }
+
+    .tag {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11.5px;
+        color: var(--text-secondary);
+    }
+
+    .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+    }
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.secret {
+    display: flex;
+    gap: 6px;
+
+    .cm-input {
+        flex: 1;
+    }
+
+    .encrypted {
+        display: flex;
+        align-items: center;
+        font-size: 11px;
+        color: var(--success);
+        white-space: nowrap;
+    }
+}
+
+.notes {
+    min-height: 44px;
+    border: 1px solid var(--border-muted);
+    border-radius: var(--radius-m);
+    padding: 8px 10px;
+    background: var(--bg-subtle);
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+}

@@ -28,6 +28,9 @@ const version = pkg.version.replace(/([+-]\w+)\./g, ".");
 const productName = pkg.productName.replace(/\s+/g, "");
 // `${ext}` est une macro d'electron-builder : il la résout lui-même, d'où l'échappement.
 const installerFilename = `${productName}-${version}-Setup.\${ext}`;
+// Nom distinct de l'installeur : le manifeste de mise à jour retient `*Setup*.exe`,
+// la version portable ne doit pas être prise pour lui.
+const portableFilename = `${productName}-${version}-Portable.\${ext}`;
 const appPackageName = productName.toLowerCase();
 
 const publisher = (pkg.author?.name || "").toLowerCase().replace(/\s+/g, "");
@@ -69,6 +72,10 @@ module.exports = {
                 target: "nsis",
                 arch: ["x64"],
             },
+            {
+                target: "portable",
+                arch: ["x64"],
+            },
         ],
         icon: `${windowsIconPath}`,
         artifactName: installerFilename,
@@ -79,6 +86,12 @@ module.exports = {
         perMachine: false,
         allowElevation: false,
         uninstallDisplayName: pkg.productName,
+        installerIcon: windowsIconPath,
+        uninstallerIcon: windowsIconPath,
+        installerHeaderIcon: windowsIconPath,
+    },
+    portable: {
+        artifactName: portableFilename,
     },
     linux: {
         target: [

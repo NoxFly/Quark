@@ -15,7 +15,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import type { DatabaseDriverType } from "@shared/driver";
+import type { DatabaseDriverType, DriverConnectionOptions } from "@shared/driver";
 import type { AzureAuthMode } from "@shared/connection";
 import { MssqlDriver } from "src/core/drivers/mssql.driver";
 import type { NetworkConnectionParams } from "src/core/drivers/network-sql.driver";
@@ -32,7 +32,8 @@ import type { ConnectionAuthentication } from "tedious";
  * - `service-principal` : Microsoft Entra ID via un principal de service
  *   (application Azure AD) — `clientId` + `clientSecret` + `tenantId`, sans
  *   identifiant utilisateur. Le `clientSecret` transite par le champ secret de la
- *   connexion (`p.password`) ; `clientId`/`tenantId` sont fournis via `configureAuth`.
+ *   connexion (`p.password`) ; `clientId`/`tenantId` sont fournis par l'option
+ *   `azureAuth` de `configureConnection`.
  */
 export class AzureSqlDriver extends MssqlDriver {
     public override readonly driverType: DatabaseDriverType = "azure";
@@ -47,8 +48,19 @@ export class AzureSqlDriver extends MssqlDriver {
     }
 
     /**
+     * Retient les options de connexion, dont l'authentification Azure. L'option
+     * `ssl` est sans effet : Azure SQL impose TLS (`getTlsOptions`).
+     */
+    public override async configureConnection(options: DriverConnectionOptions): Promise<void> {
+        await super.configureConnection(options);
+
+        if (options.azureAuth) {
+            this.configureAuth(options.azureAuth);
+        }
+    }
+
+    /**
      * Configure le mode d'authentification avant l'ouverture de la connexion.
-     * Doit être appelé après `setDriverType` et avant `open`.
      */
     public configureAuth(options: { mode: AzureAuthMode; clientId?: string; tenantId?: string }): void {
         this.authMode = options.mode;

@@ -1,12 +1,12 @@
 <div class="no-table">
     @if (state.schemaLoading()) {
-        <div class="icon spin">&#xE895;</div>
-        <h2>{{ i18n.t("noTable.schemaLoading") }}</h2>
-        <p>{{ i18n.t("noTable.schemaLoadingHint") }}</p>
-    } @else {
-        <div class="icon">&#xE80F;</div>
-        <h2>{{ i18n.t(state.isNoSqlDatabase() ? "noTable.title.nosql" : "noTable.title") }}</h2>
-        <p>{{ i18n.t("noTable.hint") }}</p>
-        <p class="table-info">{{ i18n.t(state.isNoSqlDatabase() ? "noTable.collectionCount" : "noTable.tableCount", { count: tableCount() }) }}</p>
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="title">{{ i18n.t("noTable.schemaLoading") }}</div>
+        <div class="hint">{{ i18n.t("noTable.schemaLoadingHint") }}</div>
+    }
+    @else {
+        <div class="title">{{ i18n.t(state.isNoSqlDatabase() ? "noTable.title.nosql" : "noTable.title") }}</div>
+        <div class="hint">{{ i18n.t("noTable.hint") }}</div>
+        <div class="count">{{ i18n.t(state.isNoSqlDatabase() ? "noTable.collectionCount" : "noTable.tableCount", { count: tableCount() }) }}</div>
     }
 </div>

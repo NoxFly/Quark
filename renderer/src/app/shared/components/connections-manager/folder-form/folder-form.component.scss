@@ -1,0 +1,40 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/app/shared/components/connections-manager/_connections-controls.scss";
+
+:host {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    svg {
+        color: var(--text-faint);
+    }
+}
+
+.info {
+    font-size: 12px;
+    color: var(--text-muted);
+}

@@ -16,7 +16,9 @@
  */
 
 export type { DatabaseDriver } from "src/core/drivers/driver.interface";
+export { SqliteDialectDriver } from "src/core/drivers/sqlite-dialect.driver";
 export { SqliteDriver } from "src/core/drivers/sqlite.driver";
+export { LibsqlDriver } from "src/core/drivers/libsql.driver";
 export { NetworkSqlDriver } from "src/core/drivers/network-sql.driver";
 export { MysqlDriver } from "src/core/drivers/mysql.driver";
 export { PostgresqlDriver } from "src/core/drivers/postgresql.driver";

@@ -27,8 +27,15 @@ import type {
     R_SqlExecResponse,
     TableSchema,
 } from "@shared/types";
-import type { DatabaseCategory, DatabaseDriverType, DriverCapabilities, DriverInfo } from "@shared/driver";
+import type {
+    DatabaseCategory,
+    DatabaseDriverType,
+    DriverCapabilities,
+    DriverConnectionOptions,
+    DriverInfo,
+} from "@shared/driver";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
+import { toTimeoutMs } from "src/core/drivers/connection-target.helper";
 import { getDriverInfo } from "src/core/drivers/driver-registry";
 
 /**
@@ -60,6 +67,8 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
     protected connectionParams: NetworkConnectionParams | null = null;
     protected _isOpen = false;
     protected _inTransaction = false;
+    /** Options de la prochaine connexion (SSL, délai), fixées par `configureConnection`. */
+    protected connectionOptions: DriverConnectionOptions = {};
 
     // --- Identité (implémentée par chaque sous-classe) ---
 
@@ -99,8 +108,9 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
     protected parseConnectionUri(uri: string): NetworkConnectionParams {
         const defaultPort = this.info.defaultPort ?? 3306;
 
-        // Format: user:password@host:port/database
-        const match = uri.match(/^(?<user>[^:]+):(?<password>[^@]+)@(?<host>[^:/]+)(?::(?<port>\d+))?\/(?<database>.+)$/);
+        // Format: user:password@host:port/database. Le mot de passe va jusqu'au
+        // dernier `@` suivi d'un hôte : il peut contenir `@` ou `:`, et être vide.
+        const match = uri.match(/^(?<user>[^:]*):(?<password>.*)@(?<host>[^@:/]+)(?::(?<port>\d+))?\/(?<database>.*)$/);
 
         if (!match?.groups) {
             throw new Error(`Invalid connection URI format. Expected: user:password@host:port/database`);
@@ -116,6 +126,20 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
     }
 
     // --- Cycle de vie ---
+
+    public async configureConnection(options: DriverConnectionOptions): Promise<void> {
+        this.connectionOptions = { ...options };
+    }
+
+    /** Délai d'établissement demandé, en millisecondes (`undefined` : défaut du client). */
+    protected get connectTimeoutMs(): number | undefined {
+        return toTimeoutMs(this.connectionOptions.timeoutSeconds);
+    }
+
+    /** Chiffrement demandé pour la connexion. */
+    protected get sslRequested(): boolean {
+        return this.connectionOptions.ssl === true;
+    }
 
     public async open(connectionUri: string): Promise<boolean> {
         await this.close();
@@ -334,6 +358,12 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
         const pkColumn = await this.getPrimaryKeyColumn(tableName);
         const placeholders = rowids.map(() => "?").join(",");
         await this.execute(`DELETE FROM ${safeTable} WHERE ${this.escapeIdentifier(pkColumn)} IN (${placeholders})`, rowids);
+    }
+
+    public async truncateTable(tableName: string): Promise<number> {
+        this.ensureOpen();
+        const result = await this.execute(`DELETE FROM ${this.escapeIdentifier(tableName)}`);
+        return result.affectedRows;
     }
 
     public async getRow(tableName: string, rowid: number): Promise<DbRecord | null> {

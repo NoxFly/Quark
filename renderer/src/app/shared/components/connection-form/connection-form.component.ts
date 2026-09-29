@@ -15,23 +15,54 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal } from "@angular/core";
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    input,
+    linkedSignal,
+    output,
+    signal,
+    untracked,
+} from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import type { AzureAuthMode, ConnectionProfile, ConnectionProfileInput } from "@shared/connection";
-import type { DriverInfo } from "@shared/driver";
+import type {
+    ConnectionFolder,
+    ConnectionProfile,
+    ConnectionProfileInput,
+    ConnectionTestResult,
+} from "@shared/connection";
+import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
+import type { ConnectionDraft } from "src/app/core/models/connections.model";
+import { ConnectionsService } from "src/app/core/services/connections.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
-import { ButtonComponent } from "@ui/button/button.component";
-import { InputComponent } from "@ui/input/input.component";
-import { SelectComponent } from "@ui/select/select.component";
-import { SelectOptionComponent } from "@ui/select/select-option/select-option.component";
+import { SettingsService } from "src/app/core/services/settings.service";
+import {
+    buildProfileInput,
+    buildTestBody,
+    CONNECTION_TAGS,
+    canSubmitDraft,
+    DEFAULT_DRAFT_DRIVER,
+    defaultPortFor,
+    draftFromProfile,
+    fileBaseName,
+    isServicePrincipalDraft,
+    tagColor,
+    tagLabelKey,
+} from "src/app/shared/helpers/connections.helper";
+import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
+import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
+import { DriverThumbComponent } from "src/app/shared/components/connections-manager/driver-thumb/driver-thumb.component";
+import { ToastController } from "@ui/toast/toast.controller";
 
 /**
- * Formulaire de création / édition d'un profil de connexion.
+ * Formulaire de création / édition d'un profil de connexion (volet droit du gestionnaire).
  *
- * Affiche les champs adaptés au driver sélectionné (fichier vs réseau).
- * Le mot de passe est « write-only » : en édition, un champ vide conserve le
- * secret existant (placeholder « inchangé »).
+ * Les champs suivent le type choisi : fichier ou URL distante (SQLite), URI (MongoDB),
+ * hôte / port et identifiants (serveurs), authentification Entra ID (Azure SQL).
+ * Le mot de passe est « write-only » : en édition, un champ vide conserve le secret existant.
  */
 @Component({
     selector: "app-connection-form",
@@ -39,157 +70,164 @@ import { SelectOptionComponent } from "@ui/select/select-option/select-option.co
     templateUrl: "./connection-form.component.html",
     styleUrl: "./connection-form.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ButtonComponent, InputComponent, SelectComponent, SelectOptionComponent],
+    imports: [FormsModule, TranslatePipe, DriverThumbComponent],
 })
-export class ConnectionFormComponent implements OnInit {
+export class ConnectionFormComponent {
     private readonly noxus = inject(NoxusService);
-    protected readonly i18n = inject(I18nService);
+    private readonly connections = inject(ConnectionsService);
+    private readonly settings = inject(SettingsService);
+    private readonly toastCtrl = inject(ToastController);
+    private readonly i18n = inject(I18nService);
 
     /** Profil à éditer ; `null` pour une création. */
     public readonly profile = input<ConnectionProfile | null>(null);
     /** Liste de tous les drivers disponibles. */
     public readonly driverInfos = input<DriverInfo[]>([]);
+    /** Dossiers proposés, déjà triés. */
+    public readonly folders = input<ConnectionFolder[]>([]);
+    /** Dossier présélectionné pour une création. */
+    public readonly defaultFolderId = input<string>("");
+    /** Incrémenté par le parent à chaque ouverture, pour réinitialiser le brouillon. */
+    public readonly session = input<number>(0);
+    public readonly busy = input<boolean>(false);
 
     public readonly save = output<ConnectionProfileInput>();
     public readonly cancel = output<void>();
 
-    protected readonly name = signal<string>("");
-    protected readonly color = signal<string>("");
-    protected readonly driverType = signal<string>("sqlite");
-    protected readonly filePath = signal<string>("");
-    protected readonly host = signal<string>("localhost");
-    protected readonly port = signal<number>(0);
-    protected readonly username = signal<string>("");
-    protected readonly database = signal<string>("");
-    protected readonly password = signal<string>("");
-    protected readonly authMode = signal<AzureAuthMode>("sql");
-    protected readonly clientId = signal<string>("");
-    protected readonly tenantId = signal<string>("");
+    protected readonly tags = CONNECTION_TAGS;
+    protected readonly tagColor = tagColor;
+    protected readonly tagLabelKey = tagLabelKey;
 
-    /** Driver actuellement sélectionné. */
-    protected readonly selectedDriver = computed<DriverInfo | undefined>(() =>
-        this.driverInfos().find(d => d.type === this.driverType()),
+    protected readonly draft = linkedSignal<{ profile: ConnectionProfile | null; session: number }, ConnectionDraft>({
+        source: () => ({ profile: this.profile(), session: this.session() }),
+        // Les valeurs par défaut sont lues sans dépendance : un rechargement des
+        // dossiers ou des réglages ne doit pas effacer la saisie en cours.
+        computation: ({ profile }) => untracked(() => draftFromProfile(profile, {
+            folderId: this.defaultFolderId(),
+            ssl: this.settings.settings().sslByDefault,
+            port: defaultPortFor(this.driverInfos(), DEFAULT_DRAFT_DRIVER),
+        })),
+    });
+
+    protected readonly testing = signal<boolean>(false);
+
+    /** Types proposés en pastilles ; libSQL est le mode « URL distante » de SQLite. */
+    protected readonly driverTypes = computed<DriverInfo[]>(() =>
+        this.driverInfos().filter(driver => driver.type !== "libsql"),
     );
 
-    /** Vrai si le driver sélectionné est une connexion réseau. */
-    protected readonly isNetwork = computed<boolean>(() =>
-        this.selectedDriver()?.capabilities.networkConnection ?? false,
-    );
-
-    /** Vrai si le driver sélectionné est Azure SQL. */
-    protected readonly isAzure = computed<boolean>(() => this.driverType() === "azure");
-
-    /** Vrai si l'authentification par principal de service (Entra ID) est sélectionnée. */
-    protected readonly isServicePrincipal = computed<boolean>(() => this.isAzure() && this.authMode() === "service-principal");
-
-    /** Vrai en mode édition (un profil existant est fourni). */
     protected readonly isEditing = computed<boolean>(() => this.profile() !== null);
+    protected readonly hasStoredPassword = computed<boolean>(() => this.profile()?.hasPassword ?? false);
+    protected readonly isSqlite = computed<boolean>(() => this.draft().driverType === "sqlite");
+    protected readonly isSqliteFile = computed<boolean>(() => this.isSqlite() && this.draft().sqliteMode === "file");
+    protected readonly isMongo = computed<boolean>(() => this.draft().driverType === "mongodb");
+    protected readonly isServer = computed<boolean>(() => !this.isSqlite() && !this.isMongo());
+    protected readonly isAzure = computed<boolean>(() => this.draft().driverType === "azure");
+    protected readonly isServicePrincipal = computed<boolean>(() => isServicePrincipalDraft(this.draft()));
+    protected readonly canSubmit = computed<boolean>(() => canSubmitDraft(this.draft(), this.hasStoredPassword()));
 
-    protected get canSubmit(): boolean {
-        if (!this.name().trim()) {
-            return false;
+    protected readonly passwordPlaceholder = computed<string>(() => {
+        if (this.hasStoredPassword()) {
+            return this.i18n.t("connections.form.passwordUnchanged");
         }
-        if (this.isNetwork()) {
-            if (this.isServicePrincipal()) {
-                if (!this.clientId().trim() || !this.tenantId().trim()) {
-                    return false;
-                }
-                // Le client secret est requis sauf en édition d'un profil qui en a déjà un.
-                if (!this.password() && !(this.isEditing() && (this.profile()?.hasPassword ?? false))) {
-                    return false;
-                }
-            }
-            return !!this.host().trim() && !!this.database().trim();
-        }
-        return !!this.filePath().trim();
-    }
 
-    public ngOnInit(): void {
-        const profile = this.profile();
-        if (profile) {
-            this.name.set(profile.name);
-            this.color.set(profile.color ?? "");
-            this.driverType.set(profile.driverType);
-            this.filePath.set(profile.filePath ?? "");
-            this.host.set(profile.host ?? "localhost");
-            this.port.set(profile.port ?? this.selectedDriver()?.defaultPort ?? 0);
-            this.username.set(profile.username ?? "");
-            this.database.set(profile.database ?? "");
-            this.authMode.set(profile.authMode ?? "sql");
-            this.clientId.set(profile.clientId ?? "");
-            this.tenantId.set(profile.tenantId ?? "");
-        }
-    }
+        return this.isSqliteFile() ? this.i18n.t("connections.form.passwordOptional") : "";
+    });
 
     /**
-     * Change le driver et ajuste le port par défaut pour une connexion réseau.
+     * Modifie un champ du brouillon.
      */
-    protected onDriverChange(type: string): void {
-        this.driverType.set(type);
-        const driver = this.selectedDriver();
-        if (driver?.capabilities.networkConnection && this.port() === 0) {
-            this.port.set(driver.defaultPort ?? 0);
-        }
+    protected patch<K extends keyof ConnectionDraft>(key: K, value: ConnectionDraft[K]): void {
+        this.draft.update(draft => ({ ...draft, [key]: value }));
     }
 
     /**
-     * Ouvre le sélecteur de fichier natif pour une connexion fichier.
+     * Change le type : le port revient à celui du nouveau driver.
+     */
+    protected selectType(type: DatabaseDriverType): void {
+        const port = defaultPortFor(this.driverInfos(), type);
+        this.draft.update(draft => ({ ...draft, driverType: type, port }));
+    }
+
+    /**
+     * Saisie du port : les caractères non numériques donnent 0 plutôt que NaN.
+     */
+    protected setPort(value: string): void {
+        const port = Number.parseInt(value, 10);
+        this.patch("port", Number.isFinite(port) ? port : 0);
+    }
+
+    /**
+     * Ouvre le sélecteur de fichier natif (SQLite, fichier local).
      */
     protected async pickFile(): Promise<void> {
         const path = await this.noxus.ipc.openFileDialog();
-        if (path) {
-            this.filePath.set(path);
-            if (!this.name().trim()) {
-                const parts = path.replace(/\\/g, "/").split("/");
-                this.name.set(parts[parts.length - 1] ?? path);
-            }
+
+        if (!path) {
+            return;
         }
+
+        const name = this.draft().name.trim() || fileBaseName(path);
+        this.draft.update(draft => ({ ...draft, filePath: path, name }));
+    }
+
+    /**
+     * Teste la connexion saisie : toast d'attente, puis résultat.
+     */
+    protected async test(): Promise<void> {
+        if (this.testing()) {
+            return;
+        }
+
+        this.testing.set(true);
+
+        // En édition, un mot de passe laissé vide signifie « inchangé » : le main
+        // complète alors le test avec le secret stocké du profil.
+        const body = buildTestBody(this.draft(), this.settings.settings().connectionTimeout, this.profile()?.id);
+        const pending = await this.toastCtrl.create({ message: this.i18n.t("connections.test.running"), busy: true });
+        let result: ConnectionTestResult;
+
+        try {
+            result = await this.connections.testConnection(body);
+        }
+        catch (err) {
+            result = { ok: false, error: extractIpcErrorMessage(err) };
+        }
+        finally {
+            pending.dismiss();
+            this.testing.set(false);
+        }
+
+        await this.showTestResult(result);
     }
 
     /**
      * Émet le profil saisi vers le parent.
      */
     protected submit(): void {
-        if (!this.canSubmit) {
+        if (!this.canSubmit() || this.busy()) {
             return;
         }
 
-        const driver = this.selectedDriver();
-        const isNetwork = this.isNetwork();
-        const pwd = this.password();
+        this.save.emit(buildProfileInput(this.draft(), this.isEditing()));
+    }
 
-        const input: ConnectionProfileInput = {
-            name: this.name().trim(),
-            color: this.color() || undefined,
-            driverType: (driver?.type ?? "sqlite"),
-            connectionType: isNetwork ? "network" : "file",
-            // Mot de passe write-only : en édition, champ vide = inchangé.
-            password: this.isEditing() && pwd === "" ? undefined : pwd,
-        };
-
-        if (isNetwork) {
-            input.host = this.host().trim();
-            input.port = Number(this.port());
-            input.database = this.database().trim();
-
-            if (this.isServicePrincipal()) {
-                // Principal de service : pas d'identifiant utilisateur ; le secret
-                // (clientSecret) voyage via le champ `password` write-only.
-                input.authMode = "service-principal";
-                input.clientId = this.clientId().trim();
-                input.tenantId = this.tenantId().trim();
-            }
-            else {
-                input.username = this.username().trim();
-                if (this.isAzure()) {
-                    input.authMode = "sql";
-                }
-            }
-        }
-        else {
-            input.filePath = this.filePath().trim();
+    private async showTestResult(result: ConnectionTestResult): Promise<void> {
+        if (result.ok) {
+            const ms = Math.round(result.latencyMs ?? 0);
+            await this.toastCtrl.create({
+                message: this.i18n.t("connections.test.success", { ms }),
+                duration: 3000,
+                color: "success",
+            });
+            return;
         }
 
-        this.save.emit(input);
+        // L'erreur du driver est souvent longue : elle reste affichée plus longtemps.
+        await this.toastCtrl.create({
+            message: this.i18n.t("connections.test.failure", { error: result.error ?? "" }),
+            duration: 6000,
+            color: "danger",
+        });
     }
 }

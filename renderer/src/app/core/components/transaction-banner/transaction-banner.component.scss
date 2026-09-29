@@ -1,0 +1,92 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+:host {
+    display: contents;
+}
+
+.banner {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+    background: var(--warning-bg);
+    border-bottom: 1px solid var(--warning-border);
+    color: var(--warning-text);
+    font-size: 12px;
+    flex: none;
+    white-space: nowrap;
+}
+
+.title {
+    font-weight: 600;
+}
+
+.pending {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spacer {
+    flex: 1;
+}
+
+button {
+    font-size: 12px;
+    color: inherit;
+    cursor: pointer;
+}
+
+.link {
+    padding: 2px 8px;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    text-decoration: underline;
+
+    &:hover {
+        background: var(--warning-bg-hover);
+    }
+}
+
+.action {
+    height: 22px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--warning-control-border);
+    border-radius: var(--radius-s);
+    background: var(--bg-input);
+
+    &:hover {
+        background: var(--warning-bg-hover);
+    }
+
+    &.primary {
+        border-color: var(--warning);
+        background: var(--warning);
+        color: var(--accent-fg);
+        font-weight: 600;
+
+        &:hover {
+            background: var(--warning-hover);
+            border-color: var(--warning-hover);
+        }
+    }
+}

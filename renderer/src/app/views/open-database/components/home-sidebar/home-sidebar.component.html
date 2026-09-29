@@ -1,0 +1,46 @@
+<div class="identity">
+    <div class="brand">
+        <img class="brand-logo" src="images/logo-quark.png" alt="Quark" />
+        <div class="brand-name">{{ state.appName() || "Quark" }}</div>
+    </div>
+    <div class="brand-sub">{{ "home.subtitle" | translate: { version: state.appVersion() } }}</div>
+</div>
+
+<div>
+    <div class="section-title">{{ "home.recent" | translate }}</div>
+    <div class="recent-list">
+        @for (entry of recents(); track entry.lastOpened) {
+            <button type="button" class="recent-row" (click)="openRecent(entry)">
+                <app-recent-database-item [entry]="entry" />
+            </button>
+        }
+        @empty {
+            <div class="recent-empty">{{ "home.recentEmpty" | translate }}</div>
+        }
+    </div>
+</div>
+
+<div>
+    <div class="section-title">{{ "home.savedConnections" | translate }}</div>
+    <button type="button" class="manager-card" (click)="emit('open-connections-manager', $event)">
+        <span>{{ "home.connectionsManager" | translate }}</span>
+        <span class="manager-meta">
+            @let count = profileCount();
+            @if (count !== null) {
+                <span class="manager-count">{{ count }}</span>
+            }
+            @else {
+                <span class="manager-count" [title]="'home.vaultLocked' | translate">🔒</span>
+            }
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <polyline points="3.5,1.5 7,5 3.5,8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </span>
+    </button>
+</div>
+
+<div class="links">
+    <a href="#" (click)="emit('open-shortcuts', $event)">{{ "home.shortcuts" | translate }}</a>
+    <a href="#" (click)="emit('open-settings', $event)">{{ "home.settings" | translate }}</a>
+    <a href="#" (click)="emit('open-about-dialog', $event)">{{ "home.about" | translate }}</a>
+</div>

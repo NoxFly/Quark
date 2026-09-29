@@ -39,6 +39,9 @@ export const SQL_EDITOR_TAB_ID = "__sql-editor__";
 /** Identifiant spécial pour l'onglet du diff de session. */
 export const SESSION_DIFF_TAB_ID = "__session-diff__";
 
+/** Identifiant spécial pour l'onglet du diagramme entité-relation. */
+export const ER_DIAGRAM_TAB_ID = "__er-diagram__";
+
 /**
  * Onglet qui n'affiche pas une table mais une vue dédiée.
  * Décrit ici plutôt que dispersé en conditions dans chaque composant.
@@ -52,11 +55,43 @@ export interface SpecialTab {
     labelKey: string;
     /** Glyphe Segoe Fluent Icons affiché devant le libellé. */
     icon: string;
+    /** Paramètres du libellé (ex. `{ table }` pour « Index · table »). */
+    labelParams?: Record<string, string>;
+}
+
+/**
+ * Préfixe des onglets d'index : un onglet par table, `__indexes__:<table>`.
+ * Contrairement aux autres onglets spéciaux, son identifiant porte donc un paramètre.
+ */
+export const INDEXES_TAB_PREFIX = "__indexes__:";
+
+/** Route de l'onglet des index, la table est lue dans l'identifiant de l'onglet actif. */
+const INDEXES_TAB_ROUTE = "/dashboard/indexes";
+
+/**
+ * Retourne l'identifiant de l'onglet des index d'une table.
+ * @param table - Nom de la table.
+ */
+export function indexesTabId(table: string): string {
+    return `${INDEXES_TAB_PREFIX}${table}`;
+}
+
+/**
+ * Retourne la table d'un onglet d'index, ou `null` pour tout autre onglet.
+ * @param tabId - Identifiant porté par l'onglet.
+ */
+export function indexesTabTable(tabId: string | null | undefined): string | null {
+    if (!tabId?.startsWith(INDEXES_TAB_PREFIX)) {
+        return null;
+    }
+
+    return tabId.slice(INDEXES_TAB_PREFIX.length);
 }
 
 const SPECIAL_TABS: readonly SpecialTab[] = [
     { id: SQL_EDITOR_TAB_ID, route: "/dashboard/sql-editor", labelKey: "tabs.sqlEditor", icon: "\uE943" },
     { id: SESSION_DIFF_TAB_ID, route: "/dashboard/session-diff", labelKey: "tabs.sessionDiff", icon: "\uE81C" },
+    { id: ER_DIAGRAM_TAB_ID, route: "/dashboard/er-diagram", labelKey: "tabs.erDiagram", icon: "\uE9D9" },
 ];
 
 /**
@@ -67,6 +102,18 @@ const SPECIAL_TABS: readonly SpecialTab[] = [
 export function getSpecialTab(tableName: string | null): SpecialTab | null {
     if (tableName === null) {
         return null;
+    }
+
+    const indexedTable = indexesTabTable(tableName);
+
+    if (indexedTable !== null) {
+        return {
+            id: tableName,
+            route: INDEXES_TAB_ROUTE,
+            labelKey: "tabs.indexes",
+            icon: "",
+            labelParams: { table: indexedTable },
+        };
     }
 
     return SPECIAL_TABS.find(tab => tab.id === tableName) ?? null;

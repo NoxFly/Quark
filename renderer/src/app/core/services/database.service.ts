@@ -18,8 +18,10 @@
 import { inject, Injectable, signal } from "@angular/core";
 import { Router } from "@angular/router";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
-import type { ConnectionProfile } from "@shared/connection";
+import type { ConnectionProfile, ConnectionTestResult } from "@shared/connection";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
+import { describeConnectionUri } from "src/app/shared/helpers/connection-uri.helper";
+import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import type {
     CreateTableColumnDef,
     DatabaseSchema,
@@ -27,7 +29,9 @@ import type {
     IndexDef,
     R_AlterTableAction,
     R_NetworkConnectBody,
+    R_RemoteSqliteBody,
     R_SqlExecResponse,
+    R_TestConnectionBody,
     R_TransactionAction,
     TableSchema
 } from "@shared/types";
@@ -36,7 +40,10 @@ import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { SessionDiffService } from "src/app/core/services/session-diff.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
-import { getSpecialTab, TabsService } from "src/app/core/services/tabs.service";
+import { getSpecialTab, indexesTabId, TabsService } from "src/app/core/services/tabs.service";
+import { I18nService } from "src/app/core/services/i18n.service";
+import { SettingsService } from "src/app/core/services/settings.service";
+import { AlertController } from "@ui/alert/alert.controller";
 import * as pkg from "package.json";
 
 /**
@@ -50,6 +57,9 @@ export class DatabaseService {
     private readonly router = inject(Router);
     private readonly storedProcService = inject(StoredProceduresService);
     private readonly sessionDiffService = inject(SessionDiffService);
+    private readonly settings = inject(SettingsService);
+    private readonly i18n = inject(I18nService);
+    private readonly alertCtrl = inject(AlertController);
     public readonly mutationHistory = inject(MutationHistoryService);
     public readonly tabs = inject(TabsService);
 
@@ -78,6 +88,9 @@ export class DatabaseService {
     private readonly driverInfosCache = new Map<DatabaseDriverType, DriverInfo>();
 
     private currentOffset = 0;
+
+    /** Démarrage automatique de transaction en cours, partagé par les mutations concurrentes. */
+    private autoTransactionPending: Promise<void> | null = null;
 
     /**
      * Lignes lues par page. Les lignes étant virtualisées, une page plus grande
@@ -153,12 +166,15 @@ export class DatabaseService {
     }
 
     /**
-     * Soumet un mot de passe pour déchiffrer la base.
+     * @description Soumet le mot de passe de la base chiffrée en attente (`state.needsPassword`).
+     * @param password Mot de passe saisi.
+     * @param remember Mémoriser le mot de passe dans le trousseau du système pour les prochaines ouvertures.
+     * @returns `false` si le mot de passe est refusé.
      */
-    public async submitPassword(password: string): Promise<boolean> {
+    public async submitPassword(password: string, remember: boolean = false): Promise<boolean> {
         try {
             this.loading.set(true);
-            const response = await this.noxus.ipc.submitPassword(password);
+            const response = await this.noxus.ipc.submitPassword(password, remember);
             this.state.needsPassword.set(false);
             this.state.pendingFilePath.set(null);
             this.onDatabaseOpened(response.database);
@@ -170,6 +186,15 @@ export class DatabaseService {
         finally {
             this.loading.set(false);
         }
+    }
+
+    /**
+     * @description Abandonne la demande de mot de passe en cours : la base chiffrée
+     * reste fermée et la fenêtre revient à la page d'accueil.
+     */
+    public cancelPasswordRequest(): void {
+        this.state.needsPassword.set(false);
+        this.state.pendingFilePath.set(null);
     }
 
     /**
@@ -443,6 +468,7 @@ export class DatabaseService {
         const currentRecord = this.tableData().find(r => r["rowid"] === rowid);
         const oldValue = currentRecord?.[column];
 
+        await this.ensureAutoTransaction();
         await this.noxus.ipc.updateCell({ table, rowid, column, value });
 
         // Enregistrer dans l'historique
@@ -477,9 +503,17 @@ export class DatabaseService {
             return;
         }
 
+        if (!await this.confirmDeletion(
+            this.i18n.t("data.confirmDeleteRows.title", { count: rowids.length }),
+            this.i18n.t("data.confirmDeleteRows.message", { count: rowids.length }),
+        )) {
+            return;
+        }
+
         // Sauvegarder les records avant suppression pour l'historique
         const recordsToDelete = this.tableData().filter(r => rowids.includes(r["rowid"] as number));
 
+        await this.ensureAutoTransaction();
         await this.noxus.ipc.deleteRows({ table, rowids });
 
         for (const record of recordsToDelete) {
@@ -508,8 +542,16 @@ export class DatabaseService {
             return;
         }
 
+        if (!await this.confirmDeletion(
+            this.i18n.t("data.confirmDeleteRows.title", { count: 1 }),
+            this.i18n.t("data.confirmDeleteRows.message", { count: 1 }),
+        )) {
+            return;
+        }
+
         const record = this.tableData().find(r => r["rowid"] === rowid);
 
+        await this.ensureAutoTransaction();
         await this.noxus.ipc.deleteRows({ table, rowids: [rowid] });
 
         if (record) {
@@ -542,6 +584,7 @@ export class DatabaseService {
             return null;
         }
 
+        await this.ensureAutoTransaction();
         const response = await this.noxus.ipc.insertRow({ table, values });
 
         if (response.record) {
@@ -804,6 +847,7 @@ export class DatabaseService {
         this.state.driverType.set(database.driverType);
         this.state.title.set(database.name);
         this.state.fileName.set(database.name);
+        this.readOnly.set(!this.settings.settings().editModeOnStart);
         this.router.navigate(["/dashboard/no-table"]);
         // Résolu en arrière-plan : ne bloque pas la navigation
         void this.resolveAndSetDriverInfo(database.driverType);
@@ -832,8 +876,79 @@ export class DatabaseService {
         await this.noxus.ipc.connectNetwork(body);
 
         // Connexion établie — basculer immédiatement sur le dashboard sans attendre le schéma
+        if (body.uri) {
+            // L'URI peut porter les identifiants : seule sa description épurée est affichée.
+            const described = describeConnectionUri(body.uri, body.driverType);
+            const database = body.database || described.database;
+            this.applyNetworkConnectedState(body.driverType, database, described.address);
+            return;
+        }
+
         const path = `${body.host}:${body.port}/${body.database}`;
         this.applyNetworkConnectedState(body.driverType, body.database, path);
+    }
+
+    /**
+     * @description Ouvre une base SQLite distante (libSQL / Turso) dans la fenêtre.
+     * Même déroulé qu'une connexion réseau : le schéma est chargé en arrière-plan.
+     * @param body URL, jeton optionnel et délai de connexion.
+     * @throws Si la connexion échoue (URL invalide, jeton refusé, délai dépassé).
+     */
+    public async connectRemoteSqlite(body: R_RemoteSqliteBody): Promise<void> {
+        await this.noxus.ipc.connectRemoteSqlite(body);
+
+        const described = describeConnectionUri(body.url, "libsql");
+        this.applyNetworkConnectedState("libsql", described.database, described.address);
+    }
+
+    /**
+     * @description Teste une connexion sans l'ouvrir dans la fenêtre (bouton « Tester »).
+     * @param body Cible du test : connexion réseau, SQLite distant ou fichier local.
+     * @returns Résultat du test ; une erreur de transport est rapportée comme un échec.
+     */
+    public async testConnection(body: R_TestConnectionBody): Promise<ConnectionTestResult> {
+        try {
+            return await this.noxus.ipc.testConnection(body);
+        }
+        catch (err) {
+            return { ok: false, error: extractIpcErrorMessage(err) };
+        }
+    }
+
+    /**
+     * @description Rouvre une base de l'historique (page d'accueil, Ctrl+R).
+     * Un fichier est rouvert directement : s'il est chiffré et que son mot de passe
+     * n'est pas mémorisé dans le trousseau, la demande de mot de passe s'affiche.
+     * Une connexion réseau ou distante dont le secret n'est pas conservé passe par
+     * la demande de mot de passe (`open-password-prompt`).
+     * @param entry Entrée de l'historique.
+     * @param timeoutSeconds Délai de connexion des bases réseau.
+     */
+    public async openRecentDatabase(entry: RecentDatabaseEntry, timeoutSeconds?: number): Promise<void> {
+        if (entry.connectionType === "file") {
+            await this.openFile(entry.filePath ?? "", entry.driverType);
+            return;
+        }
+
+        if (entry.requiresPassword) {
+            document.dispatchEvent(new CustomEvent("open-password-prompt", { detail: entry }));
+            return;
+        }
+
+        if (entry.connectionType === "remote") {
+            await this.connectRemoteSqlite({ url: entry.url ?? "", timeoutSeconds });
+            return;
+        }
+
+        await this.connectNetwork({
+            driverType: entry.driverType,
+            host: entry.host ?? "localhost",
+            port: entry.port ?? 0,
+            username: entry.username ?? "",
+            password: "",
+            database: entry.database ?? "",
+            timeoutSeconds,
+        });
     }
 
     /**
@@ -849,6 +964,7 @@ export class DatabaseService {
         this.state.fileName.set(database);
         this.state.database.set({ name: database, path, tables: [], driverType });
         this.state.schemaLoading.set(true);
+        this.readOnly.set(!this.settings.settings().editModeOnStart);
         void this.resolveAndSetDriverInfo(driverType);
         this.router.navigate(["/dashboard/no-table"]);
 
@@ -867,16 +983,9 @@ export class DatabaseService {
             const result = await this.noxus.ipc.connConnect(profile.id);
 
             if (result.needsPassword) {
-                const entry: RecentDatabaseEntry = {
-                    connectionType: "file",
-                    driverType: profile.driverType,
-                    displayName: profile.name,
-                    displaySubtitle: profile.filePath ?? "",
-                    lastOpened: Date.now(),
-                    requiresPassword: true,
-                    filePath: profile.filePath,
-                };
-                document.dispatchEvent(new CustomEvent("open-password-prompt", { detail: entry }));
+                // Le main a refermé le fichier : le rouvrir place la fenêtre dans l'état
+                // « mot de passe requis », ce qui affiche la modale de base chiffrée.
+                await this.openFile(profile.filePath ?? "", profile.driverType);
                 return;
             }
 
@@ -999,6 +1108,7 @@ export class DatabaseService {
             return;
         }
 
+        await this.ensureAutoTransaction();
         await this.noxus.ipc.batchUpdate({ table, rowids, column, value });
 
         // Enregistrer dans l'historique
@@ -1091,6 +1201,14 @@ export class DatabaseService {
      * Supprime une table et ferme son onglet s'il est ouvert.
      */
     public async deleteTable(tableName: string): Promise<void> {
+        if (!await this.confirmDeletion(
+            this.i18n.t("data.confirmDropTable.title", { table: tableName }),
+            this.i18n.t("data.confirmDropTable.message"),
+            this.i18n.t("data.confirmDropTable.confirm"),
+        )) {
+            return;
+        }
+
         await this.noxus.ipc.dropTable(tableName);
 
         // Fermer l'onglet associé s'il est ouvert
@@ -1113,6 +1231,116 @@ export class DatabaseService {
     }
 
     /**
+     * @description Vide une table (toutes ses lignes) après confirmation.
+     * La confirmation est toujours demandée, quel que soit le réglage
+     * `confirmDeletions` : l'opération n'est annulable que dans une transaction.
+     * Le schéma n'est pas rechargé par réouverture, ce qui fermerait une
+     * transaction ouverte : seuls le compteur et les données sont mis à jour.
+     * @param tableName Table à vider.
+     */
+    public async truncateTable(tableName: string): Promise<void> {
+        if (this.readOnly()) {
+            return;
+        }
+
+        const confirmed = await this.confirmDanger(
+            this.i18n.t("data.confirmTruncate.title", { table: tableName }),
+            this.i18n.t("data.confirmTruncate.message"),
+            this.i18n.t("data.confirmTruncate.confirm"),
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        await this.ensureAutoTransaction();
+        await this.noxus.ipc.truncateTable(tableName);
+
+        // Les lignes de ces mutations n'existent plus : les annuler échouerait.
+        this.mutationHistory.clearTable(tableName);
+
+        const recordCount = this.state.database()?.tables.find(t => t.name === tableName)?.recordCount ?? 0;
+        this.updateSchemaRecordCount(tableName, -recordCount);
+
+        if (this.selectedTable() === tableName) {
+            this.selectedRowIds.set(new Set());
+            this.allRowsSelected.set(false);
+            await this.loadTableData(true);
+        }
+    }
+
+    /**
+     * @description Démarre une transaction avant la première mutation, si le
+     * réglage `autoTransaction` est actif et que le driver les supporte. Les
+     * mutations lancées en même temps (Tab pendant l'édition inline) partagent
+     * le même démarrage.
+     */
+    private async ensureAutoTransaction(): Promise<void> {
+        if (!this.settings.settings().autoTransaction || this.inTransaction()) {
+            return;
+        }
+
+        if (this.state.capabilities()?.transactions !== true) {
+            return;
+        }
+
+        this.autoTransactionPending ??= this.transactionAction("begin").finally(() => {
+            this.autoTransactionPending = null;
+        });
+
+        await this.autoTransactionPending;
+    }
+
+    /**
+     * @description Demande confirmation d'une suppression si le réglage
+     * `confirmDeletions` est actif ; sinon, accepte d'emblée.
+     * @param title Titre de l'alerte.
+     * @param message Explication des conséquences.
+     * @param confirmText Libellé du bouton de confirmation.
+     * @returns `true` si la suppression peut avoir lieu.
+     */
+    private async confirmDeletion(title: string, message: string, confirmText?: string): Promise<boolean> {
+        if (!this.settings.settings().confirmDeletions) {
+            return true;
+        }
+
+        return this.confirmDanger(title, message, confirmText ?? this.i18n.t("data.confirmDelete"));
+    }
+
+    /**
+     * @description Affiche une alerte de confirmation d'une action destructive.
+     * @param title Titre de l'alerte.
+     * @param message Explication des conséquences.
+     * @param confirmText Libellé du bouton de confirmation.
+     * @returns `true` si l'utilisateur a confirmé, `false` s'il a annulé ou fermé l'alerte.
+     */
+    private async confirmDanger(title: string, message: string, confirmText: string): Promise<boolean> {
+        let confirmed = false;
+
+        return new Promise<boolean>(resolve => {
+            void this.alertCtrl.create({
+                title,
+                message,
+                color: "danger",
+                actions: [
+                    { text: this.i18n.t("data.cancel"), role: "cancel" },
+                    {
+                        text: confirmText,
+                        role: "destructive",
+                        color: "danger",
+                        handler: self => {
+                            confirmed = true;
+                            self.dismiss({ role: "destructive" });
+                        },
+                    },
+                ],
+            }).then(alert => {
+                alert.didDismiss.subscribe(() => resolve(confirmed));
+            });
+        });
+    }
+
+    /**
      * Active un onglet par son identifiant.
      *
      * Un onglet spécial (éditeur SQL, diff de session) ne désigne pas une table :
@@ -1130,6 +1358,17 @@ export class DatabaseService {
         }
 
         await this.selectTable(tableName);
+    }
+
+    /**
+     * @description Ouvre (ou réactive) l'onglet des index d'une table.
+     * @param tableName - Table dont afficher les index.
+     */
+    public async openIndexesTab(tableName: string): Promise<void> {
+        const tabId = indexesTabId(tableName);
+
+        this.tabs.openTab(tabId);
+        await this.activateTab(tabId);
     }
 
     /**

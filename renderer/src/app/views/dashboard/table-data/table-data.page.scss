@@ -20,420 +20,424 @@
 :host {
     display: flex;
     flex-direction: column;
-    height: calc(100% - 34px);
-    width: calc(100% - 2px);
+    height: 100%;
+    min-height: 0;
     overflow: hidden;
-
-    &.transaction-mode {
-        border: 2px solid var(--color-warning);
-        border-radius: 8px;
-        box-shadow: 0 0 20px color-mix(in srgb, var(--color-warning), transparent 80%);
-    }
+    background: var(--bg-app);
+    outline: none;
 }
 
-// --- Transaction banner ---
-
-.transaction-banner {
-    @include flex($hor: center, $gap: 12px);
-    background: color-mix(in srgb, var(--color-warning), transparent 85%);
-    border-bottom: 2px solid var(--color-warning);
-    padding: 8px 16px;
-    font-size: 0.85em;
-    color: var(--color-warning);
-    flex-shrink: 0;
-    user-select: none;
-
-    .transaction-icon {
-        font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 1.1em;
-    }
-
-    .transaction-actions {
-        @include flex($gap: 8px);
-        margin-left: auto;
-
-        button {
-
-            --btn-padding: 4px 12px;
-            padding: 4px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: "Segoe Fluent Icons", sans-serif, var(--font-family);
-            font-size: 0.85em;
-            transition: opacity 0.15s;
-
-            &:hover {
-                opacity: 0.85;
-            }
-        }
-
-        .btn-commit {
-            background: var(--color-success);
-            color: #fff;
-        }
-
-        .btn-rollback {
-            background: var(--color-danger);
-            color: #fff;
-        }
-    }
-}
-
-// --- Toolbar ---
+// --- Barre d'outils ---
 
 .toolbar {
-    @include flex($hor: stretch, $gap: 8px);
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(127, 127, 127, 0.15);
-    flex-shrink: 0;
-    background: var(--surface-alt);
+    @include flex($hor: flex-start, $gap: 8px);
 
-    .filter-bar {
-        @include flex($gap: 0px);
-        flex: 1;
+    flex: none;
+    height: 44px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+}
 
-        .filter-input {
-            width: 100%;
-            flex: 1;
-            padding: 6px 10px;
-            border: 1px solid rgba(127, 127, 127, 0.25);
-            border-radius: 6px;
-            background: var(--surface-alt);
-            color: var(--text-color);
-            font-size: 0.8em;
-            font-family: "Cascadia Code", "Fira Code", monospace;
-            outline: none;
+.search {
+    @include flex($hor: flex-start);
 
-            &:focus {
-                border-color: var(--interactive);
-            }
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    background: var(--bg-input);
+    overflow: hidden;
+    cursor: text;
 
-            &::placeholder {
-                color: rgba(127, 127, 127, 0.4);
-            }
-        }
-
-        .btn-filter-mode {
-
-            flex-shrink: 0;
-            padding: 9px 10px;
-            border: 1px solid rgba(127, 127, 127, 0.25);
-            border-radius: 6px;
-            background: var(--surface-alt);
-            color: rgba(127, 127, 127, 0.5);
-            font-size: 0.75em;
-            font-weight: 600;
-            font-family: "Cascadia Code", "Fira Code", monospace;
-            cursor: pointer;
-            transition:
-                background 0.15s,
-                color 0.15s,
-                border-color 0.15s;
-            margin-left: 5px;
-
-            &:hover {
-                color: var(--text-color);
-                background: rgba(127, 127, 127, 0.08);
-            }
-
-            &.active {
-                background: color-mix(in srgb, var(--interactive), transparent 85%);
-                color: var(--interactive);
-                border-color: var(--interactive);
-            }
-        }
+    &:hover {
+        border-color: var(--border-control-hover);
     }
 
-    .btn-new-entry {
+    &:focus-within {
+        border-color: var(--accent);
+    }
+
+    .search-prefix {
         @include flex;
 
-        flex-shrink: 0;
-        font-size: .85rem;
+        flex: none;
+        height: 100%;
+        padding: 0 8px;
+        border-right: 1px solid var(--border-muted);
+        color: var(--text-faint);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        user-select: none;
     }
 
+    .search-input {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        padding: 0 10px;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 12px;
+
+        &::placeholder {
+            color: var(--text-faint);
+        }
+    }
+
+    &.query .search-input {
+        font-family: var(--font-mono);
+    }
 }
 
-// --- Table ---
+.segmented {
+    display: flex;
+    flex: none;
+    height: 28px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    overflow: hidden;
 
-$row-height: 30px;
+    .segment {
+        @include flex;
 
-.table-container {
-    flex: 1;
-    overflow: auto;
+        padding: 0 10px;
+        border: none;
+        background: var(--bg-input);
+        color: var(--text-secondary);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+
+        & + .segment {
+            border-left: 1px solid var(--border-control);
+        }
+
+        &:hover:not(.active) {
+            background: var(--bg-panel);
+        }
+
+        &.active {
+            background: var(--accent);
+            color: var(--accent-fg);
+        }
+    }
+}
+
+.btn-new {
+    @include flex($gap: 6px);
+
+    flex: none;
+    height: 28px;
+    padding: 0 12px;
+    border: none;
+    border-radius: var(--radius-m);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--accent-hover);
+    }
+
+    &:active {
+        background: var(--accent-active);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: 1px;
+    }
+
+    .btn-new-plus {
+        font-size: 14px;
+        line-height: 1;
+    }
+}
+
+// --- Grille ---
+
+.grid-scroll {
     position: relative;
-    background: var(--surface-alt);
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--bg-app);
 }
 
-table {
-    width: max-content;
-    min-width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8em;
+.grid {
+    // La largeur minimale est posée par le composant : `max-content` varierait
+    // avec les lignes rendues par la virtualisation.
+    width: 100%;
 }
 
-thead {
+.grid-header,
+.grid-row {
+    display: grid;
+    grid-template-columns: var(--grid-cols);
+}
+
+.grid-header {
     position: sticky;
     top: 0;
-    z-index: 5;
-    background: var(--surface-raised);
-
-    th {
-        position: relative;
-        padding: 0;
-        border-bottom: 2px solid rgba(127, 127, 127, 0.2);
-        text-align: left;
-        user-select: none;
-        overflow: visible;
-
-        .th-content {
-            @include flex($hor: flex-start, $gap: 6px);
-            padding: 8px 10px;
-            cursor: pointer;
-            transition: background 0.1s;
-            white-space: nowrap;
-
-            &:hover {
-                background: rgba(127, 127, 127, 0.08);
-            }
-
-            .col-name {
-                font-weight: 600;
-                color: var(--text-color);
-                white-space: nowrap;
-            }
-
-            .col-type {
-                font-size: 0.8em;
-                color: rgba(127, 127, 127, 0.5);
-                font-style: italic;
-                white-space: nowrap;
-            }
-
-            .col-badge {
-                font-size: 0.65em;
-                padding: 1px 4px;
-                border-radius: 3px;
-                background: color-mix(in srgb, var(--interactive), transparent 85%);
-                color: var(--interactive);
-                white-space: nowrap;
-            }
-
-            .sort-icon {
-                font-size: 0.7em;
-                color: var(--interactive);
-            }
-        }
-
-        .col-timestamp-toggle {
-
-
-            padding: 3px;
-            border: none;
-            border-radius: 3px;
-            background: transparent;
-            color: rgba(127, 127, 127, 0.4);
-            font-family: "Segoe Fluent Icons", sans-serif;
-            font-size: 0.65em;
-            cursor: pointer;
-            transition:
-                color 0.15s,
-                background 0.15s;
-            transform: scale(2);
-            margin-left: 5px;
-
-            &:hover {
-                color: var(--text-color);
-                background: rgba(127, 127, 127, 0.1);
-            }
-
-            &.active {
-                color: var(--color-warning);
-                background: color-mix(in srgb, var(--color-warning), transparent 88%);
-            }
-        }
-
-        .col-resize-handle {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 5px;
-            height: 100%;
-            cursor: col-resize;
-            z-index: 10;
-            transform: translateX(50%);
-
-            &::after {
-                content: "";
-                position: absolute;
-                top: 0;
-                left: 50%;
-                width: 1px;
-                height: 100%;
-                transform: translateX(-50%);
-                background: transparent;
-                transition: background 0.1s, box-shadow 0.1s;
-            }
-
-            &:hover::after,
-            &:active::after {
-                background: var(--interactive);
-                // box-shadow n’est pas clipé par overflow: auto, ce qui permet
-                // à la ligne de s’étendre sur toute la hauteur du tableau
-                box-shadow: 0 9999px 0 var(--interactive);
-            }
-        }
-
-        &.checkbox-col {
-            width: 50px;
-            min-width: 50px;
-            max-width: 50px;
-            text-align: center;
-        }
-    }
+    z-index: 2;
+    height: 40px;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
 }
 
-tbody {
-    // Espacement de la virtualisation : ni bordure ni survol, sinon sa hauteur
-    // ne correspondrait plus exactement à celle des lignes qu'il remplace.
-    tr.virtual-spacer {
-        border: 0;
+.hcell {
+    @include flex($hor: flex-start, $gap: 6px);
 
-        &:hover {
-            background: none;
-        }
+    position: relative;
+    min-width: 0;
+    padding: 0 10px;
+    border-right: 1px solid var(--border-subtle);
+    cursor: pointer;
 
-        td {
-            padding: 0;
-            border: 0;
+    &:hover {
+        background: var(--bg-row-hover);
+    }
+
+    &.rownum {
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-right: 1px solid var(--border-subtle);
+        background: transparent;
+        color: var(--text-faint);
+        font: inherit;
+        font-size: 11px;
+
+        &.all-selected {
+            background: var(--bg-selected);
+            color: var(--accent);
+            font-weight: 600;
         }
     }
 
-    tr.data-row {
-        // Hauteur fixe : la virtualisation suppose des lignes de hauteur égale,
-        // y compris celle qui contient le champ d'édition.
-        height: $row-height;
+    .hcell-text {
+        flex: 1;
+        min-width: 0;
     }
 
-    tr {
-        border-bottom: 1px solid rgba(127, 127, 127, 0.08);
-        transition: background 0.1s;
-
-        &:hover {
-            background: rgba(127, 127, 127, 0.05);
-        }
-
-        &.selected {
-            background: color-mix(in srgb, var(--interactive), transparent 92%);
-
-            &:hover {
-                background: color-mix(in srgb, var(--interactive), transparent 88%);
-            }
-        }
-
-        &.cursor {
-            outline: 2px solid var(--interactive);
-            outline-offset: -2px;
-        }
-    }
-
-    td {
-        padding: 4px 10px;
+    .hcell-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 400px;
-        border-right: 1px solid rgba(127, 127, 127, 0.06);
-        color: color-mix(in srgb, var(--text-color), transparent 20%);
+    }
 
-        &.checkbox-col {
-            width: 40px;
-            min-width: 40px;
-            max-width: 40px;
-            text-align: center;
+    .hcell-type {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-faint);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sort-icon {
+        flex: none;
+        font-size: 9px;
+        color: var(--accent);
+    }
+
+    .ts-toggle {
+        @include flex;
+
+        flex: none;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: 1px solid var(--border-control);
+        border-radius: var(--radius-s);
+        background: var(--bg-input);
+        color: var(--text-muted);
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            border-color: var(--accent);
         }
 
-        &.null-value .cell-value {
-            color: var(--text-color);
-            opacity: 0.5;
-            font-style: italic;
+        &.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: var(--accent-fg);
         }
+    }
 
-        &.fk-cell .cell-value {
-            color: var(--color-warning);
-            cursor: pointer;
+    .col-resize-handle {
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 3;
+        width: 6px;
+        height: 100%;
+        transform: translateX(50%);
+        cursor: col-resize;
 
-            &:hover {
-                text-decoration: underline;
-            }
-        }
-
-        &.editing {
-            padding: 0;
-        }
-
-        .cell-value {
-            cursor: default;
-        }
-
-        .blob-view-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-left: 6px;
-            padding: 0 4px;
-            border: none;
-            border-radius: 3px;
+        &::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 1px;
+            height: 100%;
+            transform: translateX(-50%);
             background: transparent;
-            color: rgba(127, 127, 127, 0.4);
-            font-family: "Segoe Fluent Icons", sans-serif;
-            font-size: 0.85em;
-            cursor: pointer;
-            transition:
-                color 0.15s,
-                background 0.15s;
-            vertical-align: middle;
-
-            &:hover {
-                color: var(--interactive);
-                background: color-mix(in srgb, var(--interactive), transparent 90%);
-            }
+            transition: background 0.1s, box-shadow 0.1s;
         }
 
-        .cell-edit {
-            width: 100%;
-            height: $row-height - 1px;
-            padding: 4px 10px;
-            border: 1px solid var(--interactive);
-            border-radius: 0;
-            background: none;
-            color: var(--text-color);
-            font-size: 1em;
-            outline: none;
-            font-family: inherit;
-            margin: 0;
+        &:hover::after,
+        &:active::after {
+            background: var(--accent);
+            // box-shadow n'est pas rogné par l'overflow du conteneur : la ligne
+            // de redimensionnement s'étend sur toute la hauteur de la grille.
+            box-shadow: 0 9999px 0 var(--accent);
         }
     }
 }
 
-// --- Mode édition : bordures de colonnes plus prononcées ---
+// Bloc d'espacement de la virtualisation : ni bordure ni fond, sinon sa hauteur
+// ne correspondrait plus exactement à celle des lignes qu'il remplace.
+.virtual-spacer {
+    border: 0;
+}
 
-:host.edit-mode {
-    tbody {
-        td {
-            border-right-color: rgba(127, 127, 127, 0.4);
-            color: var(--text-color);
+.grid-row {
+    // Hauteur fixe, bordure comprise : la virtualisation suppose des lignes de
+    // hauteur égale, y compris celle qui contient le champ d'édition.
+    box-sizing: border-box;
+    height: var(--row-height, 36px);
+    border-bottom: 1px solid var(--border-subtle);
+    background: transparent;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--bg-row-hover);
+    }
+
+    &.selected {
+        background: var(--bg-selected);
+    }
+
+    &.cursor {
+        outline: 1px solid var(--accent-ring);
+        outline-offset: -1px;
+    }
+}
+
+.cell {
+    @include flex($hor: flex-start, $gap: 6px);
+
+    min-width: 0;
+    padding: 0 10px;
+    border-right: 1px solid var(--border-subtle);
+    color: var(--text);
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+
+    &.rownum {
+        justify-content: center;
+        padding: 0;
+        border-left: 3px solid transparent;
+        color: var(--text-faint);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        user-select: none;
+
+        &.mark-inserted {
+            border-left-color: var(--success);
         }
 
-        tr {
-            border-bottom-color: rgba(127, 127, 127, 0.4);
+        &.mark-modified {
+            border-left-color: var(--warning);
         }
+    }
+
+    &.mono {
+        font-family: var(--font-mono);
+    }
+
+    &.pk {
+        color: var(--pk-text);
+    }
+
+    &.fk {
+        color: var(--fk-text);
+
+        .cell-value:hover {
+            text-decoration: underline;
+        }
+    }
+
+    &.null-value .cell-value {
+        color: var(--text-disabled);
+        font-style: italic;
+    }
+
+    &.editing {
+        padding: 0;
+        background: var(--bg-input);
+        box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    .cell-value {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .blob-view-btn {
+        @include flex;
+
+        flex: none;
+        padding: 0 4px;
+        border: none;
+        border-radius: var(--radius-s);
+        background: transparent;
+        color: var(--text-faint);
+        font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            background: var(--bg-accent-soft);
+            color: var(--accent);
+        }
+    }
+
+    .cell-edit {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0 10px;
+        border: none;
+        border-radius: 0;
+        outline: none;
+        // Transparent : le cadre d'édition est l'ombre intérieure de la cellule.
+        background: transparent;
+        color: var(--text);
+        font: inherit;
     }
 }
 
 .loading-indicator {
     @include flex;
+
     padding: 16px;
-    font-size: 0.8em;
-    color: rgba(127, 127, 127, 0.6);
+    font-size: 12px;
+    color: var(--text-muted);
 }

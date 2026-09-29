@@ -15,7 +15,9 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 
 /**
@@ -28,8 +30,11 @@ import type { UIDismissData } from "src/app/shared/ui/ui.types";
     templateUrl: "./blob-viewer.component.html",
     styleUrl: "./blob-viewer.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [TooltipDirective],
 })
 export class BlobViewerComponent {
+    protected readonly i18n = inject(I18nService);
+
     /** URL objet de l'image à afficher. */
     public readonly imageUrl = signal<string | null>(null);
 

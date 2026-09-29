@@ -16,47 +16,30 @@
  */
 
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from "@angular/core";
-import { Router } from "@angular/router";
+import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
+import type { Menu, MenuItem } from "src/app/core/models/shell.model";
 import { DatabaseService } from "src/app/core/services/database.service";
-import { I18nService } from "src/app/core/services/i18n.service";
+import { I18nService, type SupportedLocale } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
+import { ShellService } from "src/app/core/services/shell.service";
 import { StateService } from "src/app/core/services/state.service";
-import { SESSION_DIFF_TAB_ID, SQL_EDITOR_TAB_ID, TabsService } from "src/app/core/services/tabs.service";
-import { UpdateService } from "src/app/core/services/update.service";
 import { ThemeService } from "src/app/core/services/theme.service";
-import { ChangePasswordComponent } from "src/app/shared/components/change-password/change-password.component";
-import { ConnectionsManagerComponent } from "src/app/shared/components/connections-manager/connections-manager.component";
-import { CreateTableComponent } from "src/app/shared/components/create-table/create-table.component";
-import { ImportDataComponent } from "src/app/shared/components/import-data/import-data.component";
-import { IndexViewerComponent } from "src/app/shared/components/index-viewer/index-viewer.component";
-import { SchemaEditorComponent } from "src/app/shared/components/schema-editor/schema-editor.component";
-import { DatabaseSchemaComponent } from "src/app/shared/components/database-schema/database-schema.component";
-import { ShortcutsComponent } from "src/app/shared/components/shortcuts/shortcuts.component";
-import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
-import type { UIDismissData } from "src/app/shared/ui/ui.types";
+import { UpdateService } from "src/app/core/services/update.service";
+import { formatShortcut } from "src/app/shared/helpers/shortcut.helper";
+import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 
-interface MenuItem {
-    label: string;
-    shortcut?: string;
-    /** Élément à cocher : `true`/`false` affiche l'état, absent pour une simple action. */
-    checked?: boolean;
-    action?: () => void;
-    separator?: boolean;
-    disabled?: boolean;
-    children?: MenuItem[];
-}
+/** Ordre des langues dans le sous-menu, celui de la maquette. */
+const MENU_LOCALES: readonly SupportedLocale[] = ["fr", "en"];
 
-interface Menu {
-    label: string;
-    items: MenuItem[];
-}
+/** Élément de séparation, partagé par tous les menus. */
+const SEPARATOR: MenuItem = { label: "", separator: true };
 
 @Component({
     selector: "app-titlebar",
     standalone: true,
     templateUrl: "./titlebar.component.html",
     styleUrl: "./titlebar.component.scss",
-    imports: [],
+    imports: [TranslatePipe],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "(document:click)": "closeMenus()",
@@ -67,424 +50,331 @@ export class TitlebarComponent {
     private readonly noxus = inject(NoxusService);
     private readonly dbService = inject(DatabaseService);
     private readonly i18n = inject(I18nService);
-    private readonly router = inject(Router);
-    private readonly modalCtrl = inject(ModalController);
-    private readonly tabsService = inject(TabsService);
     private readonly updateService = inject(UpdateService);
+    private readonly themeService = inject(ThemeService);
+    protected readonly shell = inject(ShellService);
     protected readonly state = inject(StateService);
-    protected readonly themeService = inject(ThemeService);
 
-    protected readonly openMenuIndex = signal<number | null>(null);
-    protected readonly fileName = computed(() => this.state.fileName());
-    protected readonly appName = computed(() => this.state.appName());
+    protected readonly openMenuId = signal<string | null>(null);
 
-    protected readonly menus = computed<Menu[]>(() => {
+    /** Bases récentes, rechargées à chaque ouverture du menu Fichier. */
+    private readonly recents = signal<RecentDatabaseEntry[]>([]);
+
+    /** « <base> — Quark » une fois connecté, « Quark » sinon. */
+    protected readonly windowTitle = computed<string>(() => {
+        const appName = this.state.appName() || "Quark";
+        const databaseName = this.state.fileName() || this.state.database()?.name || "";
+
+        return this.state.connected() && databaseName
+            ? `${databaseName} — ${appName}`
+            : appName;
+    });
+
+    protected readonly menus = computed<Menu[]>(() => [
+        { id: "file", label: this.i18n.t("menu.file"), items: this.fileItems() },
+        { id: "edit", label: this.i18n.t("menu.edit"), items: this.editItems() },
+        { id: "view", label: this.i18n.t("menu.view"), items: this.viewItems() },
+        { id: "database", label: this.i18n.t("menu.database"), items: this.databaseItems() },
+        { id: "help", label: this.i18n.t("menu.help"), items: this.helpItems() },
+    ]);
+
+    /**
+     * Ouvre ou ferme un menu. Le menu Fichier recharge les bases récentes, qui
+     * changent à chaque ouverture de base, y compris depuis une autre fenêtre.
+     */
+    protected toggleMenu(event: MouseEvent, menuId: string): void {
+        event.stopPropagation();
+        const opening = this.openMenuId() !== menuId;
+        this.openMenuId.set(opening ? menuId : null);
+
+        if (opening && menuId === "file") {
+            void this.loadRecents();
+        }
+    }
+
+    /**
+     * Survol d'un menu quand un autre est déjà ouvert : bascule comme une barre de menus native.
+     */
+    protected onMenuHover(menuId: string): void {
+        if (this.openMenuId() !== null && this.openMenuId() !== menuId) {
+            this.openMenuId.set(menuId);
+
+            if (menuId === "file") {
+                void this.loadRecents();
+            }
+        }
+    }
+
+    /**
+     * Exécute l'action d'un élément de menu puis referme les menus.
+     */
+    protected executeMenuItem(event: MouseEvent, item: MenuItem): void {
+        event.stopPropagation();
+
+        if (item.disabled || item.separator || !item.action) {
+            return;
+        }
+
+        this.closeMenus();
+        item.action();
+    }
+
+    protected closeMenus(): void {
+        this.openMenuId.set(null);
+    }
+
+    protected toggleSettings(event: MouseEvent): void {
+        event.stopPropagation();
+        this.closeMenus();
+        this.shell.toggleSettings();
+    }
+
+    protected closeApp(): void {
+        void this.noxus.ipc.close();
+    }
+
+    protected reduceApp(): void {
+        void this.noxus.ipc.reduce();
+    }
+
+    protected toggleMaximize(): void {
+        void this.noxus.ipc.toggleMaximize();
+    }
+
+    private async loadRecents(): Promise<void> {
+        try {
+            this.recents.set(await this.noxus.ipc.getRecentDatabases());
+        }
+        catch (error) {
+            console.error("Failed to load recent databases:", error);
+        }
+    }
+
+    /**
+     * Raccourci affiché dans la langue courante.
+     */
+    private key(keys: string): string {
+        return formatShortcut(keys, key => this.i18n.t(key));
+    }
+
+    private fileItems(): MenuItem[] {
+        const t = (key: string): string => this.i18n.t(key);
         const connected = this.state.connected();
-        const hasSelection = this.dbService.selectedCount() > 0;
+        const recents = this.recents();
+
+        const recentItems: MenuItem[] = recents.length > 0
+            ? recents.map(entry => ({
+                label: `${entry.displayName} · ${entry.displaySubtitle}`,
+                action: () => void this.shell.openRecent(entry),
+            }))
+            : [{ label: t("menu.recentEmpty"), disabled: true }];
+
+        return [
+            { label: t("menu.open"), shortcut: this.key("Ctrl+O"), action: () => void this.dbService.openFileDialog() },
+            { label: t("menu.recent"), children: recentItems },
+            { label: t("menu.connections"), shortcut: this.key("Ctrl+Shift+C"), action: () => void this.shell.openConnectionsManager() },
+            SEPARATOR,
+            { label: t("menu.newWindow"), shortcut: this.key("Ctrl+Shift+N"), action: () => void this.noxus.ipc.newWindow() },
+            { label: t("menu.refresh"), shortcut: this.key("F5"), action: () => void this.shell.refresh(), disabled: !connected },
+            SEPARATOR,
+            {
+                label: t("menu.closeTab"),
+                shortcut: this.key("Ctrl+W"),
+                action: () => void this.shell.closeActiveTab(),
+                disabled: !connected || this.dbService.tabs.activeTabIndex() < 0,
+            },
+            {
+                label: t(this.state.capabilities()?.networkConnection ? "menu.disconnect" : "menu.closeFile"),
+                shortcut: this.key("Ctrl+K Ctrl+F"),
+                action: () => void this.dbService.closeFile(),
+                disabled: !connected,
+            },
+            { label: t("menu.quit"), shortcut: this.key("Alt+F4"), action: () => void this.noxus.ipc.quitApp() },
+        ];
+    }
+
+    private editItems(): MenuItem[] {
+        const t = (key: string): string => this.i18n.t(key);
+        const connected = this.state.connected();
         const capabilities = this.state.capabilities();
         const isReadOnly = this.dbService.readOnly();
-        // Track locale changes to re-compute menu labels
-        const t = (key: string): string => this.i18n.t(key);
+        const inTransaction = this.dbService.inTransaction();
+        const hasSelection = this.dbService.selectedCount() > 0;
+        const hasTable = !!(this.dbService.tabs.activeTab()?.tableName ?? this.dbService.selectedTable());
 
-        const activeTableName = this.dbService.tabs.activeTab()?.tableName ?? this.dbService.selectedTable();
-        const hasTable = !!activeTableName;
-        const fields = this.dbService.tableSchema()?.fields ?? [];
-
-        // --- Edit menu items ---
-        const editItems: MenuItem[] = [
-            { label: t("menu.undo"), shortcut: "Ctrl+Z", action: () => this.dbService.undoLastMutation(), disabled: isReadOnly || !this.dbService.mutationHistory.canUndo() },
-            { label: t("menu.redo"), shortcut: "Ctrl+Y", action: () => this.dbService.redoLastMutation(), disabled: isReadOnly || !this.dbService.mutationHistory.canRedo() },
-            { label: "", separator: true },
-            { label: t("menu.toggleEditMode"), shortcut: "Ctrl+D", action: () => this.dbService.toggleReadOnly(), disabled: !connected },
+        const items: MenuItem[] = [
+            {
+                label: t("menu.undo"),
+                shortcut: this.key("Ctrl+Z"),
+                action: () => void this.dbService.undoLastMutation(),
+                disabled: !connected || isReadOnly || !this.dbService.mutationHistory.canUndo(),
+            },
+            {
+                label: t("menu.redo"),
+                shortcut: this.key("Ctrl+Y"),
+                action: () => void this.dbService.redoLastMutation(),
+                disabled: !connected || isReadOnly || !this.dbService.mutationHistory.canRedo(),
+            },
+            SEPARATOR,
+            {
+                label: t("menu.toggleEditMode"),
+                shortcut: this.key("Ctrl+E"),
+                checked: connected && !isReadOnly,
+                action: () => this.dbService.toggleReadOnly(),
+                disabled: !connected,
+            },
         ];
 
         if (!capabilities || capabilities.transactions) {
-            editItems.push(
-                { label: "", separator: true },
-                { label: t("menu.startTransaction"), shortcut: "Ctrl+T", action: () => this.dbService.transactionAction("begin"), disabled: isReadOnly || !connected || this.dbService.inTransaction() },
-                { label: t("menu.commitTransaction"), action: () => this.dbService.transactionAction("commit"), disabled: isReadOnly || !this.dbService.inTransaction() },
-                { label: t("menu.rollbackTransaction"), action: () => this.dbService.transactionAction("rollback"), disabled: isReadOnly || !this.dbService.inTransaction() },
+            items.push(
+                SEPARATOR,
+                {
+                    label: t("menu.startTransaction"),
+                    shortcut: this.key("Ctrl+T"),
+                    action: () => void this.dbService.transactionAction("begin"),
+                    disabled: !connected || isReadOnly || inTransaction,
+                },
+                {
+                    label: t("menu.commitTransaction"),
+                    shortcut: this.key("Ctrl+Enter"),
+                    action: () => void this.dbService.transactionAction("commit"),
+                    disabled: !connected || !inTransaction,
+                },
+                {
+                    label: t("menu.rollbackTransaction"),
+                    shortcut: this.key("Ctrl+Shift+Z"),
+                    action: () => void this.dbService.transactionAction("rollback"),
+                    disabled: !connected || !inTransaction,
+                },
             );
         }
 
-        editItems.push(
-            { label: "", separator: true },
-            { label: t("menu.deleteSelection"), action: () => this.dbService.deleteSelectedRows(), disabled: isReadOnly || !hasSelection },
+        items.push(
+            SEPARATOR,
+            {
+                label: t("menu.deleteSelection"),
+                shortcut: this.key("Delete"),
+                action: () => void this.dbService.deleteSelectedRows(),
+                disabled: !connected || isReadOnly || !hasSelection,
+            },
         );
 
         if (!capabilities || capabilities.importExport) {
-            editItems.push(
-                { label: t("menu.importData"), action: () => this.openImportData(), disabled: isReadOnly || !connected || !hasTable },
-                { label: "", separator: true },
+            items.push(
+                SEPARATOR,
+                {
+                    label: t("menu.importData"),
+                    action: () => void this.shell.openImportData(),
+                    disabled: !connected || isReadOnly || !hasTable,
+                },
                 {
                     label: t("menu.export"),
-                    disabled: !hasSelection,
+                    disabled: !connected || !hasSelection,
                     children: [
-                        { label: t("menu.exportJson"), action: () => this.dbService.exportData("json", true), disabled: !hasSelection },
-                        { label: t("menu.exportCsv"), action: () => this.dbService.exportData("csv", true), disabled: !hasSelection },
-                        { label: t("menu.exportXlsx"), action: () => this.dbService.exportData("xlsx", true), disabled: !hasSelection },
+                        { label: t("menu.exportXlsx"), action: () => void this.dbService.exportData("xlsx", true) },
+                        { label: t("menu.exportJson"), action: () => void this.dbService.exportData("json", true) },
+                        { label: t("menu.exportCsv"), action: () => void this.dbService.exportData("csv", true) },
                     ],
                 },
             );
         }
 
-        // --- View menu items ---
-        const viewItems: MenuItem[] = [];
+        return items;
+    }
+
+    private viewItems(): MenuItem[] {
+        const t = (key: string): string => this.i18n.t(key);
+        const connected = this.state.connected();
+        const capabilities = this.state.capabilities();
+        const currentTheme = this.themeService.currentTheme();
+        const locale = this.i18n.locale();
+        const items: MenuItem[] = [];
 
         if (!capabilities || capabilities.sqlQueries) {
-            viewItems.push(
-                { label: t("menu.sqlEditor"), shortcut: "Ctrl+Shift+Q", action: () => this.openSqlEditorTab(), disabled: !connected },
-            );
+            items.push({ label: t("menu.sqlEditor"), shortcut: this.key("Ctrl+Shift+S"), action: () => this.shell.openSqlEditor(), disabled: !connected });
         }
 
         if (!capabilities || capabilities.erDiagram) {
-            viewItems.push(
-                { label: t("menu.erDiagram"), action: () => this.router.navigate(["/dashboard/er-diagram"]), disabled: !connected },
-            );
+            items.push({ label: t("menu.erDiagram"), shortcut: this.key("Ctrl+Shift+D"), action: () => this.shell.openErDiagram(), disabled: !connected });
         }
 
-        viewItems.push(
-            { label: t("menu.sessionDiff"), shortcut: "Ctrl+Shift+D", action: () => this.openSessionDiff(), disabled: !connected },
-        );
-
-        if (viewItems.length > 0) {
-            viewItems.push({ label: "", separator: true });
-        }
-
-        viewItems.push(
-            { label: t("menu.fullscreen"), shortcut: "F11", action: () => this.noxus.ipc.toggleFullscreen() },
-            { label: "", separator: true },
-            { label: t("menu.changeTheme"), shortcut: "Ctrl+K Ctrl+T", action: () => this.openThemePicker() },
-            { label: "", separator: true },
+        items.push(
+            { label: t("menu.sessionDiff"), shortcut: this.key("Ctrl+Shift+M"), action: () => this.shell.openSessionDiff(), disabled: !connected },
+            SEPARATOR,
+            { label: t("menu.fullscreen"), shortcut: this.key("F11"), checked: this.shell.isFullscreen(), action: () => this.shell.toggleFullscreen() },
+            {
+                label: t("menu.theme"),
+                children: ThemeService.availableThemes.map(theme => ({
+                    label: t(theme.labelKey),
+                    checked: currentTheme === theme.value,
+                    action: () => this.themeService.applyTheme(theme.value),
+                })),
+            },
+            {
+                label: t("menu.changeTheme"),
+                shortcut: this.key("Ctrl+K Ctrl+T"),
+                action: () => document.dispatchEvent(new CustomEvent("open-theme-picker")),
+            },
             {
                 label: t("menu.language"),
-                children: this.i18n.availableLocales.map(locale => ({
-                    label: this.i18n.localeLabels[locale],
-                    action: () => this.i18n.setLocale(locale),
-                    disabled: this.i18n.locale() === locale,
+                children: MENU_LOCALES.map(code => ({
+                    label: this.i18n.localeLabels[code],
+                    checked: locale === code,
+                    action: () => this.i18n.setLocale(code),
                 })),
             },
         );
 
-        // --- Database menu items ---
-        const databaseItems: MenuItem[] = [];
+        return items;
+    }
+
+    private databaseItems(): MenuItem[] {
+        const t = (key: string): string => this.i18n.t(key);
+        const connected = this.state.connected();
+        const capabilities = this.state.capabilities();
+        const isReadOnly = this.dbService.readOnly();
+        const hasTable = !!(this.dbService.tabs.activeTab()?.tableName ?? this.dbService.selectedTable());
+        const items: MenuItem[] = [];
 
         if (!capabilities || capabilities.schemaEditing) {
-            databaseItems.push(
-                { label: t("menu.schemaEditor"), action: () => this.openSchemaEditor(fields), disabled: isReadOnly || !connected || !hasTable },
-                { label: t("menu.createTable"), action: () => this.openCreateTable(), disabled: isReadOnly || !connected },
+            items.push(
+                { label: t("menu.schemaEditor"), action: () => void this.shell.openSchemaEditor(), disabled: !connected || isReadOnly || !hasTable },
+                { label: t("menu.createTable"), action: () => void this.shell.openCreateTable(), disabled: !connected || isReadOnly },
+                SEPARATOR,
             );
         }
 
         if (!capabilities || capabilities.indexes) {
-            databaseItems.push(
-                { label: t("menu.indexViewer"), action: () => this.openIndexViewer(fields), disabled: !connected || !hasTable },
-            );
+            items.push({ label: t("menu.indexViewer"), action: () => void this.shell.openIndexViewer(), disabled: !connected || !hasTable });
         }
 
-        databaseItems.push(
-            { label: t("menu.viewSchema"), action: () => this.openDatabaseSchema(), disabled: !connected },
-        );
+        items.push({ label: t("menu.viewSchema"), action: () => void this.shell.openDatabaseSchema(), disabled: !connected });
 
         if (!capabilities || capabilities.encryption) {
-            if (databaseItems.length > 0) {
-                databaseItems.push({ label: "", separator: true });
-            }
-            databaseItems.push(
-                { label: t("menu.changePassword"), action: () => this.openChangePassword(), disabled: !connected },
+            items.push(
+                SEPARATOR,
+                { label: t("menu.changePassword"), action: () => void this.shell.openChangePassword(), disabled: !connected },
             );
         }
 
+        return items;
+    }
+
+    private helpItems(): MenuItem[] {
+        const t = (key: string): string => this.i18n.t(key);
+        const updateSettings = this.updateService.settings();
+
         return [
+            { label: t("menu.shortcuts"), shortcut: this.key("Ctrl+/"), action: () => void this.shell.openShortcuts() },
+            { label: t("menu.checkForUpdates"), action: () => void this.updateService.checkNow() },
             {
-                label: t("menu.file"),
-                items: [
-                    { label: t("menu.open"), shortcut: "Ctrl+O", action: () => this.dbService.openFileDialog() },
-                    { label: t("menu.connections"), shortcut: "Ctrl+Shift+C", action: () => this.openConnectionsManager() },
-                    { label: t("menu.newWindow"), shortcut: "Ctrl+Shift+N", action: () => this.noxus.ipc.newWindow() },
-                    { label: "", separator: true },
-                    { label: t("menu.refresh"), shortcut: "Ctrl+Shift+R", action: () => this.dbService.refreshDatabase(), disabled: !connected },
-                    { label: t(capabilities?.networkConnection ? "menu.disconnect" : "menu.closeFile"), shortcut: "Ctrl+K Ctrl+F", action: () => this.dbService.closeFile(), disabled: !connected },
-                    { label: "", separator: true },
-                    { label: t("menu.quit"), shortcut: "Alt+F4", action: () => this.noxus.ipc.quitApp() },
-                ],
+                label: t("menu.autoUpdate"),
+                checked: updateSettings.autoUpdate,
+                disabled: !updateSettings.supported,
+                action: () => void this.updateService.toggleAutoUpdate(),
             },
-            {
-                label: t("menu.edit"),
-                items: editItems,
-            },
-            {
-                label: t("menu.view"),
-                items: viewItems,
-            },
-            {
-                label: t("menu.database"),
-                items: databaseItems,
-            },
-            {
-                label: t("menu.help"),
-                items: [
-                    { label: t("menu.shortcuts"), action: () => this.openShortcuts() },
-                    { label: t("menu.checkForUpdates"), action: () => void this.updateService.checkNow() },
-                    {
-                        label: t("menu.autoUpdate"),
-                        checked: this.updateService.settings().autoUpdate,
-                        disabled: !this.updateService.settings().supported,
-                        action: () => void this.updateService.toggleAutoUpdate(),
-                    },
-                    { label: "", separator: true },
-                    { label: t("menu.about"), action: () => this.openAbout() },
-                ],
-            },
+            SEPARATOR,
+            { label: t("menu.about"), action: () => void this.shell.openAbout() },
         ];
-    });
-
-    /**
-     * Toggle un menu par son index.
-     */
-    protected toggleMenu(event: MouseEvent, index: number): void {
-        event.stopPropagation();
-        this.openMenuIndex.update(current => current === index ? null : index);
     }
-
-    /**
-     * Survol d'un menu quand un autre est déjà ouvert.
-     */
-    protected onMenuHover(index: number): void {
-        if (this.openMenuIndex() !== null) {
-            this.openMenuIndex.set(index);
-        }
-    }
-
-    /**
-     * Exécute l'action d'un item de menu.
-     */
-    protected executeMenuItem(event: MouseEvent, item: MenuItem): void {
-        event.stopPropagation();
-        if (item.disabled || item.separator || !item.action) {
-            return;
-        }
-        item.action();
-        this.closeMenus();
-    }
-
-    /**
-     * Ferme tous les menus.
-     */
-    protected closeMenus(): void {
-        this.openMenuIndex.set(null);
-    }
-
-    protected closeApp(): void {
-        this.noxus.ipc.close();
-    }
-
-    protected reduceApp(): void {
-        this.noxus.ipc.reduce();
-    }
-
-    protected toggleMaximize(): void {
-        this.noxus.ipc.toggleMaximize();
-    }
-
-    /**
-     * Ouvre le sélecteur de thème.
-     * Dispatche un événement personnalisé sur le document pour que le composant ThemePicker le capte.
-     */
-    private openThemePicker(): void {
-        document.dispatchEvent(new CustomEvent("open-theme-picker"));
-    }
-
-    /**
-     * Ouvre l'éditeur SQL en tant qu'onglet dédié.
-     */
-    private openSqlEditorTab(): void {
-        this.tabsService.openTab(SQL_EDITOR_TAB_ID);
-        this.dbService.selectedTable.set(null);
-        this.router.navigate(["/dashboard/sql-editor"]);
-    }
-
-    /**
-     * Ouvre le diff de session en tant qu'onglet dédié.
-     */
-    private openSessionDiff(): void {
-        this.tabsService.openTab(SESSION_DIFF_TAB_ID);
-        this.dbService.selectedTable.set(null);
-        this.router.navigate(["/dashboard/session-diff"]);
-    }
-
-    /**
-     * Ouvre la modale de visualisation du schéma de la base.
-     */
-    private async openDatabaseSchema(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: DatabaseSchemaComponent,
-            componentProps: {},
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<DatabaseSchemaComponent>();
-        if (comp) {
-            comp.dismiss = () => modal.dismiss();
-        }
-    }
-
-    /**
-     * Ouvre le gestionnaire de connexions sauvegardées (coffre chiffré).
-     */
-    private async openConnectionsManager(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: ConnectionsManagerComponent,
-            componentProps: {},
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<ConnectionsManagerComponent>();
-        if (comp) {
-            comp.dismiss = () => modal.dismiss();
-        }
-    }
-
-    /**
-     * Ouvre la modale "À propos".
-     * Dispatche un événement personnalisé pour que le composant AppComponent l'intercepte.
-     */
-    private openAbout(): void {
-        document.dispatchEvent(new CustomEvent("open-about-dialog"));
-    }
-
-    /**
-     * Ouvre la modale des raccourcis clavier.
-     */
-    private async openShortcuts(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: ShortcutsComponent,
-            componentProps: {},
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<ShortcutsComponent>();
-        if (comp) {
-            comp.dismiss = () => modal.dismiss();
-        }
-    }
-
-    /**
-     * Ouvre le modal d'import de données pour la table active.
-     */
-    private async openImportData(): Promise<void> {
-        const table = this.dbService.selectedTable();
-        if (!table) {
-            return;
-        }
-        const modal = await this.modalCtrl.create({
-            component: ImportDataComponent,
-            componentProps: { tableName: table },
-            backdropClose: false,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<ImportDataComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
-        modal.didDismiss.subscribe(async result => {
-            if (result.data?.["imported"] === true) {
-                await this.dbService.loadTableData(true);
-            }
-        });
-    }
-
-    /**
-     * Ouvre le modal d'édition de schéma de la table active.
-     */
-    private async openSchemaEditor(fields: import("@shared/types").FieldDef[]): Promise<void> {
-        const table = this.dbService.selectedTable();
-        if (!table || fields.length === 0) {
-            return;
-        }
-        const modal = await this.modalCtrl.create({
-            component: SchemaEditorComponent,
-            componentProps: { tableName: table, fields },
-            backdropClose: false,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<SchemaEditorComponent>();
-        if (comp) {
-            comp.dismiss = async data => {
-                if (data?.["changed"] === true) {
-                    const actions = comp.getAlterActions();
-                    for (const action of actions) {
-                        await this.dbService.alterTable(action);
-                    }
-                }
-                modal.dismiss(data as Partial<UIDismissData>);
-            };
-        }
-    }
-
-    /**
-     * Ouvre le modal de création d'une nouvelle table.
-     */
-    private async openCreateTable(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: CreateTableComponent,
-            componentProps: {},
-            backdropClose: false,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<CreateTableComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
-        modal.didDismiss.subscribe(async result => {
-            if (result.role === "confirm") {
-                await this.dbService.refreshDatabase();
-            }
-        });
-    }
-
-    /**
-     * Ouvre le modal de visualisation des index de la table active.
-     */
-    private async openIndexViewer(fields: import("@shared/types").FieldDef[]): Promise<void> {
-        const table = this.dbService.selectedTable();
-        if (!table) {
-            return;
-        }
-        const modal = await this.modalCtrl.create({
-            component: IndexViewerComponent,
-            componentProps: { tableName: table, fields },
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<IndexViewerComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
-    }
-
-    /**
-     * Ouvre le modal de changement de mot de passe / chiffrement.
-     */
-    private async openChangePassword(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: ChangePasswordComponent,
-            componentProps: {},
-            backdropClose: false,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<ChangePasswordComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
-    }
-
 }

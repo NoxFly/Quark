@@ -15,176 +15,220 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
-
 :host {
     display: flex;
-    flex: 1;
-    height: calc(100% - 35px);
-    overflow: hidden;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    user-select: none;
 }
 
 .empty-state {
-    @include flex(flex, column, nowrap, center, center, 0);
     flex: 1;
-    color: var(--text-muted);
-    font-size: 14px;
-    font-style: italic;
-}
-
-.er-container {
-    position: relative;
     display: flex;
-    flex: 1;
-    overflow: hidden;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-faint);
+    font-size: 12.5px;
 }
 
-.er-canvas-wrapper {
+// Plan infini : la grille de points est un fond CSS dont le pas et le décalage
+// suivent la vue (voir la page), ce qui évite de dessiner des milliers de points.
+.er-canvas {
     flex: 1;
-    overflow: auto;
-    background: var(--surface-alt);
-    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bg-subtle);
+    background-image: radial-gradient(var(--border-control) 1px, transparent 1px);
     cursor: grab;
 
-    &:active {
+    &.panning {
         cursor: grabbing;
     }
 }
 
-.er-svg {
-    display: block;
-    font-family: inherit;
+.er-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
 }
 
-// --- Contrôles de zoom ---
+.er-links {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+
+    .fk-link {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 1.5;
+        pointer-events: stroke;
+    }
+
+    .arrow-marker {
+        fill: var(--accent);
+    }
+}
+
+// --- Boîte de table ---
+
+.table-box {
+    position: absolute;
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: 5px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    cursor: default;
+}
+
+.box-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 12px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+
+    &:hover {
+        background: var(--bg-hover);
+    }
+}
+
+.box-name {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.box-rows {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-faint);
+}
+
+.box-column {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    font-size: 11.5px;
+    color: var(--text);
+
+    &--pk {
+        .column-key {
+            color: var(--pk-bg);
+        }
+
+        .column-name {
+            color: var(--pk-text);
+        }
+    }
+
+    &--fk {
+        .column-key {
+            color: var(--fk-bg);
+        }
+
+        .column-name {
+            color: var(--fk-text);
+        }
+    }
+}
+
+.column-key {
+    width: 14px;
+    flex: none;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.column-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.column-type {
+    flex: none;
+    max-width: 90px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+// --- Contrôles ---
 
 .zoom-controls {
     position: absolute;
+    right: 12px;
     bottom: 12px;
-    right: 16px;
-    @include flex(flex, row, nowrap, center, center, 4px);
-    background: var(--surface);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-    z-index: 10;
-    user-select: none;
-}
-
-.zoom-btn,
-.zoom-reset {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    color: var(--text-color);
-    border-radius: 4px;
-    transition: background 0.15s;
-
-    &:hover {
-        background: var(--surface-alt);
-    }
-}
-
-.zoom-btn {
-    width: 24px;
-    height: 24px;
-    font-size: 16px;
-    font-weight: 700;
-    @include flex(flex, row, nowrap, center, center, 0);
-}
-
-.zoom-reset {
-    padding: 2px 8px;
-    font-size: 11px;
-    font-family: "Consolas", monospace;
-    color: var(--text-muted);
-    min-width: 48px;
-    text-align: center;
-}
-
-// --- Nœuds de tables ---
-
-.table-node {
-    cursor: grab;
-    user-select: none;
-
-    &:active {
-        cursor: grabbing;
-    }
-}
-
-.table-bg {
-    fill: var(--surface);
-    stroke: var(--border-color);
-    stroke-width: 1.5;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12));
-}
-
-.table-header {
-    fill: var(--interactive);
-    opacity: 0.9;
-}
-
-.table-name {
-    fill: white;
-    font-size: 13px;
-    font-weight: 700;
-    dominant-baseline: auto;
-}
-
-.field-row {
-    fill: transparent;
-
-    &.pk-row {
-        fill: color-mix(in srgb, var(--color-warning) 10%, transparent);
-    }
-
-    &.fk-row {
-        fill: color-mix(in srgb, var(--interactive) 8%, transparent);
-    }
-}
-
-.field-divider {
-    stroke: var(--border-color);
-    stroke-width: 0.5;
-    opacity: 0.6;
-}
-
-.field-badge {
-    font-size: 9px;
-    font-weight: 700;
-    fill: var(--color-warning);
-    dominant-baseline: auto;
-}
-
-.field-name {
+    display: flex;
+    align-items: center;
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
     font-size: 12px;
-    fill: var(--text-color);
-    dominant-baseline: auto;
+    cursor: default;
 }
 
-.field-type {
-    font-size: 10px;
-    fill: var(--text-muted);
-    dominant-baseline: auto;
-}
-
-// --- Liens FK ---
-
-.fk-link {
-    stroke: var(--interactive);
-    stroke-width: 1.5;
-    stroke-dasharray: 5, 3;
-    opacity: 0.7;
-    transition: opacity 0.2s, stroke-width 0.2s;
+.zoom-button,
+.zoom-reset {
+    height: 28px;
+    border: none;
+    background: none;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
 
     &:hover {
-        opacity: 1;
-        stroke-width: 2;
+        background: var(--bg-panel);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: -2px;
     }
 }
 
-.arrow-marker {
-    fill: var(--interactive);
+.zoom-button {
+    width: 28px;
+    font-size: 15px;
+}
+
+.zoom-reset {
+    min-width: 52px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border-left: 1px solid var(--border-muted);
+    border-right: 1px solid var(--border-muted);
+}
+
+.er-help {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    font-size: 11px;
+    color: var(--text-faint);
+    pointer-events: none;
 }

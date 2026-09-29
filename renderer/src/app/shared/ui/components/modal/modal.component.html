@@ -9,7 +9,11 @@
         <div class="modal-backdrop"></div>
     }
 
-    <div class="modal-content" #content tabindex="-1">
+    <div class="modal-content" #content tabindex="-1" role="dialog" aria-modal="true">
         <ng-template #injectedComponent></ng-template>
+
+        @if(closeButton()) {
+            <button type="button" class="modal-close" [attr.aria-label]="i18n.t('ui.modal.close')" (click)="closeClick()">✕</button>
+        }
     </div>
 </section>

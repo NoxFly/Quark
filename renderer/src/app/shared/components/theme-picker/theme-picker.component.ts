@@ -25,6 +25,7 @@ import {
 } from "@angular/core";
 import { ThemeService } from "src/app/core/services/theme.service";
 import type { Theme } from "@shared/preferences";
+import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 
 /**
  * Action sheet pour sélectionner le thème visuel.
@@ -37,6 +38,7 @@ import type { Theme } from "@shared/preferences";
     templateUrl: "./theme-picker.component.html",
     styleUrl: "./theme-picker.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [TranslatePipe],
     host: {
         "(window:keydown)": "onKeydown($event)",
         "(click)": "close()",

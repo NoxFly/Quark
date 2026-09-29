@@ -1,152 +1,45 @@
-<div class="open-database" [class.dragging]="isDragging()">
-    @if (state.needsPassword()) {
-        <!-- Formulaire de mot de passe -->
-        <div class="password-prompt">
-            <div class="icon">&#xE72E;</div>
-            <h2>{{ "openDb.encrypted" | translate }}</h2>
-            <p>{{ "openDb.enterPassword" | translate }}</p>
+@let current = selected();
 
-            <div class="password-field">
-                <ui-input
-                    type="password"
-                    [class.error]="passwordError()"
-                    [placeholder]="'openDb.password' | translate"
-                    [value]="password()"
-                    (valueChange)="password.set($event)"
-                    (keydown)="onPasswordKeydown($event)" />
-                <ui-button color="primary" [disabled]="submitting() || !password()" (click)="submitPassword()">
-                    {{ "openDb.unlock" | translate }}
-                </ui-button>
-            </div>
+<app-home-sidebar />
 
-            @if (passwordError()) {
-                <p class="error-message">{{ "openDb.wrongPassword" | translate }}</p>
-            }
-        </div>
-    } @else if (selectedDriver()) {
-        <!-- Formulaire de connexion réseau -->
-        <div class="network-form">
-            <div class="network-form-header">
-                <img
-                    class="driver-logo-large"
-                    [src]="driverLogos[selectedDriver()!.type]"
-                    [alt]="selectedDriver()!.displayName" />
-                <h2>{{ "openDb.networkForm.title" | translate: { driver: selectedDriver()!.displayName } }}</h2>
-            </div>
+<div class="content">
+    <div>
+        <div class="heading">{{ "home.newConnection" | translate }}</div>
+        <div class="heading-hint">{{ (current ? "home.hintFill" : "home.hintPick") | translate }}</div>
+    </div>
 
-            <div class="network-form-body">
-                <div class="form-row">
-                    <label>{{ "openDb.networkForm.host" | translate }}</label>
-                    <ui-input
-                        type="text"
-                        placeholder="localhost"
-                        [value]="networkHost()"
-                        (valueChange)="networkHost.set($event)" />
-                </div>
-
-                <div class="form-row">
-                    <label>{{ "openDb.networkForm.port" | translate }}</label>
-                    <ui-input
-                        type="number"
-                        [min]="0"
-                        [step]="1"
-                        [placeholder]="selectedDriver()!.defaultPort?.toString() ?? ''"
-                        [value]="networkPort().toString()"
-                        (valueChange)="networkPort.set(+$event)" />
-                </div>
-
-                @if (isAzure()) {
-                    <div class="form-row">
-                        <label>{{ "openDb.networkForm.authMode" | translate }}</label>
-                        <ui-select [ngModel]="authMode()" (ngModelChange)="authMode.set($event)">
-                            <ui-select-option value="sql">{{ "openDb.networkForm.authSql" | translate }}</ui-select-option>
-                            <ui-select-option value="service-principal">{{ "openDb.networkForm.authServicePrincipal" | translate }}</ui-select-option>
-                        </ui-select>
-                    </div>
-                }
-
-                @if (isServicePrincipal()) {
-                    <div class="form-row">
-                        <label>{{ "openDb.networkForm.clientId" | translate }}</label>
-                        <ui-input type="text" [value]="clientId()" (valueChange)="clientId.set($event)" />
-                    </div>
-                    <div class="form-row">
-                        <label>{{ "openDb.networkForm.tenantId" | translate }}</label>
-                        <ui-input type="text" [value]="tenantId()" (valueChange)="tenantId.set($event)" />
-                    </div>
-                    <div class="form-row">
-                        <label>{{ "openDb.networkForm.clientSecret" | translate }}</label>
-                        <ui-input type="password" [value]="networkPassword()" (valueChange)="networkPassword.set($event)" />
-                    </div>
-                }
-                @else {
-                    <div class="form-row">
-                        <label>{{ "openDb.networkForm.username" | translate }}</label>
-                        <ui-input type="text" [value]="networkUser()" (valueChange)="networkUser.set($event)" />
-                    </div>
-
-                    <div class="form-row">
-                        <label>{{ "openDb.networkForm.password" | translate }}</label>
-                        <ui-input type="password" [value]="networkPassword()" (valueChange)="networkPassword.set($event)" />
-                    </div>
-                }
-
-                <div class="form-row">
-                    <label>{{ "openDb.networkForm.database" | translate }}</label>
-                    <ui-input type="text" [value]="networkDatabase()" (valueChange)="networkDatabase.set($event)" />
-                </div>
-
-                @if (networkError()) {
-                    <div class="network-error">{{ networkError() }}</div>
-                }
-            </div>
-
-            <div class="network-form-actions">
-                <ui-button color="light" [disabled]="networkConnecting()" (click)="cancelNetworkForm()">
-                    {{ "openDb.networkForm.cancel" | translate }}
-                </ui-button>
-                <ui-button
-                    class="btn-connect"
-                    [style.--bg-color]="driverColors[selectedDriver()!.type]"
-                    [style.--fg-color]="'#ffffff'"
-                    [disabled]="networkConnecting() || !networkHost() || !networkDatabase() || (isServicePrincipal() && (!clientId() || !tenantId() || !networkPassword()))"
-                    (click)="connectNetwork()">
-                    {{ networkConnecting() ? ("openDb.networkForm.connecting" | translate) : ("openDb.networkForm.connect" | translate) }}
-                </ui-button>
-            </div>
-        </div>
-    } @else {
-        <!-- Écran principal : SQLite drop zone + liste des drivers réseau -->
-        <div class="main-screen">
-            <!-- Zone drag & drop SQLite -->
-            <div class="drop-zone" (click)="openFileExplorer()">
-                <div class="drop-icon">&#xE8B7;</div>
-                <h2>{{ "openDb.title" | translate }}</h2>
-                <p>{{ "openDb.dropHint" | translate }}</p>
-                <p class="shortcut">Ctrl+O</p>
-            </div>
-
-            <!-- Séparateur -->
-            <div class="separator">
-                <span>{{ "openDb.or" | translate }}</span>
-            </div>
-
-            <!-- Grille des drivers réseau -->
-            <div class="drivers-section">
-                <p class="drivers-hint">{{ "openDb.selectDriver" | translate }}</p>
-                <div class="drivers-grid">
-                    @for (driver of networkDrivers(); track driver.type) {
-                        <ui-button
-                            class="driver-card"
-                            color="light"
-                            [style.--accent]="driverColors[driver.type]"
-                            (click)="selectDriver(driver)">
-                            <img class="driver-card-logo" [src]="driverLogos[driver.type]" [alt]="driver.displayName" />
-                            <span class="driver-card-name">{{ driver.displayName }}</span>
-                        </ui-button>
+    <div class="cards" role="radiogroup">
+        @for (driver of drivers; track driver.type) {
+            <button
+                type="button"
+                role="radio"
+                class="card"
+                [class.selected]="current?.type === driver.type"
+                [attr.aria-checked]="current?.type === driver.type"
+                [style.--card-tint]="driver.tint"
+                (click)="select(driver)">
+                <span class="card-badge">
+                    @if (driver.logo; as logo) {
+                        <img [src]="logo" [alt]="driver.label" />
                     }
-                </div>
-            </div>
-        </div>
+                    @else {
+                        {{ driver.monogram }}
+                    }
+                </span>
+                <span class="card-texts">
+                    <span class="card-label">{{ driver.label }}</span>
+                    <span class="card-description">{{ driver.descriptionKey | translate }}</span>
+                </span>
+                <span class="card-bar"></span>
+            </button>
+        }
+    </div>
+
+    @if (current) {
+        <app-new-connection-form [driver]="current" />
     }
+</div>
+
+<div class="drop-overlay" aria-hidden="true">
+    <div class="drop-message">{{ "home.dropHint" | translate }}</div>
 </div>

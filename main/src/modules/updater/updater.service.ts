@@ -237,9 +237,14 @@ export class UpdaterService {
 
     // --- Helpers privés ---
 
-    /** Seul l'installeur NSIS (Windows) sait s'appliquer sans élévation. */
+    /**
+     * Seul l'installeur NSIS (Windows) sait s'appliquer sans élévation. La version
+     * portable en est exclue : l'installeur créerait une seconde copie installée au
+     * lieu de remplacer l'exécutable lancé. electron-builder signale cette version par
+     * `PORTABLE_EXECUTABLE_FILE`.
+     */
     private get canAutoInstall(): boolean {
-        return environment.os === OSType.Windows;
+        return environment.os === OSType.Windows && environment.portableExecutable === null;
     }
 
     private get autoInstallEnabled(): boolean {

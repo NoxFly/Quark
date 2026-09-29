@@ -15,32 +15,30 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { inject, Injectable } from "@noxfly/noxus/main";
-import type { AzureAuthMode } from "@shared/connection";
-import type { DatabaseDriverType } from "@shared/driver";
+import { inject, Injectable, Logger } from "@noxfly/noxus/main";
+import { constants } from "node:fs";
+import { access, stat } from "node:fs/promises";
+import type { ConnectionTestResult } from "@shared/connection";
 import type {
+    DatabaseSchema,
     R_AlterTableAction,
     R_CreateIndexBody,
     R_CreateTableBody,
     R_ImportDataBody,
     R_OpenFileResponse,
+    R_RemoteSqliteBody,
     R_SqlExecResponse,
+    R_TestConnectionBody,
 } from "@shared/types";
+import {
+    buildNetworkTarget,
+    buildRemoteSqliteTarget,
+    describeConnectionError,
+} from "src/core/drivers/connection-target.helper";
+import type { DriverConnectionTarget, NetworkConnectionRequest } from "src/core/drivers/connection-target.types";
+import { RememberedPasswords } from "src/core/services/remembered-passwords";
 import type { Window } from "src/core/services/window";
 import { Application } from "src/modules/application";
-
-/** Paramètres d'une connexion réseau, communs à la saisie manuelle et aux profils. */
-export interface NetworkConnectionRequest {
-    driverType: DatabaseDriverType;
-    host: string;
-    port: number;
-    username: string;
-    password: string;
-    database: string;
-    authMode?: AzureAuthMode;
-    clientId?: string;
-    tenantId?: string;
-}
 
 /**
  * Décrit une modification de schéma pour le journal de session.
@@ -67,6 +65,7 @@ function describeAlterTable(action: R_AlterTableAction): string {
 @Injectable({ lifetime: "singleton" })
 export class DbService {
     private readonly application = inject(Application);
+    private readonly passwords = new RememberedPasswords();
 
     /**
      * Ouvre un fichier SQLite dans la fenêtre, ou remonte la fenêtre qui l'a déjà ouvert.
@@ -79,15 +78,82 @@ export class DbService {
             return { needsPassword: false, database: null, alreadyOpen: true };
         }
 
-        const needsPassword = await window.openDatabase(filePath);
+        // Un driver réseau actif lirait le chemin comme une URI.
+        if (window.database.driverType !== "sqlite") {
+            await window.setDriverType("sqlite");
+        }
+
+        const encrypted = await window.openDatabase(filePath);
+        const needsPassword = encrypted && !(await this.tryRememberedPassword(window, filePath));
 
         // Toujours enregistré, marqué chiffré si un mot de passe est requis.
-        this.application.rememberRecentFile(filePath, needsPassword);
+        this.application.rememberRecentFile(filePath, encrypted);
 
         return {
             needsPassword,
             database: needsPassword ? null : await window.getDatabaseSchema(),
         };
+    }
+
+    /**
+     * Déverrouille la base chiffrée ouverte dans la fenêtre, et mémorise le mot
+     * de passe dans le trousseau du système si l'utilisateur l'a demandé.
+     */
+    public async submitPassword(window: Window, password: string, remember: boolean): Promise<DatabaseSchema | null> {
+        await window.unlockDatabase(password);
+
+        const filePath = window.database.path;
+
+        if (remember && filePath && !this.passwords.remember(filePath, password)) {
+            Logger.warn("System keychain unavailable: the database password was not remembered.");
+        }
+
+        return await window.getDatabaseSchema();
+    }
+
+    /**
+     * Essaie le mot de passe mémorisé d'un fichier chiffré déjà ouvert (en attente
+     * de déverrouillage). Un mot de passe refusé est oublié : la base a changé de
+     * mot de passe, l'utilisateur doit le ressaisir.
+     * @returns `true` si la base est déverrouillée.
+     */
+    public async tryRememberedPassword(window: Window, filePath: string): Promise<boolean> {
+        const password = this.passwords.get(filePath);
+
+        if (password === null) {
+            return false;
+        }
+
+        try {
+            await window.unlockDatabase(password);
+            return true;
+        }
+        catch {
+            Logger.info("Remembered database password was rejected: forgetting it.");
+            this.passwords.forget(filePath);
+            return false;
+        }
+    }
+
+    /**
+     * Change le mot de passe de la base ouverte. Un mot de passe mémorisé suit le
+     * changement, plutôt que d'échouer à la prochaine ouverture.
+     */
+    public async changePassword(window: Window, newPassword: string | null): Promise<void> {
+        await window.database.changePassword(newPassword);
+
+        const filePath = window.database.path;
+
+        if (!filePath || !this.passwords.has(filePath)) {
+            return;
+        }
+
+        if (newPassword) {
+            this.passwords.remember(filePath, newPassword);
+        }
+        else {
+            this.passwords.forget(filePath);
+        }
     }
 
     /**
@@ -101,7 +167,8 @@ export class DbService {
             return { needsPassword: false, database: null };
         }
 
-        const needsPassword = await window.reopenDatabase(dbPath);
+        const encrypted = await window.reopenDatabase(dbPath);
+        const needsPassword = encrypted && !(await this.tryRememberedPassword(window, dbPath));
 
         return {
             needsPassword,
@@ -114,23 +181,7 @@ export class DbService {
      * de passe). Partagé entre la connexion manuelle et les profils sauvegardés.
      */
     public async openNetworkConnection(window: Window, params: NetworkConnectionRequest): Promise<void> {
-        // En mode service principal, aucun identifiant utilisateur n'existe : un
-        // utilisateur fictif satisfait le format d'URI. Le secret (clientSecret)
-        // reste porté par le champ `password`.
-        const uriUser = params.authMode === "service-principal" ? "aad" : params.username;
-        const uri = `${uriUser}:${params.password}@${params.host}:${params.port}/${params.database}`;
-
-        await window.setDriverType(params.driverType);
-
-        if (params.driverType === "azure" && params.authMode) {
-            await window.database.configureAzureAuth({
-                mode: params.authMode,
-                clientId: params.clientId,
-                tenantId: params.tenantId,
-            });
-        }
-
-        await window.openDatabase(uri);
+        await this.openTarget(window, buildNetworkTarget(params));
 
         this.application.rememberRecentNetwork({
             driverType: params.driverType,
@@ -140,6 +191,87 @@ export class DbService {
             database: params.database,
             hasEmptyPassword: params.password.length === 0,
         });
+    }
+
+    /**
+     * Ouvre une base SQLite distante (libSQL / Turso) et l'enregistre dans
+     * l'historique, sans son jeton.
+     */
+    public async openRemoteSqlite(window: Window, body: R_RemoteSqliteBody): Promise<void> {
+        const target = buildRemoteSqliteTarget(body);
+
+        await this.openTarget(window, target);
+
+        this.application.rememberRecentRemote(target.location, target.options.authToken !== undefined);
+    }
+
+    /**
+     * Teste une connexion sans toucher à celle de la fenêtre. Les connexions
+     * réseau sont testées dans l'hôte des drivers (les clients n'existent que là) ;
+     * un fichier local n'est que vérifié : existence, nature et lisibilité.
+     */
+    public async testConnection(window: Window, body: R_TestConnectionBody): Promise<ConnectionTestResult> {
+        if (body.kind === "file") {
+            return await this.testFile(body.filePath);
+        }
+
+        let target: DriverConnectionTarget;
+
+        try {
+            target = body.kind === "remote-sqlite" ? buildRemoteSqliteTarget(body) : buildNetworkTarget(body);
+        }
+        catch (error) {
+            return { ok: false, error: describeConnectionError(error) };
+        }
+
+        return await window.database.testConnection(target);
+    }
+
+    /**
+     * Vide une table ; la fenêtre journalise l'opération dans le diff de session.
+     * @returns Le nombre de lignes supprimées.
+     */
+    public async truncateTable(window: Window, table: string): Promise<number> {
+        return await window.truncateTable(table);
+    }
+
+    /**
+     * Change de driver, lui passe ses options puis ouvre la cible. Le changement
+     * de driver remet le diff de session à zéro : c'est une nouvelle connexion.
+     */
+    private async openTarget(window: Window, target: DriverConnectionTarget): Promise<void> {
+        await window.setDriverType(target.driverType);
+        await window.database.configureConnection(target.options);
+        await window.openDatabase(target.location);
+    }
+
+    private async testFile(filePath: string): Promise<ConnectionTestResult> {
+        const startedAt = performance.now();
+
+        try {
+            const info = await stat(filePath);
+
+            if (!info.isFile()) {
+                return { ok: false, error: "This path is not a file." };
+            }
+
+            await access(filePath, constants.R_OK);
+
+            return { ok: true, latencyMs: Math.round(performance.now() - startedAt) };
+        }
+        catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+
+            if (code === "ENOENT") {
+                return { ok: false, error: "File not found." };
+            }
+
+            if (code === "EACCES" || code === "EPERM") {
+                return { ok: false, error: "The file cannot be read: access denied." };
+            }
+
+            return { ok: false, error: describeConnectionError(error) };
+        }
     }
 
     /**

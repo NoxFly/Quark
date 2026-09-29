@@ -37,6 +37,8 @@ import { randomId } from "src/app/shared/helpers/utils";
     providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => SwitchComponent), multi: true }],
     host: {
         "[class.has-focus]": "hasFocus()",
+        "[class.checked]": "value()",
+        "[class.disabled]": "disabled()",
     }
 })
 export class SwitchComponent implements ControlValueAccessor {

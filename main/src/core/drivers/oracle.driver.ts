@@ -30,11 +30,15 @@ export class OracleDriver extends NetworkSqlDriver {
 
     protected async connect(): Promise<void> {
         const p = this.connectionParams!;
+        const timeoutMs = this.connectTimeoutMs;
 
         this.connection = await oracledb.getConnection({
             user: p.user,
             password: p.password,
-            connectString: `${p.host}:${p.port}/${p.database}`,
+            // `tcps://` active TLS en mode Thin, sans portefeuille Oracle.
+            connectString: `${this.sslRequested ? "tcps://" : ""}${p.host}:${p.port}/${p.database}`,
+            // Délai de node-oracledb exprimé en secondes (défaut : 20).
+            connectTimeout: timeoutMs !== undefined ? timeoutMs / 1000 : undefined,
         });
 
         // Retourner les résultats sous forme d'objets

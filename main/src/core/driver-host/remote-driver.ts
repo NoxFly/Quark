@@ -18,8 +18,14 @@
 import { Logger } from "@noxfly/noxus/main";
 import { app, type UtilityProcess, utilityProcess } from "electron/main";
 import { join } from "node:path";
-import type { AzureAuthMode } from "@shared/connection";
-import type { DatabaseCategory, DatabaseDriverType, DriverCapabilities, DriverInfo } from "@shared/driver";
+import type { ConnectionTestResult } from "@shared/connection";
+import type {
+    DatabaseCategory,
+    DatabaseDriverType,
+    DriverCapabilities,
+    DriverConnectionOptions,
+    DriverInfo,
+} from "@shared/driver";
 import type {
     CreateTableColumnDef,
     DatabaseSchema,
@@ -38,6 +44,7 @@ import {
     type DriverHostResponse,
     type DriverHostState,
 } from "src/core/driver-host/driver-host.protocol";
+import type { DriverConnectionTarget } from "src/core/drivers/connection-target.types";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
 import { getDriverInfo } from "src/core/drivers/driver-registry";
 import { environment } from "src/core/environment";
@@ -139,6 +146,10 @@ export class RemoteDriver implements DatabaseDriver {
 
     // --- DatabaseDriver ---
 
+    public configureConnection(options: DriverConnectionOptions): Promise<void> {
+        return this.invoke("configureConnection", options);
+    }
+
     public open(filePath: string): Promise<boolean> {
         return this.invoke("open", filePath);
     }
@@ -189,6 +200,10 @@ export class RemoteDriver implements DatabaseDriver {
 
     public batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): Promise<void> {
         return this.invoke("batchUpdate", tableName, rowids, column, value);
+    }
+
+    public truncateTable(tableName: string): Promise<number> {
+        return this.invoke("truncateTable", tableName);
     }
 
     public beginTransaction(): Promise<void> {
@@ -275,11 +290,11 @@ export class RemoteDriver implements DatabaseDriver {
     }
 
     /**
-     * Configure l'authentification Azure SQL avant l'ouverture de la connexion.
+     * Ouvre puis referme une connexion éphémère dans l'hôte, sans toucher au
+     * driver de la fenêtre ni à sa connexion.
      */
-    public configureAzureAuth(options: { mode: AzureAuthMode; clientId?: string; tenantId?: string }): Promise<void> {
-        this.ensureType(["azure"], "Azure authentication");
-        return this.invoke("configureAuth", options);
+    public testConnection(target: DriverConnectionTarget): Promise<ConnectionTestResult> {
+        return this.invoke("testConnection", target);
     }
 
     public listStoredProcedures(): Promise<StoredProcedureDef[]> {

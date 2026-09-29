@@ -38,6 +38,10 @@ export class MysqlDriver extends NetworkSqlDriver {
             password: p.password,
             database: p.database,
             multipleStatements: false,
+            // Mode « require » : chiffré, sans vérifier l'autorité du certificat, que
+            // la plupart des serveurs auto-hébergés n'ont pas.
+            ssl: this.sslRequested ? { rejectUnauthorized: false } : undefined,
+            connectTimeout: this.connectTimeoutMs,
         });
     }
 

@@ -16,8 +16,10 @@
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
+import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ConnectionTestResult } from "@shared/connection";
 import type { R_SqlExecResponse } from "@shared/types";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SQL_FIRST_PAGE_SIZE, type DriverHostResponse } from "src/core/driver-host/driver-host.protocol";
@@ -124,6 +126,39 @@ describe("DriverHost", () => {
 
         expect(response.ok).toBe(false);
         expect(response.ok ? "" : response.error).toContain("missing_table");
+    });
+
+    it("tests a connection on an ephemeral driver without touching the open one", async () => {
+        const ok = await result<ConnectionTestResult>("testConnection", {
+            driverType: "sqlite",
+            location: join(dir, "other.db"),
+            options: {},
+        });
+
+        expect(ok.ok).toBe(true);
+        expect(ok.latencyMs).toBeTypeOf("number");
+
+        const state = await call("getSchema");
+        expect(state.state.path).toContain("host.db");
+    });
+
+    it("reports a failed connection test as a readable result, not an error", async () => {
+        // Un port libéré aussitôt réservé : personne n'y écoute (le port 1, lui,
+        // est refusé d'office par `fetch`).
+        const server = createServer();
+        await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+        const { port } = server.address() as AddressInfo;
+        await new Promise<void>(resolve => server.close(() => resolve()));
+
+        const failed = await result<ConnectionTestResult>("testConnection", {
+            driverType: "libsql",
+            location: `http://127.0.0.1:${port}`,
+            options: { timeoutSeconds: 5 },
+        });
+
+        expect(failed.ok).toBe(false);
+        expect(failed.error).toBeTypeOf("string");
+        expect(failed.error).toContain("Connection refused");
     });
 
     it("switches to another driver type and closes the previous connection", async () => {

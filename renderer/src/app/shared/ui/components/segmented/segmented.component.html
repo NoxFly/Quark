@@ -1,0 +1,22 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+@for(option of options(); track $index) {
+    <button
+        type="button"
+        class="segment"
+        role="radio"
+        [class.active]="option.value === value()"
+        [attr.aria-checked]="option.value === value()"
+        [disabled]="disabled() || option.disabled"
+        [tooltip]="option.tooltip ?? ''"
+        (click)="select(option)">
+        @if(option.icon) {
+            <ui-icon [src]="option.icon" nomargin/>
+        }
+        {{ option.label }}
+    </button>
+}

@@ -9,23 +9,22 @@
             <label>{{ i18n.t('batchEdit.column') }}</label>
             <ui-select [(ngModel)]="selectedColumn">
                 @for (field of editableFields(); track field.name) {
-                    <ui-select-option [value]="field.name">{{ field.name }} ({{ field.type }})</ui-select-option>
+                    <ui-select-option [value]="field.name">{{ field.name }} · {{ field.type }}</ui-select-option>
                 }
             </ui-select>
         </div>
 
-        <div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" [(ngModel)]="setNull" />
-                {{ i18n.t('batchEdit.setNull') }}
-            </label>
-        </div>
+        <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="setNull" />
+            {{ i18n.t('batchEdit.setNull') }}
+        </label>
 
         @if (!setNull()) {
             <div class="form-group">
                 <label>{{ i18n.t('batchEdit.value') }}</label>
                 <ui-input
                     type="text"
+                    [mono]="isMonoColumn()"
                     [(ngModel)]="inputValue"
                     [placeholder]="i18n.t('batchEdit.valuePlaceholder')"
                     (keydown.enter)="confirm()" />

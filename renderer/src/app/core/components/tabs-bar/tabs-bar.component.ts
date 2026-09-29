@@ -25,6 +25,19 @@ import type { SpecialTab, TableTab } from "src/app/core/services/tabs.service";
 import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
+/** Glyphe d'un onglet de table. */
+const TABLE_TAB_ICON = "▤";
+
+/** Glyphe des onglets spéciaux, indexé par le dernier segment de leur route. */
+const SPECIAL_TAB_ICONS: Readonly<Record<string, string>> = {
+    "sql-editor": "SQL",
+    "er-diagram": "ER",
+    "session-diff": "Δ",
+    "indexes": "IX",
+    "index-viewer": "IX",
+    "stored-procedure": "SP",
+};
+
 /**
  * Barre d'onglets pour les tables ouvertes dans le dashboard.
  * Affiche un onglet par table ouverte avec drag & drop pour réorganiser.
@@ -78,12 +91,28 @@ export class TabsBarComponent {
     }
 
     /**
+     * Glyphe monospace devant le libellé (▤ table, SQL, ER, Δ diff, IX index, SP procédure).
+     * Déduit de la route de l'onglet spécial, pour qu'un onglet ajouté au registre
+     * reçoive son glyphe sans toucher à ce composant.
+     */
+    protected tabIcon(tab: TableTab): string {
+        const route = this.specialTab(tab)?.route;
+
+        if (!route) {
+            return TABLE_TAB_ICON;
+        }
+
+        const entry = Object.entries(SPECIAL_TAB_ICONS).find(([segment]) => route.endsWith(segment));
+        return entry?.[1] ?? TABLE_TAB_ICON;
+    }
+
+    /**
      * Retourne le libellé affiché pour un onglet.
      */
     protected tabLabel(tab: TableTab): string {
         const special = this.specialTab(tab);
 
-        return special ? this.i18n.t(special.labelKey) : tab.tableName;
+        return special ? this.i18n.t(special.labelKey, special.labelParams) : tab.tableName;
     }
 
     /**

@@ -1,60 +1,60 @@
 <div class="titlebar draggable">
-    <!-- Menus -->
     <div class="menus no-drag">
-        @for (menu of menus(); track menu.label; let i = $index) {
+        <img class="app-icon" src="images/logo-quark-icon.png" alt="Quark" />
+
+        @for (menu of menus(); track menu.id) {
             <div class="menu-container">
-                <button
+                <div
                     class="menu-trigger"
-                    [class.active]="openMenuIndex() === i"
-                    (click)="toggleMenu($event, i)"
-                    (mouseenter)="onMenuHover(i)"
+                    role="menuitem"
+                    [class.active]="openMenuId() === menu.id"
+                    (click)="toggleMenu($event, menu.id)"
+                    (mouseenter)="onMenuHover(menu.id)"
                 >
                     {{ menu.label }}
-                </button>
+                </div>
 
-                @if (openMenuIndex() === i) {
-                    <div class="menu-dropdown">
-                        @for (item of menu.items; track item.label + $index) {
+                @if (openMenuId() === menu.id) {
+                    <div class="menu-dropdown" role="menu" (click)="$event.stopPropagation()">
+                        @for (item of menu.items; track $index) {
                             @if (item.separator) {
                                 <div class="menu-separator"></div>
-                            } @else if (item.children) {
-                                <div class="menu-item submenu-trigger" [class.disabled]="item.disabled">
-                                    <span class="menu-item-label">{{ item.label }}</span>
-                                    <span class="submenu-arrow">&#xE76C;</span>
-                                    <div class="submenu-dropdown">
-                                        @for (child of item.children; track child.label) {
-                                            @if (child.separator) {
-                                                <div class="menu-separator"></div>
-                                            } @else {
-                                                <button
-                                                    class="menu-item"
-                                                    [class.disabled]="child.disabled"
-                                                    (click)="executeMenuItem($event, child)"
-                                                >
-                                                    <span class="menu-item-label">{{ child.label }}</span>
-                                                    @if (child.shortcut) {
-                                                        <span class="menu-item-shortcut">{{ child.shortcut }}</span>
-                                                    }
-                                                </button>
-                                            }
+                            }
+                            @else if (item.children) {
+                                <div class="menu-item has-children" role="menuitem" [class.disabled]="item.disabled">
+                                    <span class="menu-item-label">
+                                        <span class="menu-item-check">{{ item.checked ? "✓" : "" }}</span>{{ item.label }}
+                                    </span>
+                                    <span class="menu-item-shortcut">›</span>
+
+                                    <div class="submenu" role="menu">
+                                        @for (child of item.children; track $index) {
+                                            <div
+                                                class="menu-item"
+                                                role="menuitem"
+                                                [class.disabled]="child.disabled"
+                                                (click)="executeMenuItem($event, child)"
+                                            >
+                                                <span class="menu-item-label">
+                                                    <span class="menu-item-check">{{ child.checked ? "✓" : "" }}</span>{{ child.label }}
+                                                </span>
+                                            </div>
                                         }
                                     </div>
                                 </div>
-                            } @else {
-                                <button
+                            }
+                            @else {
+                                <div
                                     class="menu-item"
+                                    role="menuitem"
                                     [class.disabled]="item.disabled"
-                                    [class.checkable]="item.checked !== undefined"
                                     (click)="executeMenuItem($event, item)"
                                 >
-                                    @if (item.checked !== undefined) {
-                                        <span class="menu-item-check">{{ item.checked ? "✓" : "" }}</span>
-                                    }
-                                    <span class="menu-item-label">{{ item.label }}</span>
-                                    @if (item.shortcut) {
-                                        <span class="menu-item-shortcut">{{ item.shortcut }}</span>
-                                    }
-                                </button>
+                                    <span class="menu-item-label">
+                                        <span class="menu-item-check">{{ item.checked ? "✓" : "" }}</span>{{ item.label }}
+                                    </span>
+                                    <span class="menu-item-shortcut">{{ item.shortcut ?? "" }}</span>
+                                </div>
                             }
                         }
                     </div>
@@ -63,33 +63,33 @@
         }
     </div>
 
-    <!-- Centre : nom du fichier -->
-    <div class="center-title">
-        @if (fileName()) {
-            <span class="file-name">{{ fileName() }}</span>
-        } @else {
-            <span class="app-name">{{ appName() }}</span>
-        }
-    </div>
+    <div class="center-title">{{ windowTitle() }}</div>
 
-    <!-- Actions fenêtre -->
     <div class="actions no-drag">
-        <span class="action reduce" (click)="reduceApp()">
-            <svg aria-hidden="true" role="img" width="12" height="12" viewBox="0 0 12 12">
-                <rect fill="currentColor" width="10" height="1" x="1" y="6"></rect>
-            </svg>
-        </span>
+        <div
+            class="action settings"
+            role="button"
+            [class.active]="shell.settingsOpen()"
+            [title]="'settings.title' | translate"
+            (click)="toggleSettings($event)"
+        >⚙</div>
 
-        <span class="action fullscreen" (click)="toggleMaximize()">
-            <svg aria-hidden="true" role="img" width="12" height="12" viewBox="0 0 12 12">
-                <rect width="9" height="9" x="1.5" y="1.5" rx="1" fill="none" stroke="currentColor"></rect>
+        <div class="action window-button" role="button" (click)="reduceApp()">
+            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">
+                <rect fill="currentColor" width="10" height="1" x="0" y="5"></rect>
             </svg>
-        </span>
+        </div>
 
-        <span class="action close" (click)="closeApp()">
-            <svg aria-hidden="true" role="img" width="12" height="12" viewBox="0 0 12 12">
-                <polygon fill="currentColor" fill-rule="evenodd" points="11 1.576 6.583 6 11 10.424 10.424 11 6 6.583 1.576 11 1 10.424 5.417 6 1 1.576 1.576 1 6 5.417 10.424 1"></polygon>
+        <div class="action window-button" role="button" (click)="toggleMaximize()">
+            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">
+                <rect width="9" height="9" x="0.5" y="0.5" fill="none" stroke="currentColor"></rect>
             </svg>
-        </span>
+        </div>
+
+        <div class="action window-button close" role="button" (click)="closeApp()">
+            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">
+                <path d="M0.5 0.5 L9.5 9.5 M9.5 0.5 L0.5 9.5" stroke="currentColor" stroke-width="1.1"></path>
+            </svg>
+        </div>
     </div>
 </div>

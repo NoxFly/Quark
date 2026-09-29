@@ -61,7 +61,7 @@ export interface IpcRendererBridge {
 
     openFileDialog(): Promise<string | null>;
     openFile(filePath: string): Promise<import("./types").R_OpenFileResponse>;
-    submitPassword(password: string): Promise<import("./types").R_PasswordResponse>;
+    submitPassword(password: string, remember?: boolean): Promise<import("./types").R_PasswordResponse>;
     closeFile(): Promise<import("./types").R_CloseFileResponse>;
     refreshDatabase(): Promise<import("./types").R_OpenFileResponse>;
     getTableData(body: import("./types").R_TableDataBody): Promise<import("./types").R_TableDataResponse>;
@@ -90,6 +90,12 @@ export interface IpcRendererBridge {
     getRecentDatabases(): Promise<RecentDatabaseEntry[]>;
     setDriverType(type: import("./driver").DatabaseDriverType): Promise<void>;
     connectNetwork(body: import("./types").R_NetworkConnectBody): Promise<import("./types").R_ConnectNetworkResponse>;
+    /** Ouvre une base SQLite distante (libSQL / Turso) dans la fenêtre. */
+    connectRemoteSqlite(body: import("./types").R_RemoteSqliteBody): Promise<import("./types").R_ConnectNetworkResponse>;
+    /** Teste une connexion sans l'ouvrir dans la fenêtre. */
+    testConnection(body: import("./types").R_TestConnectionBody): Promise<import("./connection").ConnectionTestResult>;
+    /** Vide une table (DELETE de toutes les lignes, journalisé dans le diff de session). */
+    truncateTable(tableName: string): Promise<void>;
     getSchema(): Promise<import("./types").DatabaseSchema | null>;
     getAllDriverInfos(): Promise<import("./driver").DriverInfo[]>;
 
@@ -105,6 +111,13 @@ export interface IpcRendererBridge {
     connConnect(id: string): Promise<import("./connection").ConnectionConnectResult>;
     connExport(ids: string[], passphrase: string): Promise<boolean>;
     connImport(passphrase: string): Promise<number>;
+    connFolders(): Promise<import("./connection").ConnectionFolder[]>;
+    connFolderCreate(input: import("./connection").ConnectionFolderInput): Promise<import("./connection").ConnectionFolder>;
+    connFolderUpdate(id: string, input: import("./connection").ConnectionFolderInput): Promise<import("./connection").ConnectionFolder>;
+    /** Supprime un dossier ; ses profils sont déplacés dans le premier dossier restant. */
+    connFolderDelete(id: string): Promise<void>;
+    /** Active / désactive la protection du coffre par mot de passe maître. */
+    connSetMasterPassword(body: import("./connection").ConnectionMasterPasswordBody): Promise<void>;
 
     onNavigationRequested(cb: (route: NavigationRequest) => void): void;
     onFileOpened(cb: (filePath: string) => void): void;
@@ -130,8 +143,8 @@ export interface ErrorDialogPayload {
 }
 
 export interface RecentDatabaseEntry {
-    /** Type de connexion : fichier local ou connexion réseau. */
-    connectionType: "file" | "network";
+    /** Type de connexion : fichier local, connexion réseau ou base SQLite distante. */
+    connectionType: "file" | "network" | "remote";
     /** Driver utilisé pour cette connexion. */
     driverType: import("./driver").DatabaseDriverType;
     /** Nom affiché dans la liste (nom de fichier ou nom de base de données). */
@@ -149,6 +162,8 @@ export interface RecentDatabaseEntry {
     port?: number;
     username?: string;
     database?: string;
+    // Base SQLite distante (le jeton n'est pas conservé)
+    url?: string;
 }
 
 declare global {

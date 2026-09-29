@@ -16,8 +16,11 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type { ConnectionTestResult } from "@shared/connection";
 import type { DatabaseDriverType } from "@shared/driver";
 import type { R_SqlExecResponse } from "@shared/types";
+import { describeConnectionError, toTimeoutMs, withDeadline } from "src/core/drivers/connection-target.helper";
+import type { DriverConnectionTarget } from "src/core/drivers/connection-target.types";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
 import {
     type DriverHostRequest,
@@ -30,11 +33,14 @@ import {
 /** Nombre de résultats SQL gardés en mémoire (un par éditeur ouvert, en pratique). */
 const MAX_CACHED_RESULTS = 4;
 
+/** Échéance d'un test de connexion sans délai configuré. */
+const DEFAULT_TEST_TIMEOUT_MS = 15_000;
+
 /**
  * Méthodes de l'hôte lui-même, prioritaires sur celles du driver.
  * Toute autre méthode est cherchée sur le driver actif.
  */
-type HostMethod = "execSqlPaged" | "fetchSqlRows";
+type HostMethod = "execSqlPaged" | "fetchSqlRows" | "testConnection";
 
 /**
  * Logique de l'hôte des drivers, indépendante du transport.
@@ -111,6 +117,9 @@ export class DriverHost {
 
             case "fetchSqlRows":
                 return this.fetchSqlRows(args[0] as string, args[1] as number, args[2] as number);
+
+            case "testConnection":
+                return await this.testConnection(args[0] as DriverConnectionTarget);
         }
 
         // Seules les méthodes publiques du driver sont appelables : ni le
@@ -162,6 +171,37 @@ export class DriverHost {
             resultId,
             truncated,
         };
+    }
+
+    /**
+     * Ouvre une connexion éphémère sur un driver dédié, mesure le temps
+     * d'établissement puis la referme. Le driver de la fenêtre n'est pas touché :
+     * tester un profil ne ferme pas la base en cours.
+     *
+     * Une ouverture qui dépasse l'échéance continue en arrière-plan ; la connexion
+     * qu'elle finirait par établir est refermée dès qu'elle aboutit.
+     */
+    private async testConnection(target: DriverConnectionTarget): Promise<ConnectionTestResult> {
+        const driver = this.createDriver(target.driverType);
+        const timeoutMs = toTimeoutMs(target.options.timeoutSeconds) ?? DEFAULT_TEST_TIMEOUT_MS;
+        const startedAt = performance.now();
+        let opening: Promise<boolean> | null = null;
+
+        try {
+            await driver.configureConnection(target.options);
+            opening = driver.open(target.location);
+            await withDeadline(opening, timeoutMs, `Connection timed out after ${Math.round(timeoutMs / 1000)}s`);
+
+            return { ok: true, latencyMs: Math.round(performance.now() - startedAt) };
+        }
+        catch (error) {
+            return { ok: false, error: describeConnectionError(error) };
+        }
+        finally {
+            void (opening ?? Promise.resolve(false))
+                .then(() => driver.close(), () => undefined)
+                .catch(() => undefined);
+        }
     }
 
     /**

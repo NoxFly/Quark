@@ -17,6 +17,7 @@
 
 import {
     AfterViewInit,
+    booleanAttribute,
     ChangeDetectionStrategy,
     ChangeDetectorRef,
     Component,
@@ -35,6 +36,7 @@ import {
 } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 import { IconComponent } from "@ui/icon/icon.component";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { randomId } from "src/app/shared/helpers/utils";
 
 // https://developer.mozilla.org/fr/docs/Web/HTML/Reference/Attributes/autocomplete
@@ -114,13 +116,16 @@ type InputType = "text" | "password" | "email" | "number" | "checkbox" | "radio"
         "[attr.data-disabled]": "isDisabled() ? 'true' : null",
         "[class]": "'label-' + this.labelPlacement()",
         "[class.has-focus]": "hasFocus()",
-        "[class.show-password]": "type() === 'password' && this.inputElement().nativeElement.type === 'text'",
+        "[class.show-password]": "passwordVisible()",
+        "[class.mono]": "mono()",
+        "[attr.data-type]": "type()",
     },
 })
 export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDestroy {
     private readonly document = inject(DOCUMENT);
     private readonly elementRef = inject(ElementRef<HTMLElement>);
     private readonly cdr = inject(ChangeDetectorRef);
+    protected readonly i18n = inject(I18nService);
 
     public readonly type = input.required<InputType>();
     public readonly placeholder = input<string>("");
@@ -134,6 +139,8 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
     public readonly icon = input<string | undefined>(undefined);
     public readonly suggestions = model<string[]>([]); // disponible que pour le type "text"
     public readonly checked = model<boolean>(false); // radio et checkbox seulement
+    /** Variante monospace de la maquette (chemins, ports, URI) : Fira Code 12 px. */
+    public readonly mono = input<boolean, unknown>(false, { transform: booleanAttribute });
 
     // Contraintes numériques (type "number" uniquement).
     // `numberAttribute` coerce les attributs statiques (ex: min="5") en nombre.
@@ -170,6 +177,7 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
     public readonly selfChange = output<InputComponent>();
 
     protected readonly hasFocus = signal<boolean>(false);
+    protected readonly passwordVisible = signal<boolean>(false);
 
     private readonly _blurController: AbortController = new AbortController();
 
@@ -336,9 +344,7 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
      *
      */
     protected togglePasswordVisibility(): void {
-        const input = this.inputElement().nativeElement;
-
-        input.type = input.type === "text" ? "password" : "text";
+        this.passwordVisible.update(visible => !visible);
     }
 
     /**

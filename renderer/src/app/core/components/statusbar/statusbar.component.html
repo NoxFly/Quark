@@ -1,9 +1,6 @@
 @if (state.connected()) {
     <div class="statusbar">
         <div class="left">
-            <!-- @if (tableName()) {
-                <span class="table-name">{{ tableName() }}</span>
-            } -->
             @if (recordInfo()) {
                 <span class="record-count">{{ recordInfo() }}</span>
             }
@@ -14,31 +11,49 @@
                 <span class="selection-info">{{ selectionInfo() }}</span>
             }
         </div>
+
+        @if (transaction.open()) {
+            <div
+                class="item transaction"
+                role="button"
+                (click)="openSessionDiff()"
+                [tooltip]="i18n.t('transaction.viewDiff')"
+            >
+                ● {{ i18n.t("statusbar.transactionPending", { count: transaction.pending().count }) }}
+            </div>
+        }
+
+        <div class="spacer"></div>
+
         <div class="right">
-            @if (transactionInfo()) {
-                <span class="transaction-badge">{{ transactionInfo() }}</span>
-            }
             @if (!state.capabilities() || state.capabilities()?.sqlQueries) {
-                <button
-                    class="sql-editor-btn"
+                <div
+                    class="item clickable"
+                    role="button"
                     [class.active]="isInSqlEditor()"
                     (click)="toggleSqlEditor()"
                     [tooltip]="isInSqlEditor() ? i18n.t('statusbar.sqlEditorClose') : i18n.t('statusbar.sqlEditorOpen')"
                 >
-                    <span class="segoe-icon">&#xE943;</span>
-                    <span class="edit-mode-label">{{ i18n.t('statusbar.sqlEditor') }}</span>
-                </button>
+                    {{ i18n.t("statusbar.sqlEditor") }}
+                </div>
             }
-            <button
-                class="edit-mode-btn"
-                [class.active]="!readOnly()"
+
+            <div
+                class="item clickable edit-mode"
+                role="button"
+                [class.editing]="!readOnly()"
                 (click)="toggleReadOnly()"
                 [tooltip]="readOnly() ? i18n.t('table.switchToEdit') : i18n.t('table.switchToReadOnly')"
             >
-                <span class="segoe-icon">{{ readOnly() ? '&#xE736;' : '&#xE70F;' }}</span>
-                <span class="edit-mode-label">{{ editModeLabel() }}</span>
-            </button>
-            <span class="db-type-badge">{{ state.driverDisplayName() ?? i18n.t('statusbar.dbType') }}</span>
+                <span class="dot">●</span>{{ readOnly() ? i18n.t("statusbar.readOnly") : i18n.t("statusbar.readWrite") }}
+            </div>
+
+            <div class="item database-type">
+                @if (driverMonogram()) {
+                    <span class="monogram">{{ driverMonogram() }}</span>
+                }
+                {{ state.driverDisplayName() ?? i18n.t("statusbar.dbType") }}
+            </div>
         </div>
     </div>
 }

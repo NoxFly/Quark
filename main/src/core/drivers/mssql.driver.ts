@@ -52,7 +52,9 @@ export class MssqlDriver extends NetworkSqlDriver {
      * Surchargée par le driver Azure pour forcer le chiffrement TLS.
      */
     protected getTlsOptions(): { encrypt: boolean; trustServerCertificate: boolean } {
-        return { encrypt: false, trustServerCertificate: true };
+        // Chiffrement à la demande ; un serveur SQL Server a rarement un certificat
+        // émis par une autorité reconnue, d'où la confiance accordée au certificat.
+        return { encrypt: this.sslRequested, trustServerCertificate: true };
     }
 
     /**
@@ -83,6 +85,8 @@ export class MssqlDriver extends NetworkSqlDriver {
                     encrypt: tls.encrypt,
                     trustServerCertificate: tls.trustServerCertificate,
                     rowCollectionOnRequestCompletion: true,
+                    // Défaut de tedious : 15 s.
+                    ...(this.connectTimeoutMs !== undefined ? { connectTimeout: this.connectTimeoutMs } : {}),
                 },
             };
 

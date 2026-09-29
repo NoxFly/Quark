@@ -15,80 +15,62 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use 'src/theme/mixins.scss' as *;
+// Spinner de la maquette : anneau fin dont seul le quart supérieur est plein
+// (animation globale `qspin`). Taille : `--spinner-size` ; épaisseur :
+// `--spinner-thickness` ; couleur : `color` ou `--spinner-color`.
 
 ui-spinner {
+    display: inline-flex;
+    line-height: 0;
+
     .spinner-container {
-        @include flex;
-
-        width: var(--spinner-size, 50px);
-        height: var(--spinner-size, 50px);
-        border-radius: 100%;
-        color: var(--spinner-color, currentcolor);
-
-        &[data-color="default"] {
-            --spinner-color: currentcolor;
-        }
+        display: inline-block;
+        width: var(--spinner-size, 18px);
+        height: var(--spinner-size, 18px);
+        border-radius: 50%;
+        border: var(--spinner-thickness, 2px) solid color-mix(in srgb, var(--spinner-color, currentcolor), transparent 75%);
+        border-top-color: var(--spinner-color, currentcolor);
+        animation: qspin .8s linear infinite;
+        flex: none;
 
         &[data-color="success"] {
-            --spinner-color: var(--status-success-emphasis);
+            --spinner-color: var(--success);
         }
 
         &[data-color="warning"] {
-            --spinner-color: var(--status-warning);
+            --spinner-color: var(--warning);
         }
 
         &[data-color="danger"] {
-            --spinner-color: var(--status-danger);
+            --spinner-color: var(--danger);
         }
 
         &[data-color="medium"] {
-            --spinner-color: var(--neutral);
+            --spinner-color: var(--text-muted);
         }
 
         &[data-color="dark"] {
-            --spinner-color: var(--text-heading);
+            --spinner-color: var(--text);
         }
 
         &[data-color="light"] {
-            --spinner-color: var(--surface);
+            --spinner-color: var(--toast-fg);
         }
 
         &[data-color="primary"] {
-            --spinner-color: var(--interactive);
+            --spinner-color: var(--accent);
         }
 
-        &[data-color="secondary"] {
-            --spinner-color: var(--accent-secondary);
-        }
-    }
-
-    svg {
-        width: 100%;
-        height: 100%;
-        animation: 1s linear infinite spinner-rotate;
-        transform-origin: center center 0px;
-
-        circle {
-            fill: transparent;
-            stroke-width: 4px;
-            stroke-dasharray: 128px;
-            stroke-dashoffset: 82px;
-            stroke: currentcolor;
+        &[data-color="secondary"],
+        &[data-color="tertiary"] {
+            --spinner-color: var(--text-secondary);
         }
     }
 
     &.absolute {
-        @include absolute;
-    }
-
-    @keyframes spinner-rotate {
-        0% {
-            transform: rotate(0deg);
-        }
-
-        100% {
-            transform: rotate(360deg);
-        }
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
     }
 }

@@ -1,72 +1,67 @@
-<div class="import-data">
-    <div class="modal-header">
-        <h2>{{ i18n.t('importData.title') }}</h2>
-        <p class="subtitle">{{ i18n.t(state.isNoSqlDatabase() ? 'importData.collection' : 'importData.table', { table: tableName() }) }}</p>
+<div class="shell-modal">
+    <div class="shell-modal-header">
+        <div class="header-title">
+            <div class="shell-modal-title">{{ i18n.t('importData.title') }}</div>
+            <div class="subtitle">{{ i18n.t(state.isNoSqlDatabase() ? 'importData.collection' : 'importData.table', { table: tableName() }) }}</div>
+        </div>
 
-        <div class="step-indicator">
+        <div class="step-indicator" aria-hidden="true">
             <span [class.active]="step() >= 1">1</span>
             <span class="step-sep">›</span>
             <span [class.active]="step() >= 2">2</span>
             <span class="step-sep">›</span>
             <span [class.active]="step() >= 3">3</span>
         </div>
+
+        <button type="button" class="shell-modal-close" [attr.aria-label]="i18n.t('indexViewer.close')" (click)="close(step() === 3)">✕</button>
     </div>
 
-    @if (errorMessage()) {
-        <div class="error-banner">{{ errorMessage() }}</div>
+    @if (errorMessage(); as error) {
+        <div class="error-notice">{{ error }}</div>
     }
 
     <!-- Étape 1 : saisie des données -->
     @if (step() === 1) {
-        <div class="modal-body">
+        <div class="shell-modal-body">
             <div class="form-row">
-                <div class="form-group">
-                    <label>{{ i18n.t('importData.format') }}</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input type="radio" [(ngModel)]="format" value="csv" />
-                            CSV
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" [(ngModel)]="format" value="json" />
-                            JSON
-                        </label>
-                    </div>
+                <div class="field">
+                    <span class="field-label">{{ i18n.t('importData.format') }}</span>
+                    <ui-segmented
+                        size="small"
+                        [options]="formatOptions"
+                        [value]="format()"
+                        (valueChange)="$event && format.set($event)" />
                 </div>
 
-                <div class="form-group">
-                    <label>{{ i18n.t('importData.mode') }}</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input type="radio" [(ngModel)]="importMode" value="insert" />
-                            {{ i18n.t('importData.modeInsert') }}
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" [(ngModel)]="importMode" value="upsert" />
-                            {{ i18n.t('importData.modeUpsert') }}
-                        </label>
-                    </div>
+                <div class="field">
+                    <span class="field-label">{{ i18n.t('importData.mode') }}</span>
+                    <ui-segmented
+                        size="small"
+                        [options]="modeOptions()"
+                        [value]="importMode()"
+                        (valueChange)="$event && importMode.set($event)" />
                 </div>
             </div>
 
-            <div class="form-group file-group">
-                <label>{{ i18n.t('importData.file') }}</label>
-                <input type="file" accept=".csv,.json,.txt" (change)="loadFile($event)" />
-            </div>
+            <label class="field">
+                <span class="field-label">{{ i18n.t('importData.file') }}</span>
+                <input class="file-input" type="file" accept=".csv,.json,.txt" (change)="loadFile($event)" />
+            </label>
 
-            <div class="form-group">
-                <label>{{ i18n.t('importData.orPaste') }}</label>
+            <label class="field">
+                <span class="field-label">{{ i18n.t('importData.orPaste') }}</span>
                 <textarea
+                    class="data-input"
                     [(ngModel)]="rawData"
                     [placeholder]="i18n.t('importData.pastePlaceholder')"
                     rows="8"
                     spellcheck="false">
                 </textarea>
-            </div>
+            </label>
         </div>
 
-        <div class="modal-actions">
-            <ui-button color="secondary" (click)="close(false)">{{ i18n.t('editor.cancel') }}</ui-button>
+        <div class="dialog-footer">
+            <ui-button (click)="close(false)">{{ i18n.t('editor.cancel') }}</ui-button>
             <ui-button
                 color="primary"
                 [disabled]="isLoading() || !rawData().trim()"
@@ -78,7 +73,7 @@
 
     <!-- Étape 2 : aperçu -->
     @if (step() === 2) {
-        <div class="modal-body preview-body">
+        <div class="shell-modal-body">
             <div class="preview-meta">
                 {{ i18n.t('importData.previewMeta', { shown: previewRows().length, total: totalRows() }) }}
             </div>
@@ -95,6 +90,7 @@
                 <table class="preview-table">
                     <thead>
                         <tr>
+                            <th class="sign"></th>
                             @for (col of previewColumns(); track col) {
                                 <th>{{ col }}</th>
                             }
@@ -103,6 +99,7 @@
                     <tbody>
                         @for (row of previewRows(); track $index) {
                             <tr class="new-row">
+                                <td class="sign">+</td>
                                 @for (col of previewColumns(); track col) {
                                     <td [class.null-cell]="isNullValue(row[col])">
                                         {{ formatPreviewCell(row[col]) }}
@@ -115,8 +112,8 @@
             </div>
         </div>
 
-        <div class="modal-actions">
-            <ui-button color="secondary" (click)="backToStep1()">{{ i18n.t('importData.back') }}</ui-button>
+        <div class="dialog-footer">
+            <ui-button (click)="backToStep1()">{{ i18n.t('importData.back') }}</ui-button>
             <ui-button
                 color="primary"
                 [disabled]="isLoading() || parseErrors().length > 0"
@@ -128,12 +125,14 @@
 
     <!-- Étape 3 : succès -->
     @if (step() === 3) {
-        <div class="success-body">
-            <div class="success-icon">&#xE73E;</div>
-            <p>{{ i18n.t('importData.success', { count: totalRows() }) }}</p>
+        <div class="shell-modal-body">
+            <div class="success-notice">
+                <span class="success-sign">✓</span>
+                <span>{{ i18n.t('importData.success', { count: totalRows() }) }}</span>
+            </div>
         </div>
 
-        <div class="modal-actions">
+        <div class="dialog-footer">
             <ui-button color="primary" (click)="close(true)">{{ i18n.t('importData.done') }}</ui-button>
         </div>
     }

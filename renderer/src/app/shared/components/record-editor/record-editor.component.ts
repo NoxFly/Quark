@@ -31,35 +31,8 @@ import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import type { DbRecord, FieldDef } from "@shared/types";
-
-/**
- * Mode d'ouverture de l'éditeur de record.
- */
-export type RecordEditorMode = "create" | "edit" | "duplicate";
-
-/**
- * Représente un champ du formulaire avec ses métadonnées.
- */
-interface FormField {
-    def: FieldDef;
-    value: string;
-    disabled: boolean;
-    /** Texte indicatif affiché dans le champ vide. */
-    placeholder: string;
-    /** Le formulaire a rempli ou réservé cette valeur ; l'utilisateur n'a rien à saisir. */
-    autoFilled: boolean;
-}
-
-/**
- * Ce que le formulaire doit faire de la clé primaire lors d'une création.
- *
- * - `autoincrement` : `INTEGER PRIMARY KEY` est l'alias du rowid ; SQLite
- *   attribue la valeur dès que la colonne est omise de l'insertion.
- * - `uuid` : la colonne porte des identifiants générés côté application ; le
- *   formulaire en produit un nouveau plutôt que de le demander à l'utilisateur.
- * - `manual` : identifiant métier (un code, une référence) : à saisir.
- */
-type PrimaryKeyKind = "autoincrement" | "uuid" | "manual";
+import { isTextType } from "src/app/shared/helpers/data-grid.helper";
+import type { PrimaryKeyKind, RecordEditorMode, RecordFormField } from "src/app/shared/components/record-editor/record-editor.model";
 
 /** UUID canonique, tel que produit par `crypto.randomUUID()`. */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -84,7 +57,7 @@ export class RecordEditorComponent implements OnInit {
     public readonly record = input<DbRecord | null>(null);
     public readonly fields = input.required<FieldDef[]>();
 
-    protected readonly formFields = signal<FormField[]>([]);
+    protected readonly formFields = signal<RecordFormField[]>([]);
     protected readonly saving = signal<boolean>(false);
     protected readonly error = signal<string | null>(null);
 
@@ -99,7 +72,7 @@ export class RecordEditorComponent implements OnInit {
         const currentMode = this.mode();
         const fieldDefs = this.fields();
 
-        const formFields: FormField[] = fieldDefs.map(def => {
+        const formFields: RecordFormField[] = fieldDefs.map(def => {
             let value = "";
 
             if (currentRecord && (currentMode === "edit" || currentMode === "duplicate")) {
@@ -130,7 +103,7 @@ export class RecordEditorComponent implements OnInit {
      * textuelle échouait donc sur sa contrainte NOT NULL, sans que l'utilisateur
      * puisse la renseigner.
      */
-    private buildPrimaryKeyField(def: FieldDef): FormField {
+    private buildPrimaryKeyField(def: FieldDef): RecordFormField {
         switch (this.detectPrimaryKeyKind(def)) {
             case "autoincrement":
                 // Omise de l'insertion : c'est SQLite qui attribue la valeur.
@@ -268,15 +241,21 @@ export class RecordEditorComponent implements OnInit {
                 if (currentRecord) {
                     const rowid = currentRecord["rowid"] as number;
                     for (const [column, value] of Object.entries(values)) {
-                        await this.dbService.updateCell(rowid, column, value);
+                        // Seuls les champs modifiés sont écrits : la ligne n'est
+                        // marquée modifiée que si elle l'est vraiment.
+                        if (value !== currentRecord[column]) {
+                            await this.dbService.updateCell(rowid, column, value);
+                        }
                     }
                 }
+
+                this.dismiss?.({ role: "confirm" });
             }
             else {
-                await this.dbService.insertRow(values);
+                const inserted = await this.dbService.insertRow(values);
+                // La page sélectionne la ligne créée à partir de son rowid.
+                this.dismiss?.({ role: "confirm", data: { rowid: inserted?.["rowid"] } });
             }
-
-            this.dismiss?.({ role: "confirm" });
         }
         catch (err) {
             this.error.set(err instanceof Error ? err.message : String(err));
@@ -284,6 +263,13 @@ export class RecordEditorComponent implements OnInit {
         finally {
             this.saving.set(false);
         }
+    }
+
+    /**
+     * Indique si la valeur d'un champ s'affiche en police à chasse fixe.
+     */
+    protected isMono(def: FieldDef): boolean {
+        return !isTextType(def.type);
     }
 
     /**

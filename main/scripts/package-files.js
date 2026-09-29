@@ -63,6 +63,19 @@ const BUILD_ARTIFACT_EXCLUSIONS = [
 ];
 
 /**
+ * Paquets installés comme dépendances de production mais jamais chargés.
+ *
+ * `@libsql/client` dépend du module natif `libsql` (fichiers locaux, réplicas
+ * embarqués), qui tire un binaire préconstruit par plateforme (~9 Mo). Quark
+ * n'utilise que son client « web » (`@libsql/client/web`, HTTP / WebSocket en JS
+ * pur) : le module natif serait du poids mort, et un `.node` de plus à sortir de l'asar.
+ */
+const UNUSED_PACKAGE_EXCLUSIONS = [
+    "!**/node_modules/libsql/**",
+    "!**/node_modules/@libsql/{darwin,linux,win32,android,freebsd}-*/**",
+];
+
+/**
  * @description Construit la liste des jetons `<plateforme>-<architecture>[-abi]`
  * qui ne correspondent PAS à la cible du build.
  * @param {string} platform Plateforme cible (`process.platform`).
@@ -134,6 +147,7 @@ function createFilePatterns(platform = process.platform, architecture = process.
     return [
         "dist/**",
         ...BUILD_ARTIFACT_EXCLUSIONS,
+        ...UNUSED_PACKAGE_EXCLUSIONS,
         ...createForeignBinaryExclusions(platform, architecture),
     ];
 }

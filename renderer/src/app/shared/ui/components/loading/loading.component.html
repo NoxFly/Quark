@@ -4,9 +4,11 @@
     @see https://github.com/NoxFly
 -->
 
-<ng-content></ng-content>
-<ui-spinner color="primary"/>
+<div class="loading-box">
+    <ng-content></ng-content>
+    <ui-spinner color="primary"/>
 
-@if(message() !== undefined && message() !== '') {
-    <p class="message">{{ message() }}</p>
-}
+    @if(message() !== undefined && message() !== '') {
+        <p class="message">{{ message() }}</p>
+    }
+</div>

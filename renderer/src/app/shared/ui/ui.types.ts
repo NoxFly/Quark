@@ -62,6 +62,12 @@ export interface UIDismissData<T = any> {
     data: T;
 }
 
+/** Remplissage d'un bouton : plein, cadre (fond du champ + bordure) ou discret (sans fond ni bordure au repos). */
+export type UIButtonFill = "solid" | "outline" | "clear";
+
+/** Hauteur d'un bouton : 28 px (barres d'outils), 30 px (modales), 32 px (formulaires). */
+export type UIButtonSize = "small" | "medium" | "large";
+
 export interface UIConfig {
     id?: string;
     classes?: string;
@@ -87,7 +93,7 @@ export interface ModalConfig extends UIConfig {
     componentProps?: Record<string, any>;
     /** @default true */
     showBackdrop?: boolean;
-    /** @default true */
+    /** @default false */
     showDots?: boolean;
     /** @default true */
     backdropClose?: boolean;
@@ -95,8 +101,14 @@ export interface ModalConfig extends UIConfig {
     keyboardClose?: boolean;
     /** @default true */
     animated?: boolean;
-    /** @default true */
+    /** @default false */
     blurry?: boolean;
+    /**
+     * Affiche le bouton ✕ de la maquette en haut à droite de la boîte.
+     * Désactivé par défaut : la plupart des contenus injectés ont déjà leur propre en-tête.
+     * @default false
+     */
+    closeButton?: boolean;
 }
 
 /* Toast */
@@ -114,8 +126,10 @@ export interface ToastConfig extends UIConfig {
     color?: UIColor;
     /** @default false */
     closable?: boolean;
-    /** @default "top-center" */
+    /** @default "bottom-right" */
     position?: ToastPosition;
+    /** Affiche un spinner devant le message (opération en cours). @default false */
+    busy?: boolean;
 }
 
 export interface LoadingConfig extends UIConfig {
@@ -126,4 +140,16 @@ export interface LoadingConfig extends UIConfig {
 
 export interface SelectOption<T> extends UIIconAction {
     value: T;
+}
+
+/* Segmented */
+
+export interface SegmentedOption<T = string> {
+    value: T;
+    label: string;
+    /** Glyphe Segoe Fluent Icons (code hexadécimal) affiché devant le libellé. */
+    icon?: string;
+    disabled?: boolean;
+    /** Texte de l'infobulle. */
+    tooltip?: string;
 }

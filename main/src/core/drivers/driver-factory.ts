@@ -18,6 +18,7 @@
 import type { DatabaseDriverType } from "@shared/driver";
 import { AzureSqlDriver } from "src/core/drivers/azure-sql.driver";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
+import { LibsqlDriver } from "src/core/drivers/libsql.driver";
 import { MongodbDriver } from "src/core/drivers/mongodb.driver";
 import { MssqlDriver } from "src/core/drivers/mssql.driver";
 import { MysqlDriver } from "src/core/drivers/mysql.driver";
@@ -35,6 +36,8 @@ export function createDriver(type: DatabaseDriverType): DatabaseDriver {
     switch (type) {
         case "sqlite":
             return new SqliteDriver();
+        case "libsql":
+            return new LibsqlDriver();
         case "mysql":
             return new MysqlDriver();
         case "postgresql":

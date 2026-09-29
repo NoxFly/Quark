@@ -22,22 +22,20 @@
                     </button>
                 }
                 <ui-button
-                    class="action-btn save-btn"
-                    color="primary"
+                    size="small"
+                    icon="E74E"
                     [disabled]="isSaving() || dbService.readOnly()"
                     (click)="save()"
                     [tooltip]="i18n.t('storedProc.save')">
-                    <span class="action-icon">&#xE74E;</span>
-                    <span>{{ i18n.t("storedProc.save") }}</span>
+                    {{ i18n.t("storedProc.save") }}
                 </ui-button>
                 <ui-button
-                    class="action-btn exec-btn"
                     color="primary"
+                    size="small"
                     [disabled]="isExecuting()"
                     (click)="execute()"
                     [tooltip]="i18n.t('storedProc.execute')">
-                    <span class="action-icon">&#xE768;</span>
-                    <span>{{ i18n.t("storedProc.execute") }}</span>
+                    ▶ {{ i18n.t("storedProc.execute") }}
                 </ui-button>
             </div>
         </div>
@@ -66,7 +64,7 @@
             @if (paramsVisible()) {
                 <div class="params-section">
                     <div class="section-label">
-                        <span>{{ i18n.t("storedProc.parameters") }}</span>
+                        <span class="section-title">{{ i18n.t("storedProc.parameters") }}</span>
                         <button
                             class="action-btn icon-btn toggle-params-btn"
                             [class.active]="paramsVisible()"
@@ -102,7 +100,7 @@
 
                     @if (outputParams().length > 0) {
                         <div class="output-params">
-                            <div class="output-label">{{ i18n.t("storedProc.outputParams") }}</div>
+                            <div class="output-label section-title">{{ i18n.t("storedProc.outputParams") }}</div>
                             @for (param of outputParams(); track param.name) {
                                 <div class="output-param-entry">
                                     <span class="param-name">&#64;{{ param.name }}</span>

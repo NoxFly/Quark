@@ -13,6 +13,7 @@
         <ui-icon
             class="input-icon"
             [src]="srcIcon"
+            nomargin
             [attr.aria-hidden]="true"/>
     }
 
@@ -28,7 +29,7 @@
 
     <input
         [id]="id"
-        [type]="type()"
+        [type]="type() === 'password' && passwordVisible() ? 'text' : type()"
         [disabled]="isDisabled() !== false"
         [placeholder]="placeholder()"
         [pattern]="pattern()"
@@ -38,6 +39,7 @@
         [attr.min]="type() === 'number' ? min() : null"
         [attr.max]="type() === 'number' ? max() : null"
         [attr.step]="type() === 'number' ? step() : null"
+        [attr.spellcheck]="mono() ? false : null"
         (input)="handleInput($event)"
         #input/>
 
@@ -51,15 +53,15 @@
             (click)="increment()">+</button>
     }
 
-    @if(type() === 'radio' || type() === 'checkbox') {
-        <span></span>
-    }
-
-    @if(type() === 'password' && isDisabled() !== false && togglePassword()) {
-        <ui-icon
-            class="password-icon"
-            src="assets/svg/eye-fill.svg"
-            (click)="togglePasswordVisibility()"/>
+    @if(type() === 'password' && isDisabled() === false && togglePassword()) {
+        <button
+            type="button"
+            class="password-toggle"
+            tabindex="-1"
+            [attr.aria-label]="i18n.t(passwordVisible() ? 'ui.input.hidePassword' : 'ui.input.showPassword')"
+            (click)="togglePasswordVisibility()">
+            <ui-icon [src]="passwordVisible() ? 'ed1a' : 'e890'" nomargin/>
+        </button>
     }
 </div>
 

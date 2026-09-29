@@ -15,7 +15,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, HostBinding, input, ViewEncapsulation } from "@angular/core";
+import { ChangeDetectionStrategy, Component, input, ViewEncapsulation } from "@angular/core";
 import { SpinnerComponent } from "src/app/shared/ui/components/spinner/spinner.component";
 
 @Component({
@@ -26,13 +26,11 @@ import { SpinnerComponent } from "src/app/shared/ui/components/spinner/spinner.c
     encapsulation: ViewEncapsulation.None,
     imports: [SpinnerComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    host: {
+        "[class.fade-in]": "!showContent()",
+    },
 })
 export class LoadingScreenComponent {
     public readonly message = input<string>();
     public readonly showContent = input<boolean>(true);
-
-    @HostBinding("class.fade-in")
-    protected get fadeIn(): boolean {
-        return !this.showContent();
-    }
 }

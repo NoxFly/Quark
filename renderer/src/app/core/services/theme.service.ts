@@ -17,6 +17,7 @@
 
 import { DOCUMENT, inject, Injectable, signal } from "@angular/core";
 import type { Preferences, Theme } from "@shared/preferences";
+import type { ThemeOption } from "src/app/core/models/shell.model";
 
 /**
  * Gère l'application du thème visuel (clair / sombre / planifié) et de la taille de police.
@@ -31,11 +32,12 @@ import type { Preferences, Theme } from "@shared/preferences";
 export class ThemeService {
     private readonly document = inject(DOCUMENT);
 
-    public static readonly availableThemes: { label: string; value: Theme }[] = [
-        { label: "Clair", value: "light" },
-        { label: "Sombre", value: "dark" },
-        { label: "Midnight", value: "midnight" },
-        { label: "Système", value: "system" },
+    /** Thèmes proposés, dans l'ordre de la maquette. */
+    public static readonly availableThemes: readonly ThemeOption[] = [
+        { value: "light", labelKey: "theme.light" },
+        { value: "dark", labelKey: "theme.dark" },
+        { value: "system", labelKey: "theme.system" },
+        { value: "midnight", labelKey: "theme.midnight" },
     ];
 
     public readonly currentTheme = signal<Theme>("system");

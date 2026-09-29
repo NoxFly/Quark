@@ -15,88 +15,113 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
+// Menu contextuel de la maquette : 220 px mini, fond `--bg-app`, bordure de
+// contrôle, ombre de menu, items 12 px au survol accent, raccourci à droite.
 
 :host {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     z-index: 1000;
     pointer-events: none;
 }
 
 .context-menu {
     position: fixed;
-    min-width: 180px;
+    min-width: 220px;
     width: max-content;
-    background: var(--surface-alt);
-    border: 1px solid rgba(127, 127, 127, 0.2);
-    border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    padding: 4px 0;
+    max-width: 360px;
+    padding: 4px;
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-menu);
     pointer-events: auto;
-    animation: contextMenuFadeIn 0.1s ease;
+    user-select: none;
+    animation: contextMenuIn .08s ease-out;
+}
+
+.context-menu-title {
+    padding: 4px 10px 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .context-menu-separator {
     height: 1px;
-    background: rgba(127, 127, 127, 0.15);
-    margin: 4px 0;
+    margin: 4px 6px;
+    background: var(--border-muted);
 }
 
 .context-menu-item {
-    @include flex($hor: flex-start, $gap: 8px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
-    padding: 6px 12px;
+    height: auto;
+    margin: 0;
+    padding: 5px 10px;
     border: none;
+    border-radius: var(--radius-s);
     background: none;
-    color: var(--text-color);
-    font-size: 0.8em;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.1s;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.35;
     text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
 
-    &:hover:not(.disabled) {
-        background: rgba(127, 127, 127, 0.12);
+    &:hover:not(.disabled),
+    &:focus-visible:not(.disabled) {
+        background: var(--accent);
+        color: var(--accent-fg);
+        outline: none;
     }
 
-    &.danger {
-        color: var(--color-danger);
-
-        &:hover:not(.disabled) {
-            background: color-mix(in srgb, var(--color-danger), transparent 85%);
-        }
+    // Au survol, un item dangereux prend l'accent comme les autres (maquette).
+    &.danger:not(:hover, :focus-visible) {
+        color: var(--danger);
     }
 
-    &.disabled {
-        opacity: 0.4;
+    &.disabled,
+    &.danger.disabled {
+        color: var(--text-disabled);
         cursor: default;
     }
 
     .item-icon {
-        font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 0.9em;
         width: 16px;
-        text-align: center;
         flex-shrink: 0;
+        font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+        font-size: 12px;
+        text-align: center;
     }
 
     .item-label {
         flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .item-shortcut {
+        margin-left: 16px;
+        font-size: 11px;
+        opacity: .6;
     }
 }
 
-@keyframes contextMenuFadeIn {
+@keyframes contextMenuIn {
     from {
         opacity: 0;
-        transform: scale(0.95);
     }
 
     to {
         opacity: 1;
-        transform: scale(1);
     }
 }

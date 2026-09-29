@@ -74,6 +74,24 @@ describe("SessionDiff", () => {
         expect(diff.getSnapshot().tables[0]?.deleted).toBe(1);
     });
 
+    it("turns every tracked row of an emptied table into a deletion", () => {
+        diff.recordUpdate("people", 1, { rowid: 1, name: "a" }, { rowid: 1, name: "b" });
+        diff.recordInsert("people", 9, { rowid: 9, name: "new" });
+        diff.recordUpdate("pets", 1, { rowid: 1, name: "rex" }, { rowid: 1, name: "max" });
+
+        diff.markTableAsDeleted("people");
+
+        const tables = diff.getSnapshot().tables;
+        const people = tables.find(table => table.table === "people");
+
+        // La ligne insérée pendant la session disparaît, l'autre devient une suppression
+        // de son image d'origine ; l'autre table n'est pas touchée.
+        expect(people?.rows).toHaveLength(1);
+        expect(people?.rows[0]?.kind).toBe("delete");
+        expect(people?.rows[0]?.before?.["name"]).toBe("a");
+        expect(tables.find(table => table.table === "pets")?.rows[0]?.kind).toBe("update");
+    });
+
     it("counts opaque operations separately", () => {
         diff.recordOpaque({ category: "sql", label: "SQL statement executed", detail: "DELETE FROM people" });
 

@@ -1,117 +1,70 @@
 @if (nodes().length === 0) {
-    <div class="empty-state">
-        <p>{{ i18n.t('erDiagram.noTables') }}</p>
-    </div>
+    <div class="empty-state">{{ i18n.t('erDiagram.noTables') }}</div>
 }
 @else {
-    <div class="er-container">
-        <div class="er-canvas-wrapper" #erWrapper
-            (mousedown)="startPan($event)"
-            (wheel)="onWheelZoom($event)">
+    <div
+        class="er-canvas"
+        #erCanvas
+        [class.panning]="panning()"
+        [style.background-size]="gridSize()"
+        [style.background-position]="gridPosition()"
+        (mousedown)="startPan($event)"
+        (wheel)="onWheel($event)">
+        <div class="er-layer" [style.transform]="layerTransform()">
             <svg
-                class="er-svg"
+                class="er-links"
                 [attr.width]="canvasSize().width"
                 [attr.height]="canvasSize().height"
                 xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <marker id="er-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-marker" />
+                    </marker>
+                </defs>
 
-            <defs>
-                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                    <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-marker" />
-                </marker>
-
-                <!-- ClipPaths pour tronquer le texte des noms de champs -->
-                @for (node of nodes(); track node.table.name) {
-                    <clipPath [attr.id]="'clip-fn-' + node.table.name">
-                        <rect x="0" y="0" [attr.width]="node.width - 90" height="28" />
-                    </clipPath>
-                }
-            </defs>
-
-            <!-- Tout le contenu est mis à l'échelle via zoom -->
-            <g [attr.transform]="'scale(' + zoom() + ')'">
-                <!-- Liens FK (rendus avant les nœuds pour être en dessous) -->
-                @for (link of links(); track link.fromTable + link.fromColumn) {
-                    <path
-                        [attr.d]="link.path"
-                        class="fk-link"
-                        marker-end="url(#arrow)"
-                        fill="none">
+                @for (link of links(); track link.fromTable + '.' + link.fromColumn) {
+                    <path [attr.d]="link.path" class="fk-link" marker-end="url(#er-arrow)">
                         <title>{{ link.fromTable }}.{{ link.fromColumn }} → {{ link.toTable }}.{{ link.toColumn }}</title>
                     </path>
                 }
+            </svg>
 
-                <!-- Nœuds de tables -->
-                @for (node of nodes(); track node.table.name; let i = $index) {
-                    <g
-                        class="table-node"
-                        [attr.transform]="'translate(' + node.x + ',' + node.y + ')'"
-                        (mousedown)="startDrag($event, i)">
-                        <!-- Fond de la table -->
-                        <rect
-                            [attr.width]="node.width"
-                            [attr.height]="node.height"
-                            class="table-bg"
-                            rx="6" ry="6" />
+            @for (node of nodes(); track node.table.name; let i = $index) {
+                <div
+                    class="table-box"
+                    [style.left.px]="node.x"
+                    [style.top.px]="node.y"
+                    [style.width.px]="node.width"
+                    (mousedown)="startNodeDrag($event, i)">
+                    <div class="box-header" [style.height.px]="headerHeight" [attr.title]="node.table.name">
+                        <span class="box-name">{{ node.table.name }}</span>
+                        <span class="box-rows">{{ formatRowCount(node.table.recordCount) }}</span>
+                    </div>
 
-                        <!-- En-tête de la table -->
-                        <rect
-                            [attr.width]="node.width"
-                            height="36"
-                            class="table-header"
-                            rx="6" ry="6" />
-                        <rect
-                            [attr.width]="node.width"
-                            height="10"
-                            y="26"
-                            class="table-header" />
+                    @for (field of node.table.fields; track field.name) {
+                        @let key = fieldKey(field);
 
-                        <!-- Nom de la table -->
-                        <text
-                            x="12"
-                            y="22"
-                            class="table-name">{{ node.table.name }}</text>
-
-                        <!-- Colonnes -->
-                        @for (field of node.table.fields; track field.name; let j = $index) {
-                            <g [attr.transform]="'translate(0,' + (36 + j * 28) + ')'">
-                                <rect
-                                    [attr.width]="node.width"
-                                    height="28"
-                                    [class]="'field-row ' + (field.pk ? 'pk-row' : field.fk ? 'fk-row' : '')" />
-                                <line x1="0" y1="0" [attr.x2]="node.width" y2="0" class="field-divider" />
-
-                                <!-- Badge PK/FK -->
-                                @if (getFieldBadge(field)) {
-                                    <text x="8" y="19" class="field-badge">{{ getFieldBadge(field) }}</text>
-                                }
-
-                                <!-- Nom du champ (avec clipPath pour éviter le débordement) -->
-                                <text
-                                    [attr.x]="getFieldBadge(field) ? 36 : 10"
-                                    y="19"
-                                    class="field-name"
-                                    [attr.clip-path]="'url(#clip-fn-' + node.table.name + ')'">{{ field.name }}</text>
-
-                                <!-- Type du champ -->
-                                <text
-                                    [attr.x]="node.width - 8"
-                                    y="19"
-                                    class="field-type"
-                                    text-anchor="end">{{ field.type }}</text>
-                            </g>
-                        }
-                    </g>
-                }
-            </g>
-        </svg>
+                        <div
+                            class="box-column"
+                            [style.height.px]="rowHeight"
+                            [class.box-column--pk]="key === 'PK'"
+                            [class.box-column--fk]="key === 'FK'">
+                            <span class="column-key">{{ key }}</span>
+                            <span class="column-name">{{ field.name }}</span>
+                            <span class="column-type">{{ field.type }}</span>
+                        </div>
+                    }
+                </div>
+            }
         </div>
 
-        <!-- Contrôles de zoom -->
-        <div class="zoom-controls">
-            <button class="zoom-btn" (click)="zoomOut()" title="Zoom out">−</button>
-            <button class="zoom-reset" (click)="resetZoom()">{{ zoomLabel() }}</button>
-            <button class="zoom-btn" (click)="zoomIn()" title="Zoom in">+</button>
+        <div class="zoom-controls" (mousedown)="$event.stopPropagation()">
+            <button type="button" class="zoom-button" (click)="zoomOut()" [attr.aria-label]="i18n.t('erDiagram.zoomOut')">−</button>
+            <button type="button" class="zoom-reset" (click)="resetView()" [attr.title]="i18n.t('erDiagram.resetView')">{{ zoomLabel() }}</button>
+            <button type="button" class="zoom-button" (click)="zoomIn()" [attr.aria-label]="i18n.t('erDiagram.zoomIn')">+</button>
         </div>
+
+        <div class="er-help">{{ i18n.t('erDiagram.help') }}</div>
     </div>
 }

@@ -295,6 +295,24 @@ export class SessionDiff {
     }
 
     /**
+     * Marque supprimées toutes les lignes suivies d'une table (table vidée) :
+     * celles insérées pendant la session disparaissent du journal, les autres
+     * deviennent des suppressions de leur image d'origine.
+     * @param table - Table vidée.
+     */
+    public markTableAsDeleted(table: string): void {
+        const rowids: number[] = [];
+
+        for (const row of this.rows.values()) {
+            if (row.table === table) {
+                rowids.push(row.rowid);
+            }
+        }
+
+        this.markTrackedAsDeleted(table, rowids);
+    }
+
+    /**
      * Enregistre une opération dont l'effet ligne à ligne n'est pas capturé.
      * @param change - Description de l'opération.
      */

@@ -1,0 +1,245 @@
+@let d = draft();
+@let current = driver();
+
+<div class="form-head">
+    <div class="form-title">{{ current.label }}</div>
+    <div class="form-hint">{{ current.hintKey | translate }}</div>
+</div>
+
+@switch (current.form) {
+    @case ("file") {
+        <div class="field">
+            <label>{{ "home.form.source" | translate }}</label>
+            <div class="source-row">
+                <div class="segmented" role="radiogroup">
+                    <button
+                        type="button"
+                        role="radio"
+                        [class.active]="d.sqliteMode === 'file'"
+                        [attr.aria-checked]="d.sqliteMode === 'file'"
+                        (click)="setSqliteMode('file')">
+                        {{ "home.form.localFile" | translate }}
+                    </button>
+                    <button
+                        type="button"
+                        role="radio"
+                        [class.active]="d.sqliteMode === 'url'"
+                        [attr.aria-checked]="d.sqliteMode === 'url'"
+                        (click)="setSqliteMode('url')">
+                        {{ "home.form.remoteUrl" | translate }}
+                    </button>
+                </div>
+
+                @if (d.sqliteMode === "file") {
+                    <input
+                        class="input mono grow"
+                        type="text"
+                        spellcheck="false"
+                        [placeholder]="'home.form.filePlaceholder' | translate"
+                        [value]="d.filePath"
+                        (input)="onTextInput('filePath', $event)"
+                        (keydown)="onFieldKeydown($event)" />
+                    <ui-button size="large" (click)="browseFile()">{{ "home.form.browse" | translate }}</ui-button>
+                }
+                @else {
+                    <input
+                        class="input mono grow"
+                        type="url"
+                        spellcheck="false"
+                        [placeholder]="'home.form.urlPlaceholder' | translate"
+                        [value]="d.url"
+                        (input)="onTextInput('url', $event)"
+                        (keydown)="onFieldKeydown($event)" />
+                }
+            </div>
+            <div class="field-hint">
+                {{ (d.sqliteMode === "url" ? "home.form.urlHint" : "home.form.fileHint") | translate }}
+            </div>
+        </div>
+
+        @if (d.sqliteMode === "url") {
+            <div class="field">
+                <label for="home-token">{{ "home.form.token" | translate }}</label>
+                <input
+                    id="home-token"
+                    class="input mono"
+                    type="password"
+                    autocomplete="off"
+                    [value]="d.authToken"
+                    (input)="onTextInput('authToken', $event)"
+                    (keydown)="onFieldKeydown($event)" />
+            </div>
+        }
+    }
+
+    @case ("uri") {
+        <div class="field">
+            <label for="home-uri">{{ "home.form.uri" | translate }}</label>
+            <input
+                id="home-uri"
+                class="input mono"
+                type="text"
+                spellcheck="false"
+                placeholder="mongodb://localhost:27017/base"
+                [value]="d.uri"
+                (input)="onTextInput('uri', $event)"
+                (keydown)="onFieldKeydown($event)" />
+        </div>
+    }
+
+    @default {
+        <div class="grid host-port">
+            <div class="field">
+                <label for="home-host">{{ "home.form.host" | translate }}</label>
+                <input
+                    id="home-host"
+                    class="input"
+                    type="text"
+                    spellcheck="false"
+                    [value]="d.host"
+                    (input)="onTextInput('host', $event)"
+                    (keydown)="onFieldKeydown($event)" />
+            </div>
+            <div class="field">
+                <label for="home-port">{{ "home.form.port" | translate }}</label>
+                <input
+                    id="home-port"
+                    class="input mono"
+                    type="text"
+                    inputmode="numeric"
+                    [value]="d.port"
+                    (input)="onPortInput($event)"
+                    (keydown)="onFieldKeydown($event)" />
+            </div>
+        </div>
+
+        @if (current.type === "azure") {
+            <div class="field">
+                <label>{{ "home.form.authMode" | translate }}</label>
+                <ui-select class="auth-select" [ngModel]="d.authMode" (ngModelChange)="setAuthMode($event)">
+                    <ui-select-option value="sql">{{ "home.form.authSql" | translate }}</ui-select-option>
+                    <ui-select-option value="service-principal">{{ "home.form.authServicePrincipal" | translate }}</ui-select-option>
+                </ui-select>
+            </div>
+        }
+
+        @if (isServicePrincipal()) {
+            <div class="grid halves">
+                <div class="field">
+                    <label for="home-client-id">{{ "home.form.clientId" | translate }}</label>
+                    <input
+                        id="home-client-id"
+                        class="input mono"
+                        type="text"
+                        spellcheck="false"
+                        [value]="d.clientId"
+                        (input)="onTextInput('clientId', $event)"
+                        (keydown)="onFieldKeydown($event)" />
+                </div>
+                <div class="field">
+                    <label for="home-tenant-id">{{ "home.form.tenantId" | translate }}</label>
+                    <input
+                        id="home-tenant-id"
+                        class="input mono"
+                        type="text"
+                        spellcheck="false"
+                        [value]="d.tenantId"
+                        (input)="onTextInput('tenantId', $event)"
+                        (keydown)="onFieldKeydown($event)" />
+                </div>
+            </div>
+            <div class="field">
+                <label for="home-secret">{{ "home.form.clientSecret" | translate }}</label>
+                <input
+                    id="home-secret"
+                    class="input"
+                    type="password"
+                    autocomplete="off"
+                    [value]="d.password"
+                    (input)="onTextInput('password', $event)"
+                    (keydown)="onFieldKeydown($event)" />
+            </div>
+        }
+        @else {
+            <div class="grid halves">
+                <div class="field">
+                    <label for="home-user">{{ "home.form.username" | translate }}</label>
+                    <input
+                        id="home-user"
+                        class="input"
+                        type="text"
+                        spellcheck="false"
+                        [value]="d.username"
+                        (input)="onTextInput('username', $event)"
+                        (keydown)="onFieldKeydown($event)" />
+                </div>
+                <div class="field">
+                    <label for="home-password">{{ "home.form.password" | translate }}</label>
+                    <input
+                        id="home-password"
+                        class="input"
+                        type="password"
+                        autocomplete="off"
+                        [value]="d.password"
+                        (input)="onTextInput('password', $event)"
+                        (keydown)="onFieldKeydown($event)" />
+                </div>
+            </div>
+        }
+
+        <div class="field">
+            <label for="home-database">{{ "home.form.database" | translate }}</label>
+            <input
+                id="home-database"
+                class="input"
+                type="text"
+                spellcheck="false"
+                [value]="d.database"
+                (input)="onTextInput('database', $event)"
+                (keydown)="onFieldKeydown($event)" />
+        </div>
+
+        <label class="check">
+            <input type="checkbox" [checked]="d.ssl" (change)="onSslChange($event)" />
+            {{ "home.form.ssl" | translate }}
+        </label>
+    }
+}
+
+@if (needsMasterPassword()) {
+    <div class="field">
+        <label for="home-master">
+            {{ (vaultInitialized() ? "home.form.masterPassword" : "home.form.masterPasswordNew") | translate }}
+        </label>
+        <input
+            id="home-master"
+            class="input"
+            type="password"
+            autocomplete="off"
+            [value]="masterPassword()"
+            (input)="onMasterPasswordInput($event)"
+            (keydown)="onFieldKeydown($event)" />
+    </div>
+}
+
+@if (error(); as message) {
+    <div class="form-error" role="alert">
+        <div class="form-error-title">{{ "home.form.errorTitle" | translate }}</div>
+        <div>{{ message }}</div>
+    </div>
+}
+
+<div class="form-foot">
+    <label class="check">
+        <input type="checkbox" [checked]="saveProfile()" (change)="onSaveProfileChange($event)" />
+        {{ "home.form.saveProfile" | translate }}
+    </label>
+    <div class="actions">
+        <ui-button size="large" [disabled]="busy() || !canSubmit()" (click)="test()">
+            {{ "home.form.test" | translate }}
+        </ui-button>
+        <ui-button size="large" color="primary" [disabled]="busy() || !canSubmit()" (click)="connect()">
+            {{ (connecting() ? "home.form.connecting" : "home.form.connect") | translate }}
+        </ui-button>
+    </div>
+</div>

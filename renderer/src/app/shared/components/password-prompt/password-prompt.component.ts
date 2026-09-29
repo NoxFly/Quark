@@ -18,54 +18,103 @@
 import {
     ChangeDetectionStrategy,
     Component,
+    computed,
+    effect,
+    ElementRef,
     inject,
-    signal,
-    OnInit,
     OnDestroy,
+    OnInit,
+    signal,
+    viewChild,
 } from "@angular/core";
-import { FormsModule } from "@angular/forms";
-import { InputComponent } from "@ui/input/input.component";
+import { ButtonComponent } from "@ui/button/button.component";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
-import type { R_NetworkConnectBody } from "@shared/types";
+import type { PasswordPromptMode } from "src/app/core/models/password-prompt.model";
 import { DatabaseService } from "src/app/core/services/database.service";
-import { I18nService } from "src/app/core/services/i18n.service";
+import { SettingsService } from "src/app/core/services/settings.service";
+import { StateService } from "src/app/core/services/state.service";
+import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
+import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 
 /**
- * Action sheet demandant le mot de passe avant de reconnecter depuis l'historique.
- * S'ouvre via l'événement personnalisé `open-password-prompt` portant
- * un `RecentDatabaseEntry` en détail.
- * Fermeture : touche Escape ou clic en dehors du panneau.
+ * Modale unique de saisie d'un mot de passe d'ouverture.
+ *
+ * - Base chiffrée : s'affiche d'elle-même tant que `state.needsPassword` est vrai,
+ *   quelle que soit l'origine de l'ouverture (dialogue, glisser-déposer, historique,
+ *   ligne de commande, profil sans secret, rafraîchissement).
+ * - Reconnexion : s'ouvre sur l'événement `open-password-prompt` portant un
+ *   `RecentDatabaseEntry` réseau ou distant (le secret n'est jamais conservé).
+ *
+ * Fermeture : Échap, bouton Annuler, croix ou clic sur le fond.
  */
 @Component({
     selector: "app-password-prompt",
     standalone: true,
-    imports: [FormsModule, InputComponent],
+    imports: [ButtonComponent, TranslatePipe],
     templateUrl: "./password-prompt.component.html",
     styleUrl: "./password-prompt.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
-        "(window:keydown)": "onKeydown($event)",
-        "(click)": "close()",
+        "(window:keydown.escape)": "onEscape()",
     },
 })
 export class PasswordPromptComponent implements OnInit, OnDestroy {
     private readonly dbService = inject(DatabaseService);
-    protected readonly i18n = inject(I18nService);
+    private readonly settings = inject(SettingsService);
+    private readonly state = inject(StateService);
 
-    protected readonly isOpen = signal<boolean>(false);
-    protected readonly isLoading = signal<boolean>(false);
-    protected readonly hasError = signal<boolean>(false);
+    /** Entrée de l'historique en cours de reconnexion (mode `credentials`). */
+    protected readonly entry = signal<RecentDatabaseEntry | null>(null);
     protected readonly password = signal<string>("");
+    protected readonly remember = signal<boolean>(false);
+    protected readonly busy = signal<boolean>(false);
+    /** Clé i18n ou message du driver, `null` sans erreur. */
+    protected readonly error = signal<string | null>(null);
 
-    private entry: RecentDatabaseEntry | null = null;
+    /** La base chiffrée prime : c'est la fenêtre entière qui l'attend. */
+    protected readonly mode = computed<PasswordPromptMode | null>(() => {
+        if (this.state.needsPassword()) {
+            return "encrypted-file";
+        }
+
+        return this.entry() ? "credentials" : null;
+    });
+
+    /** Nom du fichier chiffré, sans son dossier. */
+    protected readonly fileName = computed<string>(() => {
+        const path = this.state.pendingFilePath() ?? "";
+        return path.split(/[\\/]/).pop() ?? path;
+    });
+
+    /** Une base distante demande un jeton, pas un mot de passe. */
+    protected readonly isToken = computed<boolean>(() => this.entry()?.connectionType === "remote");
+
+    /** `safeStorage` s'appuie sur le trousseau de Windows (DPAPI), ou sur celui du système ailleurs. */
+    protected readonly rememberLabelKey = navigator.userAgent.includes("Windows")
+        ? "passwordPrompt.rememberWindows"
+        : "passwordPrompt.rememberSystem";
+
+    private readonly passwordInput = viewChild<ElementRef<HTMLInputElement>>("passwordInput");
 
     private readonly openHandler = (event: Event): void => {
         const detail = (event as CustomEvent<RecentDatabaseEntry>).detail;
-        this.entry = detail;
-        this.password.set("");
-        this.hasError.set(false);
-        this.isOpen.set(true);
+
+        // Un fichier se rouvre simplement : la modale de base chiffrée prend le relais si besoin.
+        if (detail.connectionType === "file") {
+            void this.dbService.openRecentDatabase(detail);
+            return;
+        }
+
+        this.reset();
+        this.entry.set(detail);
     };
+
+    public constructor() {
+        // Champ inséré par le @if : focalisé dès qu'il existe (équivalent d'autofocus).
+        effect(() => {
+            this.passwordInput()?.nativeElement.focus();
+        });
+    }
 
     public ngOnInit(): void {
         document.addEventListener("open-password-prompt", this.openHandler);
@@ -76,90 +125,139 @@ export class PasswordPromptComponent implements OnInit, OnDestroy {
     }
 
     /**
-     * Ferme le panneau sans action.
-     */
-    protected close(): void {
-        this.isOpen.set(false);
-        this.entry = null;
-    }
-
-    /**
-     * Tente la connexion avec le mot de passe saisi.
-     */
-    protected async confirm(): Promise<void> {
-        if (!this.entry || this.isLoading()) {
-            return;
-        }
-
-        const pwd = this.password();
-
-        this.isLoading.set(true);
-        this.hasError.set(false);
-
-        try {
-            if (this.entry.connectionType === "file" && this.entry.filePath) {
-                await this.dbService.openFileWithPassword(this.entry.filePath, pwd, this.entry.driverType);
-            }
-            else if (this.entry.connectionType === "network") {
-                const body: R_NetworkConnectBody = {
-                    driverType: this.entry.driverType,
-                    host: this.entry.host ?? "",
-                    port: this.entry.port ?? 0,
-                    username: this.entry.username ?? "",
-                    password: pwd,
-                    database: this.entry.database ?? "",
-                };
-                await this.dbService.connectNetwork(body);
-            }
-
-            this.close();
-        }
-        catch {
-            this.hasError.set(true);
-        }
-        finally {
-            this.isLoading.set(false);
-        }
-    }
-
-    /**
-     * Met à jour le signal mot de passe depuis l'input.
+     * Met à jour le mot de passe saisi et efface l'erreur précédente.
      */
     protected onPasswordInput(event: Event): void {
         this.password.set((event.target as HTMLInputElement).value);
-        if (this.hasError()) {
-            this.hasError.set(false);
-        }
+        this.error.set(null);
     }
 
     /**
-     * Gère les touches clavier.
+     * Met à jour la case « Mémoriser ».
      */
-    protected onKeydown(event: KeyboardEvent): void {
-        if (!this.isOpen()) {
-            return;
-        }
-
-        if (event.key === "Escape") {
-            event.preventDefault();
-            this.close();
-        }
+    protected onRememberChange(event: Event): void {
+        this.remember.set((event.target as HTMLInputElement).checked);
     }
 
     /**
-     * Empêche la propagation du clic depuis le panneau vers l'overlay.
-     */
-    protected stopPropagation(event: MouseEvent): void {
-        event.stopPropagation();
-    }
-
-    /**
-     * Soumet le formulaire par la touche Enter dans l'input.
+     * Valide la saisie par Entrée.
      */
     protected onInputKeydown(event: KeyboardEvent): void {
         if (event.key === "Enter") {
             event.preventDefault();
             void this.confirm();
         }
+    }
+
+    /**
+     * Ferme la modale sur Échap.
+     */
+    protected onEscape(): void {
+        if (this.mode() !== null) {
+            this.cancel();
+        }
+    }
+
+    /**
+     * Abandonne l'ouverture en cours.
+     */
+    protected cancel(): void {
+        if (this.busy()) {
+            return;
+        }
+
+        if (this.mode() === "encrypted-file") {
+            this.dbService.cancelPasswordRequest();
+        }
+
+        this.entry.set(null);
+        this.reset();
+    }
+
+    /**
+     * Déverrouille la base chiffrée ou se reconnecte avec le secret saisi.
+     */
+    protected async confirm(): Promise<void> {
+        const mode = this.mode();
+
+        if (mode === null || this.busy()) {
+            return;
+        }
+
+        this.busy.set(true);
+        this.error.set(null);
+
+        try {
+            if (mode === "encrypted-file") {
+                await this.unlockFile();
+            }
+            else {
+                await this.reconnect();
+            }
+        }
+        finally {
+            this.busy.set(false);
+        }
+    }
+
+    /**
+     * Soumet le mot de passe de la base chiffrée en attente.
+     */
+    private async unlockFile(): Promise<void> {
+        if (!this.password()) {
+            return;
+        }
+
+        const unlocked = await this.dbService.submitPassword(this.password(), this.remember());
+
+        if (unlocked) {
+            this.reset();
+        }
+        else {
+            this.error.set("passwordPrompt.wrongPassword");
+        }
+    }
+
+    /**
+     * Rouvre une connexion réseau ou distante de l'historique avec le secret saisi.
+     */
+    private async reconnect(): Promise<void> {
+        const entry = this.entry();
+
+        if (!entry) {
+            return;
+        }
+
+        const timeoutSeconds = this.settings.settings().connectionTimeout;
+
+        try {
+            if (entry.connectionType === "remote") {
+                const authToken = this.password() || undefined;
+                await this.dbService.connectRemoteSqlite({ url: entry.url ?? "", authToken, timeoutSeconds });
+            }
+            else {
+                await this.dbService.connectNetwork({
+                    driverType: entry.driverType,
+                    host: entry.host ?? "",
+                    port: entry.port ?? 0,
+                    username: entry.username ?? "",
+                    password: this.password(),
+                    database: entry.database ?? "",
+                    timeoutSeconds,
+                });
+            }
+
+            this.entry.set(null);
+            this.reset();
+        }
+        catch (err) {
+            this.error.set(extractIpcErrorMessage(err));
+        }
+    }
+
+    private reset(): void {
+        this.password.set("");
+        this.remember.set(false);
+        this.error.set(null);
     }
 }

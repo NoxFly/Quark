@@ -1,21 +1,39 @@
 @let ready = isReady();
+@let connected = state.connected();
+@let settingsOpen = shell.settingsOpen();
 
 <app-titlebar></app-titlebar>
 
-<section>
-    <app-sidebar></app-sidebar>
+@if (settingsOpen) {
+    <app-settings></app-settings>
+}
 
-    @if(ready) {
+<!--
+    Masqué plutôt que détruit pendant les Paramètres : la vue courante (éditeur SQL,
+    défilement de la grille…) doit être retrouvée intacte au retour.
+    Sans base ouverte, l'accueil occupe tout l'espace (ni explorateur ni onglets).
+-->
+<section class="workspace" [class.hidden]="settingsOpen" [class.transaction-frame]="connected && dbService.inTransaction()">
+    @if (connected) {
+        <app-sidebar></app-sidebar>
+    }
+
+    @if (ready) {
         <main class="main">
-            <app-tabs-bar></app-tabs-bar>
-            <router-outlet/>
+            @if (connected) {
+                <app-tabs-bar></app-tabs-bar>
+                <app-transaction-banner></app-transaction-banner>
+            }
+            <div class="outlet">
+                <router-outlet/>
+            </div>
         </main>
     }
 </section>
 
 <app-statusbar></app-statusbar>
 
-@if(startupError(); as error) {
+@if (startupError(); as error) {
     <app-startup-error
         [details]="error"
         [appVersion]="state.appVersion()"
@@ -23,7 +41,7 @@
         (reload)="reloadApplication()"
     ></app-startup-error>
 }
-@else if(!ready) {
+@else if (!ready) {
     <app-loading-screen [showContent]="!isReloading"></app-loading-screen>
 }
 
@@ -31,4 +49,3 @@
 <app-entity-search></app-entity-search>
 <app-recent-databases></app-recent-databases>
 <app-password-prompt></app-password-prompt>
-

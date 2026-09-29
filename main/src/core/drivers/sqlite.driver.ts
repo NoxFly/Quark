@@ -16,20 +16,10 @@
  */
 
 import { Logger } from "@noxfly/noxus";
-import type {
-    CreateTableColumnDef,
-    DatabaseSchema,
-    DbRecord,
-    FieldDef,
-    ForeignKeyDef,
-    IndexDef,
-    R_AlterTableAction,
-    R_SqlExecResponse,
-    TableSchema,
-} from "@shared/types";
-import type { DatabaseCategory, DatabaseDriverType, DriverCapabilities, DriverInfo } from "@shared/driver";
-import type { DatabaseDriver } from "src/core/drivers/driver.interface";
-import { getDriverInfo } from "src/core/drivers/driver-registry";
+import type { DatabaseDriverType } from "@shared/driver";
+import type { DbRecord, R_SqlExecResponse } from "@shared/types";
+import { SqliteDialectDriver } from "src/core/drivers/sqlite-dialect.driver";
+import type { SqliteRunResult } from "src/core/drivers/sqlite-dialect.types";
 import DatabaseConstructor from "better-sqlite3-multiple-ciphers";
 import type BetterSqlite3 from "better-sqlite3-multiple-ciphers";
 import { statSync } from "node:fs";
@@ -39,24 +29,15 @@ import { basename } from "node:path";
  * Driver SQLite utilisant better-sqlite3-multiple-ciphers.
  * Supporte les fichiers locaux, le chiffrement SQLCipher,
  * les transactions, et toutes les opérations DDL/DML.
+ *
+ * Le dialecte (schéma, pagination, filtres, DDL…) est partagé avec le driver
+ * libSQL dans `SqliteDialectDriver` ; ce driver n'apporte que l'accès au fichier.
  */
-export class SqliteDriver implements DatabaseDriver {
+export class SqliteDriver extends SqliteDialectDriver {
+    public readonly driverType: DatabaseDriverType = "sqlite";
+
     private db: BetterSqlite3.Database | null = null;
     private filePath: string | null = null;
-    private _inTransaction = false;
-
-    // --- Identité du driver ---
-
-    public readonly driverType: DatabaseDriverType = "sqlite";
-    public readonly category: DatabaseCategory = "sql";
-
-    public get info(): DriverInfo {
-        return getDriverInfo("sqlite");
-    }
-
-    public get capabilities(): DriverCapabilities {
-        return this.info.capabilities;
-    }
 
     // --- Cycle de vie ---
 
@@ -65,7 +46,7 @@ export class SqliteDriver implements DatabaseDriver {
      * Retourne `true` si un mot de passe est nécessaire (base chiffrée).
      */
     public async open(filePath: string): Promise<boolean> {
-        this.close();
+        await this.close();
         this.filePath = filePath;
 
         try {
@@ -121,9 +102,9 @@ export class SqliteDriver implements DatabaseDriver {
      * Ferme la connexion à la base de données.
      */
     public async close(): Promise<void> {
-        if (this._inTransaction) {
+        if (this.inTransaction) {
             try {
-                this.rollback();
+                await this.rollback();
             }
             catch {
                 // Ignorer les erreurs de rollback lors de la fermeture
@@ -133,460 +114,66 @@ export class SqliteDriver implements DatabaseDriver {
         this.db?.close();
         this.db = null;
         this.filePath = null;
-        this._inTransaction = false;
+        this.inTransaction = false;
     }
 
     public get isOpen(): boolean {
         return this.db !== null;
     }
 
-    public get isInTransaction(): boolean {
-        return this._inTransaction;
-    }
-
     public get path(): string | null {
         return this.filePath;
     }
 
-    // --- Schéma ---
+    // --- Transport ---
 
-    /**
-     * Récupère le schéma complet de la base de données.
-     */
-    public async getSchema(): Promise<DatabaseSchema> {
-        this.ensureOpen();
-
-        const name = this.filePath ? basename(this.filePath) : "unknown";
-
-        const tables = this.db!.prepare(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
-        ).all() as { name: string }[];
-
-        const tableSchemas: TableSchema[] = tables.map(t => this.getTableSchema(t.name));
-
-        return {
-            name,
-            path: this.filePath!,
-            tables: tableSchemas,
-            driverType: "sqlite",
-        };
+    protected get databaseName(): string {
+        return this.filePath ? basename(this.filePath) : "unknown";
     }
 
-    /**
-     * Récupère le schéma d'une table.
-     */
-    private getTableSchema(tableName: string): TableSchema {
-        this.ensureOpen();
+    protected async queryAll(sql: string, params: unknown[] = []): Promise<DbRecord[]> {
+        return this.requireDb().prepare(sql).all(...params) as DbRecord[];
+    }
 
-        const safeTableName = this.escapeIdentifier(tableName);
+    protected async run(sql: string, params: unknown[] = []): Promise<SqliteRunResult> {
+        const result = this.requireDb().prepare(sql).run(...params);
 
-        const columns = this.db!.prepare(`PRAGMA table_info(${safeTableName})`).all() as {
-            cid: number;
-            name: string;
-            type: string;
-            notnull: number;
-            dflt_value: string | null;
-            pk: number;
-        }[];
+        return { changes: result.changes, lastInsertRowid: Number(result.lastInsertRowid) };
+    }
 
-        const foreignKeys = this.db!.prepare(`PRAGMA foreign_key_list(${safeTableName})`).all() as {
-            from: string;
-            table: string;
-            to: string;
-        }[];
-
-        const fkMap = new Map<string, ForeignKeyDef>();
-        for (const fk of foreignKeys) {
-            fkMap.set(fk.from, { table: fk.table, column: fk.to });
-        }
-
-        const fields: FieldDef[] = columns.map(col => ({
-            name: col.name,
-            type: col.type,
-            notnull: col.notnull === 1,
-            dflt_value: col.dflt_value,
-            pk: col.pk > 0,
-            fk: fkMap.get(col.name) ?? null,
-        }));
-
-        const countResult = this.db!.prepare(`SELECT count(*) as cnt FROM ${safeTableName}`).get() as { cnt: number };
-
-        let weight = 0;
+    protected override getStorageSize(): number {
         try {
-            if (this.filePath) {
-                weight = statSync(this.filePath).size;
-            }
+            return this.filePath ? statSync(this.filePath).size : 0;
         }
         catch {
             // Ignorer si on ne peut pas obtenir la taille
+            return 0;
         }
-
-        return {
-            name: tableName,
-            fields,
-            weight,
-            recordCount: countResult.cnt,
-        };
     }
 
-    /**
-     * Récupère le SQL de création de chaque table depuis sqlite_master.
-     */
-    public async getTablesSql(): Promise<{ name: string; sql: string }[]> {
-        this.ensureOpen();
-
-        const rows = this.db!.prepare(
-            "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL ORDER BY name"
-        ).all() as { name: string; sql: string }[];
-
-        return rows;
-    }
-
-    // --- Données ---
+    // --- Import ---
 
     /**
-     * Récupère les données paginées d'une table, avec tri et filtre optionnels.
-     */
-    public async getTableData(
-        tableName: string,
-        offset: number,
-        limit: number,
-        orderBy?: string,
-        orderDir?: "ASC" | "DESC",
-        filter?: string,
-        filterMode: "sql" | "fulltext" = "fulltext",
-    ): Promise<{ records: DbRecord[]; totalCount: number; tableSize: number }> {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(tableName);
-
-        // Construire la clause WHERE à partir du filtre
-        let whereClause = "";
-        let filterOrderClause = "";
-        const whereParams: unknown[] = [];
-
-        if (filter && filter.trim().length > 0) {
-            if (filterMode === "sql") {
-                // Extraire l'ORDER BY du filtre s'il existe
-                const { whereClause: sqlWhere, orderClause: sqlOrder } = this.extractOrderByFromFilter(filter);
-                filterOrderClause = sqlOrder;
-
-                // Ne parser le filtre que s'il y a une clause WHERE
-                if (sqlWhere.trim().length > 0) {
-                    try {
-                        const clause = this.parseFilter(sqlWhere, tableName);
-                        this.db!.prepare(`SELECT 1 FROM ${safeTable} WHERE ${clause} LIMIT 1`);
-                        whereClause = ` WHERE ${clause}`;
-                    }
-                    catch {
-                        return { records: [], totalCount: 0, tableSize: 0 };
-                    }
-                }
-                // Si sqlWhere est vide (juste ORDER BY), pas de WHERE clause
-            }
-            else {
-                const columns = this.db!.prepare(`PRAGMA table_info(${safeTable})`).all() as { name: string }[];
-                const conditions = columns.map(c => `CAST(${this.escapeIdentifier(c.name)} AS TEXT) LIKE ?`);
-                whereClause = ` WHERE (${conditions.join(" OR ")})`;
-                const likeParam = `%${filter.trim()}%`;
-                whereParams.push(...columns.map(() => likeParam));
-            }
-        }
-
-        const countSql = `SELECT count(*) as cnt FROM ${safeTable}${whereClause}`;
-        const countResult = this.db!.prepare(countSql).get(...whereParams) as { cnt: number };
-
-        let orderClause = "";
-        if (filterOrderClause) {
-            // Utiliser l'ORDER BY du filtre s'il existe (déjà trimmed)
-            orderClause = ` ${filterOrderClause}`;
-        }
-        else if (orderBy) {
-            const safeOrderCol = this.escapeIdentifier(orderBy);
-            const dir = orderDir === "DESC" ? "DESC" : "ASC";
-            orderClause = ` ORDER BY ${safeOrderCol} ${dir}`;
-        }
-        else if (filterMode === "sql") {
-            // En mode SQL, trier par rowid par défaut pour une pagination stable
-            orderClause = ` ORDER BY _rowid_ ASC`;
-        }
-
-        // '_rowid_ AS rowid' force SQLite à créer une nouvelle colonne nommée 'rowid',
-        // distincte de toute colonne user (y compris INTEGER PRIMARY KEY qui aliase le rowid).
-        // Avec 'SELECT *, rowid', SQLite déduplique 'rowid' si 'id' est INTEGER PRIMARY KEY.
-        const dataSql = `SELECT *, _rowid_ AS rowid FROM ${safeTable}${whereClause}${orderClause} LIMIT ? OFFSET ?`;
-        const records = this.db!.prepare(dataSql).all(...whereParams, limit, offset) as DbRecord[];
-
-        let tableSize = 0;
-        try {
-            const sizeResult = this.db!.prepare(
-                "SELECT SUM(pgsize) as sz FROM dbstat WHERE name = ?"
-            ).get(tableName) as { sz: number | null };
-            tableSize = sizeResult?.sz ?? 0;
-        }
-        catch {
-            // dbstat non disponible
-        }
-
-        return {
-            records,
-            totalCount: countResult.cnt,
-            tableSize,
-        };
-    }
-
-    /**
-     * Met à jour une cellule dans une table.
-     */
-    public async updateCell(tableName: string, rowid: number, column: string, value: unknown): Promise<void> {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(tableName);
-        const safeColumn = this.escapeIdentifier(column);
-
-        this.db!.prepare(`UPDATE ${safeTable} SET ${safeColumn} = ? WHERE _rowid_ = ?`).run(value, rowid);
-    }
-
-    /**
-     * Supprime des lignes d'une table par leurs rowids.
-     */
-    public async deleteRows(tableName: string, rowids: number[]): Promise<void> {
-        this.ensureOpen();
-
-        if (rowids.length === 0) {
-            return;
-        }
-
-        const safeTable = this.escapeIdentifier(tableName);
-        const placeholders = rowids.map(() => "?").join(",");
-
-        this.db!.prepare(`DELETE FROM ${safeTable} WHERE _rowid_ IN (${placeholders})`).run(...rowids);
-    }
-
-    /**
-     * Récupère une ligne par son rowid.
-     */
-    public async getRow(tableName: string, rowid: number): Promise<DbRecord | null> {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(tableName);
-        // Idem : _rowid_ AS rowid pour garantir la clé 'rowid' même sur INTEGER PRIMARY KEY
-        const row = this.db!.prepare(`SELECT *, _rowid_ AS rowid FROM ${safeTable} WHERE _rowid_ = ?`).get(rowid) as DbRecord | undefined;
-
-        return row ?? null;
-    }
-
-    /**
-     * Insère une nouvelle ligne dans une table.
-     */
-    public async insertRow(tableName: string, values: Record<string, unknown>): Promise<number> {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(tableName);
-        const columns = Object.keys(values);
-        const safeColumns = columns.map(c => this.escapeIdentifier(c)).join(", ");
-        const placeholders = columns.map(() => "?").join(", ");
-        const params = columns.map(c => values[c]);
-
-        const result = this.db!.prepare(
-            `INSERT INTO ${safeTable} (${safeColumns}) VALUES (${placeholders})`
-        ).run(...params);
-
-        return Number(result.lastInsertRowid);
-    }
-
-    /**
-     * Met à jour le même champ sur plusieurs lignes.
-     */
-    public async batchUpdate(tableName: string, rowids: number[], column: string, value: unknown): Promise<void> {
-        this.ensureOpen();
-
-        if (rowids.length === 0) {
-            return;
-        }
-
-        const safeTable = this.escapeIdentifier(tableName);
-        const safeColumn = this.escapeIdentifier(column);
-        const placeholders = rowids.map(() => "?").join(",");
-
-        this.db!.prepare(
-            `UPDATE ${safeTable} SET ${safeColumn} = ? WHERE _rowid_ IN (${placeholders})`
-        ).run(value, ...rowids);
-    }
-
-    // --- Transactions ---
-
-    /**
-     * Démarre une transaction.
-     */
-    public async beginTransaction(): Promise<void> {
-        this.ensureOpen();
-
-        if (this._inTransaction) {
-            throw new Error("A transaction is already active");
-        }
-
-        this.db!.prepare("BEGIN TRANSACTION").run();
-        this._inTransaction = true;
-    }
-
-    /**
-     * Valide la transaction en cours.
-     */
-    public async commit(): Promise<void> {
-        this.ensureOpen();
-
-        if (!this._inTransaction) {
-            throw new Error("No active transaction");
-        }
-
-        this.db!.prepare("COMMIT").run();
-        this._inTransaction = false;
-    }
-
-    /**
-     * Annule la transaction en cours.
-     */
-    public async rollback(): Promise<void> {
-        this.ensureOpen();
-
-        if (!this._inTransaction) {
-            throw new Error("No active transaction");
-        }
-
-        this.db!.prepare("ROLLBACK").run();
-        this._inTransaction = false;
-    }
-
-    // --- Export / Import ---
-
-    /**
-     * Exporte les données d'une table au format JSON, CSV ou XLSX.
-     */
-    public async exportData(
-        tableName: string,
-        format: "json" | "csv" | "xlsx",
-        rowids?: number[],
-        filter?: string,
-    ): Promise<{ data: string; filename: string }> {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(tableName);
-        let sql: string;
-
-        if (rowids && rowids.length > 0) {
-            const placeholders = rowids.map(() => "?").join(",");
-            sql = `SELECT * FROM ${safeTable} WHERE _rowid_ IN (${placeholders})`;
-        }
-        else if (filter && filter.trim().length > 0) {
-            const whereClause = this.parseFilter(filter, tableName);
-            sql = `SELECT * FROM ${safeTable} WHERE ${whereClause}`;
-        }
-        else {
-            sql = `SELECT * FROM ${safeTable}`;
-        }
-
-        const records = rowids && rowids.length > 0
-            ? this.db!.prepare(sql).all(...rowids) as DbRecord[]
-            : this.db!.prepare(sql).all() as DbRecord[];
-
-        if (format === "json") {
-            return { data: JSON.stringify(records, null, 2), filename: `${tableName}.json` };
-        }
-
-        if (format === "xlsx") {
-            // Chargé à la demande : la bibliothèque est lourde et ne sert qu'à cet export.
-            const XLSX = await import("xlsx");
-            const worksheet = XLSX.utils.json_to_sheet(records);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, tableName);
-            const buffer: Buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-            return { data: buffer.toString("base64"), filename: `${tableName}.xlsx` };
-        }
-
-        // CSV
-        const filename = `${tableName}.csv`;
-
-        if (records.length === 0) {
-            return { data: "", filename };
-        }
-
-        const columns = Object.keys(records[0]);
-        const header = columns.map(c => this.escapeCsvField(c)).join(",");
-        const rows = records.map(r =>
-            columns.map(c => this.escapeCsvField(String(r[c] ?? ""))).join(",")
-        );
-
-        return { data: [header, ...rows].join("\n"), filename };
-    }
-
-    /**
-     * Importe des données dans une table depuis du CSV ou JSON.
+     * Importe des données dans une table depuis du CSV ou JSON, en une transaction.
      */
     public async importData(tableName: string, format: "csv" | "json", data: string, mode: "insert" | "upsert"): Promise<void> {
         this.ensureOpen();
 
-        const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
+        const plan = this.prepareImport(tableName, format, data, mode);
 
-        if (records.length === 0) {
+        if (!plan) {
             return;
         }
 
-        const safeTable = this.escapeIdentifier(tableName);
-        const columns = Object.keys(records[0]);
-        const safeColumns = columns.map(c => this.escapeIdentifier(c)).join(", ");
-        const placeholders = columns.map(() => "?").join(", ");
-
-        const orClause = mode === "upsert" ? " OR REPLACE" : "";
-        const sql = `INSERT${orClause} INTO ${safeTable} (${safeColumns}) VALUES (${placeholders})`;
-        const stmt = this.db!.prepare(sql);
-
-        const runAll = this.db!.transaction((rows: Record<string, unknown>[]) => {
+        const db = this.requireDb();
+        const statement = db.prepare(plan.sql);
+        const runAll = db.transaction((rows: unknown[][]) => {
             for (const row of rows) {
-                stmt.run(...columns.map(c => row[c] ?? null));
+                statement.run(...row);
             }
         });
 
-        runAll(records);
-    }
-
-    /**
-     * Parse et retourne un aperçu des données importées sans les insérer.
-     */
-    public async previewImport(
-        tableName: string,
-        format: "csv" | "json",
-        data: string,
-    ): Promise<{ preview: DbRecord[]; totalRows: number; errors: string[] }> {
-        this.ensureOpen();
-
-        const errors: string[] = [];
-
-        try {
-            const records = format === "json" ? this.parseJsonImport(data) : this.parseCsvImport(data);
-
-            const schema = this.db!.prepare(`PRAGMA table_info(${this.escapeIdentifier(tableName)})`).all() as { name: string }[];
-            const validColumns = new Set(schema.map(c => c.name));
-
-            for (const col of records.length > 0 ? Object.keys(records[0]) : []) {
-                if (!validColumns.has(col)) {
-                    errors.push(`Column "${col}" does not exist in table "${tableName}"`);
-                }
-            }
-
-            return {
-                preview: records.slice(0, 20),
-                totalRows: records.length,
-                errors,
-            };
-        }
-        catch (err) {
-            return {
-                preview: [],
-                totalRows: 0,
-                errors: [`Parse error: ${err instanceof Error ? err.message : String(err)}`],
-            };
-        }
+        runAll(plan.rows);
     }
 
     // --- SQL ---
@@ -599,14 +186,13 @@ export class SqliteDriver implements DatabaseDriver {
 
         let trimmed = sql.trim();
         trimmed = trimmed.endsWith(";") ? trimmed : `${trimmed};`;
-        const isSelect = /^SELECT\b/i.test(trimmed);
 
         const t0 = performance.now();
 
         try {
-            const stmt = this.db!.prepare(trimmed);
+            const stmt = this.requireDb().prepare(trimmed);
 
-            if (isSelect) {
+            if (this.isReadStatement(trimmed)) {
                 // `raw()` renvoie directement des tableaux, dans l'ordre des colonnes :
                 // ni objet intermédiaire par ligne, ni conversion après coup.
                 const columns = stmt.columns().map(c => c.name);
@@ -633,170 +219,21 @@ export class SqliteDriver implements DatabaseDriver {
                     truncated,
                 };
             }
-            else {
-                const result = stmt.run();
-                const executionTimeMs = performance.now() - t0;
-                return {
-                    columns: [],
-                    rows: [],
-                    rowsAffected: result.changes,
-                    lastInsertId: Number(result.lastInsertRowid) || undefined,
-                    isSelect: false,
-                    executionTimeMs,
-                };
-            }
+
+            const result = stmt.run();
+
+            return {
+                columns: [],
+                rows: [],
+                rowsAffected: result.changes,
+                lastInsertId: Number(result.lastInsertRowid) || undefined,
+                isSelect: false,
+                executionTimeMs: performance.now() - t0,
+            };
         }
         catch (err) {
             throw new Error(`SQL error: ${err instanceof Error ? err.message : String(err)}`);
         }
-    }
-
-    // --- Index ---
-
-    /**
-     * Récupère les index d'une table.
-     */
-    public async getIndexes(tableName: string): Promise<IndexDef[]> {
-        this.ensureOpen();
-
-        const rawIndexes = this.db!.pragma(`index_list(${this.escapeIdentifier(tableName)})`) as {
-            seq: number;
-            name: string;
-            unique: number;
-            origin: string;
-            partial: number;
-        }[];
-
-        return rawIndexes.map(idx => {
-            const columns = (this.db!.pragma(`index_info(${this.escapeIdentifier(idx.name)})`) as { name: string }[])
-                .map(c => c.name);
-            return {
-                name: idx.name,
-                table: tableName,
-                unique: idx.unique === 1,
-                columns,
-                origin: idx.origin,
-            };
-        });
-    }
-
-    /**
-     * Crée un index sur une table.
-     */
-    public async createIndex(tableName: string, indexName: string, columns: string[], unique: boolean): Promise<void> {
-        this.ensureOpen();
-
-        const uniqueClause = unique ? "UNIQUE " : "";
-        const safeIndex = this.escapeIdentifier(indexName);
-        const safeTable = this.escapeIdentifier(tableName);
-        const safeCols = columns.map(c => this.escapeIdentifier(c)).join(", ");
-
-        this.db!.prepare(`CREATE ${uniqueClause}INDEX IF NOT EXISTS ${safeIndex} ON ${safeTable} (${safeCols})`).run();
-    }
-
-    /**
-     * Supprime un index.
-     */
-    public async dropIndex(indexName: string): Promise<void> {
-        this.ensureOpen();
-
-        const safeIndex = this.escapeIdentifier(indexName);
-        this.db!.prepare(`DROP INDEX IF EXISTS ${safeIndex}`).run();
-    }
-
-    // --- Schéma ---
-
-    /**
-     * Crée une nouvelle table.
-     */
-    public async createTable(name: string, columns: CreateTableColumnDef[], ifNotExists: boolean): Promise<void> {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(name);
-        const ifNotExistsClause = ifNotExists ? "IF NOT EXISTS " : "";
-
-        const pkColumns = columns.filter(c => c.primaryKey);
-        const hasSinglePk = pkColumns.length === 1;
-        const hasCompositePk = pkColumns.length > 1;
-
-        const colDefs = columns.map(col => {
-            const safeName = this.escapeIdentifier(col.name);
-            const type = col.type || "TEXT";
-            let def = `${safeName} ${type}`;
-            if (hasSinglePk && col.primaryKey) {
-                def += " PRIMARY KEY";
-            }
-            if (col.notNull && !col.primaryKey) {
-                def += " NOT NULL";
-            }
-            if (col.unique && !col.primaryKey) {
-                def += " UNIQUE";
-            }
-            if (col.defaultValue !== null && col.defaultValue !== undefined && col.defaultValue !== "") {
-                def += ` DEFAULT ${col.defaultValue}`;
-            }
-            return def;
-        });
-
-        if (hasCompositePk) {
-            const pkCols = pkColumns.map(c => this.escapeIdentifier(c.name)).join(", ");
-            colDefs.push(`PRIMARY KEY (${pkCols})`);
-        }
-
-        this.db!.prepare(`CREATE TABLE ${ifNotExistsClause}${safeTable} (${colDefs.join(", ")})`).run();
-    }
-
-    /**
-     * Modifie le schéma d'une table.
-     */
-    public async alterTable(action: R_AlterTableAction): Promise<void> {
-        this.ensureOpen();
-
-        switch (action.action) {
-            case "rename-table": {
-                const safeOld = this.escapeIdentifier(action.table);
-                const safeNew = this.escapeIdentifier(action.newName);
-                this.db!.prepare(`ALTER TABLE ${safeOld} RENAME TO ${safeNew}`).run();
-                break;
-            }
-            case "add-column": {
-                const safeTable = this.escapeIdentifier(action.table);
-                const safeName = this.escapeIdentifier(action.column.name);
-                const type = action.column.type || "TEXT";
-                let colDef = `${safeName} ${type}`;
-                if (action.column.notNull) {
-                    colDef += " NOT NULL";
-                }
-                if (action.column.defaultValue !== null && action.column.defaultValue !== undefined && action.column.defaultValue !== "") {
-                    colDef += ` DEFAULT ${action.column.defaultValue}`;
-                }
-                this.db!.prepare(`ALTER TABLE ${safeTable} ADD COLUMN ${colDef}`).run();
-                break;
-            }
-            case "rename-column": {
-                const safeTable = this.escapeIdentifier(action.table);
-                const safeOldCol = this.escapeIdentifier(action.column);
-                const safeNewCol = this.escapeIdentifier(action.newName);
-                this.db!.prepare(`ALTER TABLE ${safeTable} RENAME COLUMN ${safeOldCol} TO ${safeNewCol}`).run();
-                break;
-            }
-            case "drop-column": {
-                const safeTable = this.escapeIdentifier(action.table);
-                const safeCol = this.escapeIdentifier(action.column);
-                this.db!.prepare(`ALTER TABLE ${safeTable} DROP COLUMN ${safeCol}`).run();
-                break;
-            }
-        }
-    }
-
-    /**
-     * Supprime une table.
-     */
-    public async dropTable(tableName: string): Promise<void> {
-        this.ensureOpen();
-
-        const safeTable = this.escapeIdentifier(tableName);
-        this.db!.prepare(`DROP TABLE IF EXISTS ${safeTable}`).run();
     }
 
     // --- Chiffrement ---
@@ -808,317 +245,18 @@ export class SqliteDriver implements DatabaseDriver {
         this.ensureOpen();
 
         // Une clé vide retire le chiffrement.
-        this.db!.rekey(Buffer.from(newPassword ?? "", "utf8"));
+        this.requireDb().rekey(Buffer.from(newPassword ?? "", "utf8"));
 
         Logger.info("Database password changed");
     }
 
-    // --- Helpers d'import ---
-
-    private parseJsonImport(data: string): Record<string, unknown>[] {
-        const parsed = JSON.parse(data);
-        if (!Array.isArray(parsed)) {
-            throw new Error("JSON must be an array of objects");
-        }
-        return parsed as Record<string, unknown>[];
-    }
-
-    private parseCsvImport(data: string): Record<string, unknown>[] {
-        const lines = data.split(/\r?\n/).filter(l => l.trim().length > 0);
-        if (lines.length < 2) {
-            return [];
-        }
-
-        const headers = this.parseCsvLine(lines[0]);
-        const records: Record<string, unknown>[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-            const values = this.parseCsvLine(lines[i]);
-            const record: Record<string, unknown> = {};
-            for (let j = 0; j < headers.length; j++) {
-                const header = headers[j];
-                if (header !== undefined) {
-                    record[header] = values[j] !== undefined ? this.parseCsvValue(values[j]) : null;
-                }
-            }
-            records.push(record);
-        }
-
-        return records;
-    }
-
-    private parseCsvLine(line: string): string[] {
-        const fields: string[] = [];
-        let current = "";
-        let inQuotes = false;
-
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-                if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
-                    current += '"';
-                    i++;
-                }
-                else {
-                    inQuotes = !inQuotes;
-                }
-            }
-            else if (char === "," && !inQuotes) {
-                fields.push(current);
-                current = "";
-            }
-            else {
-                current += char;
-            }
-        }
-
-        fields.push(current);
-        return fields;
-    }
-
-    private parseCsvValue(value: string): unknown {
-        if (value === "" || value.toLowerCase() === "null") {
-            return null;
-        }
-        if (value.toLowerCase() === "true") {
-            return 1;
-        }
-        if (value.toLowerCase() === "false") {
-            return 0;
-        }
-        const num = Number(value);
-        if (!Number.isNaN(num) && value.trim() !== "") {
-            return num;
-        }
-        return value;
-    }
-
     // --- Helpers privés ---
 
-    private ensureOpen(): void {
+    private requireDb(): BetterSqlite3.Database {
         if (!this.db) {
             throw new Error("Database is not open");
         }
-    }
 
-    private escapeIdentifier(name: string): string {
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-            return `"${name.replace(/"/g, '""')}"`;
-        }
-        return `"${name}"`;
-    }
-
-    private escapeCsvField(field: string): string {
-        if (field.includes(",") || field.includes('"') || field.includes("\n")) {
-            return `"${field.replace(/"/g, '""')}"`;
-        }
-        return field;
-    }
-
-    /**
-     * Extrait la clause ORDER BY du filtre SQL s'il existe.
-     * Retourne { whereClause, orderClause } où orderClause est vide ou commence par " ORDER BY".
-     */
-    private extractOrderByFromFilter(filter: string): { whereClause: string; orderClause: string } {
-        const trimmed = filter.trim();
-
-        // Vérifier si le filtre commence par ORDER BY
-        if (trimmed.match(/^\s*ORDER\s+BY\s+/i)) {
-            return { whereClause: "", orderClause: trimmed };
-        }
-
-        // Chercher "ORDER BY" dans le filtre
-        const orderByMatch = trimmed.match(/^([\s\S]*?)\s+(ORDER\s+BY\s+[\s\S]+)$/i);
-
-        if (!orderByMatch) {
-            return { whereClause: trimmed, orderClause: "" };
-        }
-
-        const whereClause = orderByMatch[1].trim();
-        const orderByPart = orderByMatch[2];
-
-        return {
-            whereClause,
-            orderClause: orderByPart // Trimmed, sans espace avant
-        };
-    }
-
-    /**
-     * Parse le filtre personnalisé en SQL WHERE sécurisé.
-     */
-    private parseFilter(filter: string, tableName: string): string {
-        const validColumns = new Set(
-            (this.db!.prepare(`PRAGMA table_info("${tableName.replace(/"/g, '""')}")`).all() as { name: string }[])
-                .map(c => c.name.toLowerCase())
-        );
-
-        const allowedKeywords = new Set([
-            "and", "or", "not", "like", "in", "is", "null",
-            "between", "glob", "escape", "exists",
-            "case", "when", "then", "else", "end",
-            "true", "false",
-        ]);
-
-        const allowedFunctions = new Set([
-            "count", "sum", "avg", "min", "max",
-            "length", "upper", "lower", "trim", "ltrim", "rtrim",
-            "substr", "replace", "instr", "typeof", "abs", "round",
-            "coalesce", "ifnull", "nullif", "iif",
-            "date", "time", "datetime", "strftime",
-            "hex", "quote", "zeroblob",
-        ]);
-
-        const tokens = this.tokenize(filter);
-
-        const safeParts: string[] = [];
-
-        for (let i = 0; i < tokens.length; i++) {
-            const token = tokens[i];
-            const lower = token.toLowerCase();
-
-            if (["=", "!=", "<>", "<", ">", "<=", ">=", "(", ")", ",", "+", "-", "*", "/", "%"].includes(token)) {
-                safeParts.push(token);
-                continue;
-            }
-
-            if (allowedKeywords.has(lower)) {
-                safeParts.push(token.toUpperCase());
-                continue;
-            }
-
-            if (allowedFunctions.has(lower) && i + 1 < tokens.length && tokens[i + 1] === "(") {
-                safeParts.push(lower.toUpperCase());
-                continue;
-            }
-
-            if (/^'.*'$/.test(token)) {
-                safeParts.push(token);
-                continue;
-            }
-
-            if (/^-?\d+(\.\d+)?$/.test(token)) {
-                safeParts.push(token);
-                continue;
-            }
-
-            if (validColumns.has(lower)) {
-                safeParts.push(this.escapeIdentifier(token));
-                continue;
-            }
-
-            if (/^".*"$/.test(token)) {
-                const unquoted = token.slice(1, -1).replace(/""/g, '"');
-                if (validColumns.has(unquoted.toLowerCase())) {
-                    safeParts.push(this.escapeIdentifier(unquoted));
-                    continue;
-                }
-            }
-
-            throw new Error(`Invalid filter token: '${token}'`);
-        }
-
-        const result = safeParts.join(" ");
-        if (result.trim().length === 0) {
-            throw new Error("Empty filter expression");
-        }
-
-        return result;
-    }
-
-    /**
-     * Tokenise une expression de filtre.
-     */
-    private tokenize(input: string): string[] {
-        const tokens: string[] = [];
-        let i = 0;
-
-        while (i < input.length) {
-            if (/\s/.test(input[i])) {
-                i++;
-                continue;
-            }
-
-            if (input[i] === "'") {
-                let j = i + 1;
-                while (j < input.length) {
-                    if (input[j] === "'") {
-                        if (j + 1 < input.length && input[j + 1] === "'") {
-                            j += 2;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                    else {
-                        j++;
-                    }
-                }
-                tokens.push(input.slice(i, j + 1));
-                i = j + 1;
-                continue;
-            }
-
-            if (input[i] === '"') {
-                let j = i + 1;
-                while (j < input.length) {
-                    if (input[j] === '"') {
-                        if (j + 1 < input.length && input[j + 1] === '"') {
-                            j += 2;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                    else {
-                        j++;
-                    }
-                }
-                tokens.push(input.slice(i, j + 1));
-                i = j + 1;
-                continue;
-            }
-
-            if (i + 1 < input.length) {
-                const twoChar = input.slice(i, i + 2);
-                if (["!=", "<>", "<=", ">="].includes(twoChar)) {
-                    tokens.push(twoChar);
-                    i += 2;
-                    continue;
-                }
-            }
-
-            if ("=<>(),+-*/%".includes(input[i])) {
-                tokens.push(input[i]);
-                i++;
-                continue;
-            }
-
-            if (/\d/.test(input[i]) || (input[i] === "-" && i + 1 < input.length && /\d/.test(input[i + 1]))) {
-                let j = i;
-                if (input[j] === "-") {
-                    j++;
-                }
-                while (j < input.length && /[\d.]/.test(input[j])) {
-                    j++;
-                }
-                tokens.push(input.slice(i, j));
-                i = j;
-                continue;
-            }
-
-            if (/[a-zA-Z_]/.test(input[i])) {
-                let j = i;
-                while (j < input.length && /[a-zA-Z0-9_]/.test(input[j])) {
-                    j++;
-                }
-                tokens.push(input.slice(i, j));
-                i = j;
-                continue;
-            }
-
-            throw new Error(`Unexpected character in filter: '${input[i]}'`);
-        }
-
-        return tokens;
+        return this.db;
     }
 }

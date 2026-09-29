@@ -1,0 +1,10 @@
+@if (transaction.open()) {
+    <div class="banner" role="status">
+        <span class="title">● {{ "transaction.open" | translate }}</span>
+        <span class="pending">{{ pendingLabel() }}</span>
+        <div class="spacer"></div>
+        <button type="button" class="link" (click)="viewDiff()">{{ "transaction.viewDiff" | translate }}</button>
+        <button type="button" class="action" (click)="rollback()">{{ "transaction.rollback" | translate }}</button>
+        <button type="button" class="action primary" (click)="commit()">{{ "transaction.commit" | translate }}</button>
+    </div>
+}

@@ -15,51 +15,56 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild } from "@angular/core";
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    ElementRef,
+    inject,
+    signal,
+    viewChild,
+} from "@angular/core";
+import type { FieldDef } from "@shared/types";
+import type {
+    ErFkLink,
+    ErNodeDrag,
+    ErTableNode,
+    ErViewPan,
+    ErViewport,
+} from "src/app/core/models/er-diagram.model";
+import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { StateService } from "src/app/core/services/state.service";
-import type { DatabaseSchema, FieldDef, TableSchema } from "@shared/types";
+import {
+    computeErLinks,
+    ER_GRID_STEP,
+    ER_HEADER_HEIGHT,
+    ER_ROW_HEIGHT,
+    layoutErNodes,
+    zoomViewAt,
+} from "src/app/shared/helpers/er-diagram.helper";
 
-/** Coordonnées d'un nœud de table sur le diagramme. */
-interface TableNode {
-    table: TableSchema;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
+/** Vue initiale : léger retrait pour ne pas coller les premières boîtes au bord. */
+const INITIAL_VIEW: ErViewport = { x: 20, y: 20, k: 1 };
 
-/** Connexion FK entre deux tables. */
-interface FkLink {
-    fromTable: string;
-    fromColumn: string;
-    toTable: string;
-    toColumn: string;
-    path: string;
-}
+/** Facteur appliqué par cran de molette ou clic sur − / +. */
+const ZOOM_FACTOR = 1.1;
 
-/** État d'un drag de nœud en cours. */
-interface DragState {
-    nodeIndex: number;
-    startMouseX: number;
-    startMouseY: number;
-    startNodeX: number;
-    startNodeY: number;
-}
+/** Déplacement (px) au-delà duquel un appui sur une boîte devient un glisser et non un clic. */
+const CLICK_TOLERANCE = 3;
 
-/** État du pan (déplacement de la vue). */
-interface PanState {
-    startMouseX: number;
-    startMouseY: number;
-    startScrollX: number;
-    startScrollY: number;
-}
+/** Marge laissée autour du contenu dans le calque SVG des liens. */
+const CANVAS_PADDING = 200;
 
 /**
  * Page de diagramme entité-relation (ER Diagram).
- * Affiche les tables de la base de données avec leurs colonnes et clés étrangères.
- * Les nœuds sont repositionnables par drag & drop.
- * La vue est pannable et zoomable.
+ *
+ * Affiche les tables de la base et leurs clés étrangères sur un plan infini :
+ * molette pour zoomer (centré sur le pointeur), glisser le fond pour déplacer la
+ * vue, glisser une boîte pour la repositionner, clic sur son en-tête pour ouvrir
+ * la table.
  */
 @Component({
     selector: "app-er-diagram",
@@ -71,357 +76,246 @@ interface PanState {
 export class ErDiagramPage {
     protected readonly i18n = inject(I18nService);
     private readonly state = inject(StateService);
+    private readonly dbService = inject(DatabaseService);
     private readonly destroyRef = inject(DestroyRef);
 
-    private readonly COL_WIDTH = 260;
-    private readonly ROW_HEIGHT = 28;
-    private readonly HEADER_HEIGHT = 36;
-    private readonly H_GAP = 60;
-    private readonly V_GAP = 48;
-    private readonly MIN_ZOOM = 0.2;
-    private readonly MAX_ZOOM = 2.5;
-    private readonly ZOOM_STEP = 0.15;
-    /** Marge supplémentaire autour du contenu pour permettre le pan. */
-    private readonly PAN_PADDING = 200;
-    /** Ratio largeur/hauteur cible pour le layout en grille (paysage 16:9). */
-    private readonly TARGET_ASPECT_RATIO = 16 / 9;
+    private readonly canvasRef = viewChild<ElementRef<HTMLDivElement>>("erCanvas");
 
-    /** Positions modifiables des nœuds (permet le drag & drop). */
-    protected readonly nodes = signal<TableNode[]>([]);
+    protected readonly headerHeight = ER_HEADER_HEIGHT;
+    protected readonly rowHeight = ER_ROW_HEIGHT;
 
-    /** Niveau de zoom courant. */
-    protected readonly zoom = signal<number>(1);
+    /** Positions modifiables des boîtes. */
+    protected readonly nodes = signal<ErTableNode[]>([]);
 
-    /** Index du nœud en cours de drag (ou -1). */
-    private dragState: DragState | null = null;
+    /** Translation et zoom de la vue. */
+    protected readonly view = signal<ErViewport>(INITIAL_VIEW);
 
-    /** État du pan en cours. */
-    private panState: PanState | null = null;
+    /** Un déplacement de la vue est en cours (curseur « main fermée »). */
+    protected readonly panning = signal<boolean>(false);
 
-    /** Référence au conteneur scrollable. */
-    private readonly wrapperRef = viewChild<ElementRef<HTMLDivElement>>("erWrapper");
+    /** Liens FK recalculés quand les boîtes bougent. */
+    protected readonly links = computed<ErFkLink[]>(() => computeErLinks(this.nodes()));
 
-    /** Liens FK recalculés quand les nodes bougent. */
-    protected readonly links = computed<FkLink[]>(() => this.computeLinks(this.nodes()));
-
-    /** Taille totale du canvas SVG (en coordonnées logiques, avant zoom). */
+    /** Étendue du calque SVG des liens, en coordonnées du plan. */
     protected readonly canvasSize = computed(() => {
         const nodes = this.nodes();
+
         if (nodes.length === 0) {
             return { width: 600, height: 400 };
         }
-        const z = this.zoom();
-        const maxX = Math.max(...nodes.map(n => n.x + n.width)) + this.PAN_PADDING;
-        const maxY = Math.max(...nodes.map(n => n.y + n.height)) + this.PAN_PADDING;
-        return { width: maxX * z, height: maxY * z };
+
+        const width = Math.max(...nodes.map(node => node.x + node.width)) + CANVAS_PADDING;
+        const height = Math.max(...nodes.map(node => node.y + node.height)) + CANVAS_PADDING;
+
+        return { width, height };
     });
 
-    /** Libellé du zoom en %. */
-    protected readonly zoomLabel = computed(() => `${Math.round(this.zoom() * 100)}%`);
+    protected readonly layerTransform = computed(() => {
+        const { x, y, k } = this.view();
+        return `translate(${x}px, ${y}px) scale(${k})`;
+    });
+
+    /** La grille de points suit la vue : même pas mis à l'échelle, même décalage. */
+    protected readonly gridSize = computed(() => {
+        const step = ER_GRID_STEP * this.view().k;
+        return `${step}px ${step}px`;
+    });
+
+    protected readonly gridPosition = computed(() => {
+        const { x, y } = this.view();
+        return `${x}px ${y}px`;
+    });
+
+    /** Libellé du zoom, « 100 % ». */
+    protected readonly zoomLabel = computed(() => {
+        const percent = this.i18n.formatNumber(this.view().k, { style: "percent", maximumFractionDigits: 0 });
+        return percent;
+    });
+
+    private nodeDrag: ErNodeDrag | null = null;
+    private viewPan: ErViewPan | null = null;
 
     public constructor() {
         effect(() => {
             const db = this.state.database();
-            if (db) {
-                this.nodes.set(this.layoutNodes(db));
-            }
-            else {
-                this.nodes.set([]);
-            }
+            this.nodes.set(db ? layoutErNodes(db.tables) : []);
         });
 
-        this.destroyRef.onDestroy(() => {
-            document.removeEventListener("mousemove", this.onNodeMouseMove);
-            document.removeEventListener("mouseup", this.onNodeMouseUp);
-            document.removeEventListener("mousemove", this.onPanMouseMove);
-            document.removeEventListener("mouseup", this.onPanMouseUp);
-        });
+        this.destroyRef.onDestroy(() => this.detachDocumentListeners());
     }
 
     /**
-     * Retourne la hauteur d'une table (header + lignes colonnes).
+     * Pastille de clé d'une colonne (PK, FK), vide sinon.
      */
-    protected getTableHeight(table: TableSchema): number {
-        return this.HEADER_HEIGHT + table.fields.length * this.ROW_HEIGHT;
-    }
-
-    /**
-     * Retourne le badge d'un champ (PK, FK).
-     */
-    protected getFieldBadge(field: FieldDef): string {
+    protected fieldKey(field: FieldDef): "PK" | "FK" | "" {
         if (field.pk) {
             return "PK";
         }
+
         if (field.fk) {
             return "FK";
         }
+
         return "";
     }
 
     /**
-     * Démarre le drag d'un nœud.
+     * Nombre de lignes d'une table, formaté pour la langue courante.
      */
-    protected startDrag(event: MouseEvent, index: number): void {
+    protected formatRowCount(count: number): string {
+        return this.i18n.formatNumber(count);
+    }
+
+    /**
+     * Molette : zoom centré sur le pointeur.
+     */
+    protected onWheel(event: WheelEvent): void {
+        event.preventDefault();
+
+        const factor = event.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+        const origin = this.pointerInCanvas(event);
+
+        this.view.update(view => zoomViewAt(view, factor, origin.x, origin.y));
+    }
+
+    /**
+     * Appui sur le fond : début du déplacement de la vue.
+     */
+    protected startPan(event: MouseEvent): void {
+        if (event.button !== 0) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const view = this.view();
+        this.viewPan = { startMouseX: event.clientX, startMouseY: event.clientY, startX: view.x, startY: view.y };
+        this.panning.set(true);
+        this.attachDocumentListeners();
+    }
+
+    /**
+     * Appui sur une boîte : début de son déplacement, ou clic sur l'en-tête.
+     */
+    protected startNodeDrag(event: MouseEvent, index: number): void {
+        if (event.button !== 0) {
+            return;
+        }
+
         event.preventDefault();
         event.stopPropagation();
 
         const node = this.nodes()[index];
+
         if (!node) {
             return;
         }
 
-        this.dragState = {
-            nodeIndex: index,
+        const onHeader = (event.target as Element).closest(".box-header") !== null;
+
+        this.nodeDrag = {
+            index,
             startMouseX: event.clientX,
             startMouseY: event.clientY,
             startNodeX: node.x,
             startNodeY: node.y,
+            moved: false,
+            onHeader,
         };
-
-        document.addEventListener("mousemove", this.onNodeMouseMove);
-        document.addEventListener("mouseup", this.onNodeMouseUp);
+        this.attachDocumentListeners();
     }
 
     /**
-     * Démarre le pan de la vue quand on click sur le fond du canvas.
+     * Zoom par les boutons − / +, centré sur le milieu du cadre.
      */
-    protected startPan(event: MouseEvent): void {
-        // Ne pas démarrer un pan si on est sur un nœud
-        if ((event.target as Element).closest(".table-node")) {
-            return;
-        }
+    protected zoomBy(factor: number): void {
+        const canvas = this.canvasRef()?.nativeElement;
+        const centerX = (canvas?.clientWidth ?? 0) / 2;
+        const centerY = (canvas?.clientHeight ?? 0) / 2;
 
-        event.preventDefault();
-
-        const wrapper = this.wrapperRef()?.nativeElement;
-        if (!wrapper) {
-            return;
-        }
-
-        this.panState = {
-            startMouseX: event.clientX,
-            startMouseY: event.clientY,
-            startScrollX: wrapper.scrollLeft,
-            startScrollY: wrapper.scrollTop,
-        };
-
-        document.addEventListener("mousemove", this.onPanMouseMove);
-        document.addEventListener("mouseup", this.onPanMouseUp);
-    }
-
-    /**
-     * Zoome avec la molette de la souris (Ctrl+wheel).
-     */
-    protected onWheelZoom(event: WheelEvent): void {
-        if (!event.ctrlKey) {
-            return;
-        }
-        event.preventDefault();
-        const delta = event.deltaY > 0 ? -this.ZOOM_STEP : this.ZOOM_STEP;
-        this.zoom.update(z => Math.max(this.MIN_ZOOM, Math.min(this.MAX_ZOOM, +(z + delta).toFixed(2))));
+        this.view.update(view => zoomViewAt(view, factor, centerX, centerY));
     }
 
     protected zoomIn(): void {
-        this.zoom.update(z => Math.min(this.MAX_ZOOM, +(z + this.ZOOM_STEP).toFixed(2)));
+        this.zoomBy(ZOOM_FACTOR);
     }
 
     protected zoomOut(): void {
-        this.zoom.update(z => Math.max(this.MIN_ZOOM, +(z - this.ZOOM_STEP).toFixed(2)));
-    }
-
-    protected resetZoom(): void {
-        this.zoom.set(1);
-    }
-
-    /** Handler mousemove pour le déplacement d'un nœud. */
-    private readonly onNodeMouseMove = (event: MouseEvent): void => {
-        if (!this.dragState) {
-            return;
-        }
-        const z = this.zoom();
-        const dx = (event.clientX - this.dragState.startMouseX) / z;
-        const dy = (event.clientY - this.dragState.startMouseY) / z;
-        const newX = Math.max(0, this.dragState.startNodeX + dx);
-        const newY = Math.max(0, this.dragState.startNodeY + dy);
-        const idx = this.dragState.nodeIndex;
-        this.nodes.update(nodes => nodes.map((n, i) => i === idx ? { ...n, x: newX, y: newY } : n));
-    };
-
-    /** Handler mouseup pour la fin du déplacement d'un nœud. */
-    private readonly onNodeMouseUp = (): void => {
-        this.dragState = null;
-        document.removeEventListener("mousemove", this.onNodeMouseMove);
-        document.removeEventListener("mouseup", this.onNodeMouseUp);
-    };
-
-    /** Handler mousemove pour le pan. */
-    private readonly onPanMouseMove = (event: MouseEvent): void => {
-        if (!this.panState) {
-            return;
-        }
-        const wrapper = this.wrapperRef()?.nativeElement;
-        if (!wrapper) {
-            return;
-        }
-        const dx = event.clientX - this.panState.startMouseX;
-        const dy = event.clientY - this.panState.startMouseY;
-        wrapper.scrollLeft = this.panState.startScrollX - dx;
-        wrapper.scrollTop = this.panState.startScrollY - dy;
-    };
-
-    /** Handler mouseup pour la fin du pan. */
-    private readonly onPanMouseUp = (): void => {
-        this.panState = null;
-        document.removeEventListener("mousemove", this.onPanMouseMove);
-        document.removeEventListener("mouseup", this.onPanMouseUp);
-    };
-
-    /**
-     * Calcule le nombre optimal de colonnes pour un ratio approchant 1:1.
-     * Essaie chaque valeur de colonnes (1..tableCount) et retient celle
-     * dont le rapport largeur/hauteur est le plus proche de 1.
-     */
-    private computeOptimalCols(db: DatabaseSchema): number {
-        const n = db.tables.length;
-        if (n <= 1) {
-            return 1;
-        }
-
-        const avgFieldCount = db.tables.reduce((sum, t) => sum + t.fields.length, 0) / n;
-        const avgHeight = this.HEADER_HEIGHT + avgFieldCount * this.ROW_HEIGHT;
-        const cellW = this.COL_WIDTH + this.H_GAP;
-        const cellH = avgHeight + this.V_GAP;
-
-        let bestCols = 1;
-        let bestRatio = Infinity;
-
-        for (let cols = 1; cols <= n; cols++) {
-            const rows = Math.ceil(n / cols);
-            const totalW = cols * cellW;
-            const totalH = rows * cellH;
-            const ratio = Math.abs(totalW / totalH - this.TARGET_ASPECT_RATIO);
-
-            if (ratio < bestRatio) {
-                bestRatio = ratio;
-                bestCols = cols;
-            }
-        }
-
-        return bestCols;
+        this.zoomBy(1 / ZOOM_FACTOR);
     }
 
     /**
-     * Calcule les positions initiales des nœuds en grille.
+     * Revient à la vue initiale (zoom 100 %, sans décalage).
      */
-    private layoutNodes(db: DatabaseSchema): TableNode[] {
-        const nodes: TableNode[] = [];
-        const tableCount = db.tables.length;
-        const colsPerRow = this.computeOptimalCols(db);
-
-        const rowCount = Math.ceil(tableCount / colsPerRow);
-        const rowMaxHeights: number[] = [];
-
-        for (let r = 0; r < rowCount; r++) {
-            let maxH = 0;
-            for (let c = 0; c < colsPerRow; c++) {
-                const tableIdx = r * colsPerRow + c;
-                if (tableIdx >= tableCount) {
-                    break;
-                }
-                const table = db.tables[tableIdx];
-                if (table) {
-                    maxH = Math.max(maxH, this.getTableHeight(table));
-                }
-            }
-            rowMaxHeights.push(maxH);
-        }
-
-        const rowY: number[] = [];
-        let cumulativeY = this.V_GAP;
-        for (let r = 0; r < rowCount; r++) {
-            rowY.push(cumulativeY);
-            cumulativeY += (rowMaxHeights[r] ?? 0) + this.V_GAP;
-        }
-
-        for (let i = 0; i < tableCount; i++) {
-            const table = db.tables[i];
-            if (!table) {
-                continue;
-            }
-
-            const col = i % colsPerRow;
-            const row = Math.floor(i / colsPerRow);
-
-            nodes.push({
-                table,
-                x: this.H_GAP + col * (this.COL_WIDTH + this.H_GAP),
-                y: rowY[row] ?? this.V_GAP,
-                width: this.COL_WIDTH,
-                height: this.getTableHeight(table),
-            });
-        }
-
-        return nodes;
+    protected resetView(): void {
+        this.view.set(INITIAL_VIEW);
     }
 
-    /**
-     * Calcule les chemins SVG pour les liens FK.
-     */
-    private computeLinks(nodes: TableNode[]): FkLink[] {
-        const links: FkLink[] = [];
-        const nodeMap = new Map(nodes.map(n => [n.table.name, n]));
+    /** Position du pointeur relativement au cadre du diagramme. */
+    private pointerInCanvas(event: MouseEvent): { x: number; y: number } {
+        const rect = this.canvasRef()?.nativeElement.getBoundingClientRect();
 
-        for (const sourceNode of nodes) {
-            for (const field of sourceNode.table.fields) {
-                if (!field.fk) {
-                    continue;
-                }
+        return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
+    }
 
-                const targetNode = nodeMap.get(field.fk.table);
-                if (!targetNode) {
-                    continue;
-                }
+    private readonly onMouseMove = (event: MouseEvent): void => {
+        const drag = this.nodeDrag;
 
-                const fieldIndex = sourceNode.table.fields.indexOf(field);
-                const fromY = sourceNode.y + this.HEADER_HEIGHT + fieldIndex * this.ROW_HEIGHT + this.ROW_HEIGHT / 2;
+        if (drag) {
+            const dx = event.clientX - drag.startMouseX;
+            const dy = event.clientY - drag.startMouseY;
 
-                const targetFieldIndex = targetNode.table.fields.findIndex(f => f.name === field.fk!.column);
-                const toY = targetFieldIndex >= 0
-                    ? targetNode.y + this.HEADER_HEIGHT + targetFieldIndex * this.ROW_HEIGHT + this.ROW_HEIGHT / 2
-                    : targetNode.y + this.HEADER_HEIGHT / 2;
-
-                const sourceRight = sourceNode.x + sourceNode.width;
-                const targetRight = targetNode.x + targetNode.width;
-
-                let fromX: number;
-                let toX: number;
-
-                if (sourceNode.x > targetRight) {
-                    fromX = sourceNode.x;
-                    toX = targetRight;
-                }
-                else if (sourceRight < targetNode.x) {
-                    fromX = sourceRight;
-                    toX = targetNode.x;
-                }
-                else {
-                    fromX = sourceRight;
-                    toX = targetNode.x;
-                }
-
-                const midX = (fromX + toX) / 2;
-                const path = `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`;
-
-                links.push({
-                    fromTable: sourceNode.table.name,
-                    fromColumn: field.name,
-                    toTable: field.fk.table,
-                    toColumn: field.fk.column,
-                    path,
-                });
+            if (!drag.moved && Math.hypot(dx, dy) < CLICK_TOLERANCE) {
+                return;
             }
+
+            drag.moved = true;
+
+            const k = this.view().k;
+            const x = drag.startNodeX + dx / k;
+            const y = drag.startNodeY + dy / k;
+
+            this.nodes.update(nodes => nodes.map((node, i) => i === drag.index ? { ...node, x, y } : node));
+            return;
         }
 
-        return links;
+        const pan = this.viewPan;
+
+        if (pan) {
+            const x = pan.startX + event.clientX - pan.startMouseX;
+            const y = pan.startY + event.clientY - pan.startMouseY;
+
+            this.view.update(view => ({ ...view, x, y }));
+        }
+    };
+
+    private readonly onMouseUp = (): void => {
+        const drag = this.nodeDrag;
+
+        this.nodeDrag = null;
+        this.viewPan = null;
+        this.panning.set(false);
+        this.detachDocumentListeners();
+
+        if (drag && !drag.moved && drag.onHeader) {
+            const table = this.nodes()[drag.index]?.table.name;
+
+            if (table) {
+                void this.dbService.selectTable(table);
+            }
+        }
+    };
+
+    /**
+     * Le glisser se poursuit hors du cadre : on écoute le document, le temps du geste.
+     */
+    private attachDocumentListeners(): void {
+        document.addEventListener("mousemove", this.onMouseMove);
+        document.addEventListener("mouseup", this.onMouseUp);
+    }
+
+    private detachDocumentListeners(): void {
+        document.removeEventListener("mousemove", this.onMouseMove);
+        document.removeEventListener("mouseup", this.onMouseUp);
     }
 }

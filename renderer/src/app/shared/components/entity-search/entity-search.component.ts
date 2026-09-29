@@ -31,13 +31,7 @@ import { I18nService } from "src/app/core/services/i18n.service";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { StateService } from "src/app/core/services/state.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
-
-/** Représente un résultat de recherche. */
-interface SearchResult {
-    label: string;
-    type: "table" | "procedure";
-    schema?: string;
-}
+import type { SearchResult } from "src/app/shared/components/entity-search/entity-search.model";
 
 /**
  * Barre de recherche globale (Ctrl+E) permettant de chercher
@@ -56,7 +50,7 @@ interface SearchResult {
     },
 })
 export class EntitySearchComponent implements OnInit, OnDestroy {
-    private readonly i18n = inject(I18nService);
+    protected readonly i18n = inject(I18nService);
     private readonly dbService = inject(DatabaseService);
     private readonly state = inject(StateService);
     private readonly storedProcService = inject(StoredProceduresService);

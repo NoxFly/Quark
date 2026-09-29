@@ -21,30 +21,26 @@ import { AppState } from "@shared/types";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
-import { SESSION_DIFF_TAB_ID, SQL_EDITOR_TAB_ID, TabsService } from "src/app/core/services/tabs.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
+import { ShellService } from "src/app/core/services/shell.service";
 import { SidebarComponent } from "./core/components/sidebar/sidebar.component";
 import { StatusbarComponent } from "./core/components/statusbar/statusbar.component";
 import { TabsBarComponent } from "./core/components/tabs-bar/tabs-bar.component";
 import { TitlebarComponent } from "./core/components/titlebar/titlebar.component";
+import { TransactionBannerComponent } from "./core/components/transaction-banner/transaction-banner.component";
 import { LoadingScreenComponent } from "./shared/components/loading-screen/loading-screen.component";
 import { ThemePickerComponent } from "./shared/components/theme-picker/theme-picker.component";
 import { RecentDatabasesComponent } from "./shared/components/recent-databases/recent-databases.component";
 import { PasswordPromptComponent } from "./shared/components/password-prompt/password-prompt.component";
 import { StartupErrorComponent } from "./shared/components/startup-error/startup-error.component";
-import { ChangePasswordComponent } from "./shared/components/change-password/change-password.component";
-import { CreateTableComponent } from "./shared/components/create-table/create-table.component";
-import { IndexViewerComponent } from "./shared/components/index-viewer/index-viewer.component";
-import { SchemaEditorComponent } from "./shared/components/schema-editor/schema-editor.component";
 import { EntitySearchComponent } from "./shared/components/entity-search/entity-search.component";
-import { AlertController } from "@ui/alert/alert.controller";
-import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import { SessionDiffService } from "src/app/core/services/session-diff.service";
 import { UpdateService } from "src/app/core/services/update.service";
+import { SettingsPage } from "src/app/views/settings/settings.page";
 import { withTimeout } from "src/app/shared/helpers/global.helper";
-import type { UIDismissData } from "src/app/shared/ui/ui.types";
+import { isTextEntryTarget } from "src/app/shared/helpers/shortcut.helper";
 
 /**
  * Échéance de la poignée de main du pont IPC. Plus large que les autres étapes :
@@ -54,6 +50,9 @@ const BRIDGE_TIMEOUT_MS = 20_000;
 
 /** Échéance de chaque requête d'initialisation qui suit la poignée de main. */
 const STARTUP_STEP_TIMEOUT_MS = 15_000;
+
+/** Délai laissé pour la seconde touche d'un accord `Ctrl+K …`. */
+const CHORD_TIMEOUT_MS = 1000;
 
 
 @Component({
@@ -69,6 +68,8 @@ const STARTUP_STEP_TIMEOUT_MS = 15_000;
         SidebarComponent,
         StatusbarComponent,
         TabsBarComponent,
+        TransactionBannerComponent,
+        SettingsPage,
         ThemePickerComponent,
         RecentDatabasesComponent,
         PasswordPromptComponent,
@@ -116,11 +117,9 @@ export class AppComponent {
     protected readonly state = inject(StateService);
     private readonly router = inject(Router);
     private readonly noxus = inject(NoxusService);
-    private readonly dbService = inject(DatabaseService);
-    private readonly tabsService = inject(TabsService);
+    protected readonly dbService = inject(DatabaseService);
+    protected readonly shell = inject(ShellService);
     private readonly themeService = inject(ThemeService);
-    private readonly alertCtrl = inject(AlertController);
-    private readonly modalCtrl = inject(ModalController);
     private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly storedProcService = inject(StoredProceduresService);
     private readonly updateService = inject(UpdateService);
@@ -166,25 +165,27 @@ export class AppComponent {
         // compteurs en continu, le contenu n'est chargé que par la page dédiée.
         this.sessionDiffService.listen();
 
-        // Écouter l'événement "À propos" depuis le titlebar
-        const onAbout = (): void => this.showAboutDialog();
-        const onCreateTable = (): void => { void this.openCreateTable(); };
-        const onChangePassword = (): void => { void this.openChangePassword(); };
-        const onSchemaEditor = (): void => { void this.openSchemaEditor(); };
-        const onIndexViewer = (): void => { void this.openIndexViewer(); };
+        // Les composants qui ne dépendent pas de la coquille (sidebar, pages, accueil)
+        // demandent ses modales et vues par des évènements du document.
+        const shellEvents: Record<string, () => void> = {
+            "open-about-dialog": () => void this.shell.openAbout(),
+            "open-shortcuts": () => void this.shell.openShortcuts(),
+            "open-settings": () => this.shell.openSettings(),
+            "open-connections-manager": () => void this.shell.openConnectionsManager(),
+            "open-create-table": () => void this.shell.openCreateTable(),
+            "open-change-password": () => void this.shell.openChangePassword(),
+            "open-schema-editor": () => void this.shell.openSchemaEditor(),
+            "open-index-viewer": () => void this.shell.openIndexViewer(),
+        };
 
-        document.addEventListener("open-about-dialog", onAbout);
-        document.addEventListener("open-create-table", onCreateTable);
-        document.addEventListener("open-change-password", onChangePassword);
-        document.addEventListener("open-schema-editor", onSchemaEditor);
-        document.addEventListener("open-index-viewer", onIndexViewer);
+        for (const [name, handler] of Object.entries(shellEvents)) {
+            document.addEventListener(name, handler);
+        }
 
         this.destroyRef.onDestroy(() => {
-            document.removeEventListener("open-about-dialog", onAbout);
-            document.removeEventListener("open-create-table", onCreateTable);
-            document.removeEventListener("open-change-password", onChangePassword);
-            document.removeEventListener("open-schema-editor", onSchemaEditor);
-            document.removeEventListener("open-index-viewer", onIndexViewer);
+            for (const [name, handler] of Object.entries(shellEvents)) {
+                document.removeEventListener(name, handler);
+            }
         });
 
         void this.load();
@@ -304,148 +305,198 @@ export class AppComponent {
 
     /**
      * Gère les raccourcis clavier globaux.
+     *
+     * Une touche déjà traitée par un composant (éditeur Monaco, champ de saisie
+     * qui annule l'évènement) n'est pas réinterprétée ici : Ctrl+D ou Ctrl+Entrée
+     * y ont leur propre sens.
      */
     protected handleKeydown(event: KeyboardEvent): void {
-        // Chord: Ctrl+K, Ctrl+T
-        if (this.ctrlKPressed && event.ctrlKey && event.key === "t") {
-            event.preventDefault();
-            this.ctrlKPressed = false;
-            document.dispatchEvent(new CustomEvent("open-theme-picker"));
+        if (event.defaultPrevented) {
             return;
         }
 
-        // Chord: Ctrl+K, Ctrl+F → fermer le fichier
-        if (this.ctrlKPressed && event.ctrlKey && event.key === "f") {
+        if (this.handleChord(event)) {
             event.preventDefault();
+            return;
+        }
+
+        const handler = this.shortcutHandlers[this.shortcutOf(event)];
+
+        if (handler?.(event)) {
+            event.preventDefault();
+        }
+    }
+
+    /**
+     * Accords `Ctrl+K …` : `Ctrl+K Ctrl+T` (sélecteur de thème), `Ctrl+K Ctrl+F` (fermer la base).
+     * @returns `true` si la touche fait partie d'un accord.
+     */
+    private handleChord(event: KeyboardEvent): boolean {
+        const key = event.key.toLowerCase();
+
+        if (this.ctrlKPressed && event.ctrlKey && (key === "t" || key === "f")) {
             this.ctrlKPressed = false;
-            if (this.state.connected()) {
+
+            if (key === "t") {
+                document.dispatchEvent(new CustomEvent("open-theme-picker"));
+            }
+            else if (this.state.connected()) {
                 void this.dbService.closeFile();
             }
-            return;
+
+            return true;
         }
 
-        if (event.ctrlKey && event.key === "k") {
-            event.preventDefault();
+        if (event.ctrlKey && !event.shiftKey && !event.altKey && key === "k") {
             this.ctrlKPressed = true;
-            // Reset après un délai
-            setTimeout(() => { this.ctrlKPressed = false; }, 1000);
-            return;
+            setTimeout(() => { this.ctrlKPressed = false; }, CHORD_TIMEOUT_MS);
+            return true;
         }
 
-        this.ctrlKPressed = false;
-
-        // Ctrl+R : bases de données récentes
-        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "r") {
-            event.preventDefault();
-            document.dispatchEvent(new CustomEvent("open-recent-databases"));
+        if (!["Control", "Shift", "Alt"].includes(event.key)) {
+            this.ctrlKPressed = false;
         }
 
-        // Ctrl+Alt+R : recharger le renderer
-        if (event.ctrlKey && event.altKey && event.key === "r") {
-            event.preventDefault();
-            this.noxus.ipc.requestReload();
-        }
+        return false;
+    }
 
-        // Ctrl+Shift+R : rafraîchir la base
-        if (event.ctrlKey && event.shiftKey && event.key === "R") {
-            event.preventDefault();
-            if (this.state.connected()) {
-                this.dbService.refreshDatabase();
+    /**
+     * Combinaison neutre d'un évènement (« Ctrl+Shift+S »), celle d'`APP_SHORTCUTS`.
+     * Maj n'est retenue que pour les lettres et les touches nommées : sur un clavier
+     * AZERTY, « / » s'obtient avec Maj, et Ctrl+/ doit fonctionner partout.
+     */
+    private shortcutOf(event: KeyboardEvent): string {
+        const key = event.key.length === 1 ? event.key.toUpperCase() : event.key;
+        const shiftMatters = /^[A-Z]$/.test(key) || key.length > 1;
+        const parts = [
+            event.ctrlKey || event.metaKey ? "Ctrl" : "",
+            event.altKey ? "Alt" : "",
+            event.shiftKey && shiftMatters ? "Shift" : "",
+            key,
+        ];
+
+        return parts.filter(part => part !== "").join("+");
+    }
+
+    /**
+     * Action de chaque raccourci global. Un gestionnaire renvoie `true` s'il a
+     * traité la touche (le comportement par défaut est alors empêché).
+     *
+     * Anciennes combinaisons conservées en alias, faute de conflit : Ctrl+Maj+R
+     * (rafraîchir), Ctrl+Maj+Q (éditeur SQL), Ctrl+D (mode édition).
+     */
+    private readonly shortcutHandlers: Readonly<Record<string, (event: KeyboardEvent) => boolean>> = {
+        "Ctrl+O": () => this.run(() => void this.dbService.openFileDialog()),
+        "Ctrl+Shift+C": () => this.run(() => void this.shell.openConnectionsManager()),
+        "Ctrl+R": () => this.run(() => document.dispatchEvent(new CustomEvent("open-recent-databases"))),
+        "Ctrl+Alt+R": () => this.run(() => void this.noxus.ipc.requestReload()),
+        "Ctrl+Shift+N": () => this.run(() => void this.noxus.ipc.newWindow()),
+        "F5": () => this.run(() => void this.shell.refresh()),
+        "Ctrl+Shift+R": () => this.run(() => void this.shell.refresh()),
+        "Ctrl+W": () => this.run(() => void this.shell.closeActiveTab()),
+        "F11": () => this.run(() => this.shell.toggleFullscreen()),
+        "Ctrl+/": () => this.run(() => void this.shell.openShortcuts()),
+        "Ctrl+P": () => this.whenConnected(() => document.dispatchEvent(new CustomEvent("open-entity-search"))),
+        "Ctrl+Shift+S": () => this.whenConnected(() => this.shell.openSqlEditor()),
+        "Ctrl+Shift+Q": () => this.whenConnected(() => this.shell.openSqlEditor()),
+        "Ctrl+Shift+D": () => this.whenConnected(() => this.shell.openErDiagram()),
+        "Ctrl+Shift+M": () => this.whenConnected(() => this.shell.openSessionDiff()),
+        "Ctrl+E": () => this.whenConnected(() => this.dbService.toggleReadOnly()),
+        "Ctrl+D": () => this.whenConnected(() => this.dbService.toggleReadOnly()),
+        "Ctrl+T": () => this.whenConnected(() => {
+            if (!this.dbService.inTransaction()) {
+                void this.dbService.transactionAction("begin");
             }
-        }
-
-        // Ctrl+O : ouvrir un fichier
-        if (event.ctrlKey && !event.altKey && event.key === "o") {
-            event.preventDefault();
-            this.dbService.openFileDialog();
-        }
-
-        // Ctrl+W : fermer l'onglet actif (si un onglet est ouvert)
-        if (event.ctrlKey && !event.altKey && event.key === "w") {
-            event.preventDefault();
-            if (this.state.connected() && this.dbService.tabs.activeTabIndex() >= 0) {
-                void this.dbService.closeActiveTab();
+        }),
+        "Ctrl+Enter": () => this.commitFromKeyboard(),
+        "Ctrl+Shift+Z": event => !isTextEntryTarget(event.target) && this.whenConnected(() => {
+            if (this.dbService.inTransaction()) {
+                void this.dbService.transactionAction("rollback");
             }
-        }
-
-        // Ctrl+Shift+N : nouvelle fenêtre
-        if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "N") {
-            event.preventDefault();
-            this.noxus.ipc.newWindow();
-        }
-
-        // F11 : plein écran
-        if (event.key === "F11") {
-            event.preventDefault();
-            this.noxus.ipc.toggleFullscreen();
-        }
-
-        // Ctrl+D : toggle mode édition (aka [D]esign Mode)
-        if (event.ctrlKey && !event.altKey && event.key === "d") {
-            event.preventDefault();
-            if (this.state.connected()) {
-                this.dbService.toggleReadOnly();
+        }),
+        "Ctrl+Z": event => !isTextEntryTarget(event.target) && this.whenConnected(() => {
+            if (this.dbService.mutationHistory.canUndo()) {
+                void this.dbService.undoLastMutation();
             }
+        }),
+        "Ctrl+Y": event => !isTextEntryTarget(event.target) && this.whenConnected(() => {
+            if (this.dbService.mutationHistory.canRedo()) {
+                void this.dbService.redoLastMutation();
+            }
+        }),
+        "Delete": event => this.deleteSelectionFromKeyboard(event),
+        "Ctrl+N": event => this.newRecordFromKeyboard(event),
+    };
+
+    /**
+     * Exécute une action de raccourci toujours disponible.
+     */
+    private run(action: () => void): boolean {
+        action();
+        return true;
+    }
+
+    /**
+     * Exécute une action de raccourci qui n'a de sens qu'avec une base ouverte.
+     * La touche est tout de même consommée, pour ne pas déclencher le
+     * comportement par défaut de Chromium (Ctrl+P imprime, Ctrl+D ajoute un favori…).
+     */
+    private whenConnected(action: () => void): boolean {
+        if (this.state.connected()) {
+            action();
         }
 
-        // Ctrl+T : démarrer une transaction (si pas déjà active) / aucune action sinon
-        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "t" && !this.ctrlKPressed) {
-            event.preventDefault();
-            if (this.state.connected() && !this.dbService.inTransaction()) {
-                this.dbService.transactionAction("begin");
-            }
+        return true;
+    }
+
+    /**
+     * Ctrl+Entrée valide la transaction, sauf dans les éditeurs de code (éditeur
+     * SQL, procédure stockée) où la même combinaison exécute le script.
+     */
+    private commitFromKeyboard(): boolean {
+        const url = this.router.url;
+
+        if (!this.state.connected() || !this.dbService.inTransaction()
+            || url.includes("/sql-editor") || url.includes("/stored-procedure")) {
+            return false;
         }
 
-        // Ctrl+Z : annuler la dernière mutation
-        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "z") {
-            const target = event.target as HTMLElement;
-            if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
-                event.preventDefault();
-                if (this.state.connected() && this.dbService.mutationHistory.canUndo()) {
-                    this.dbService.undoLastMutation();
-                }
-            }
+        void this.dbService.transactionAction("commit");
+        return true;
+    }
+
+    /**
+     * Suppr supprime les lignes sélectionnées de la table affichée, hors saisie de texte.
+     */
+    private deleteSelectionFromKeyboard(event: KeyboardEvent): boolean {
+        if (isTextEntryTarget(event.target) || !this.canEditActiveTable() || this.dbService.selectedCount() === 0) {
+            return false;
         }
 
-        // Ctrl+Y : rétablir la dernière mutation annulée
-        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === "y") {
-            const target = event.target as HTMLElement;
-            if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
-                event.preventDefault();
-                if (this.state.connected() && this.dbService.mutationHistory.canRedo()) {
-                    this.dbService.redoLastMutation();
-                }
-            }
+        void this.dbService.deleteSelectedRows();
+        return true;
+    }
+
+    /**
+     * Ctrl+N demande l'ouverture du formulaire de nouvel enregistrement à la vue table,
+     * qui détient l'éditeur d'enregistrement.
+     */
+    private newRecordFromKeyboard(event: KeyboardEvent): boolean {
+        if (isTextEntryTarget(event.target) || !this.canEditActiveTable()) {
+            return false;
         }
 
-        // Ctrl+Shift+D : ouvrir le diff de session
-        if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "D") {
-            event.preventDefault();
-            if (this.state.connected()) {
-                this.tabsService.openTab(SESSION_DIFF_TAB_ID);
-                this.dbService.selectedTable.set(null);
-                this.router.navigate(["/dashboard/session-diff"]);
-            }
-        }
+        document.dispatchEvent(new CustomEvent("open-new-record"));
+        return true;
+    }
 
-        // Ctrl+Shift+Q : ouvrir l'éditeur SQL
-        if (event.ctrlKey && !event.altKey && event.shiftKey && event.key === "Q") {
-            event.preventDefault();
-            const capabilities = this.state.capabilities();
-            if (this.state.connected() && (!capabilities || capabilities.sqlQueries)) {
-                this.tabsService.openTab(SQL_EDITOR_TAB_ID);
-                this.dbService.selectedTable.set(null);
-                this.router.navigate(["/dashboard/sql-editor"]);
-            }
-        }
+    /**
+     * Une table (et non un onglet spécial) est affichée et la base est en mode édition.
+     */
+    private canEditActiveTable(): boolean {
+        const table = this.dbService.selectedTable();
 
-        // Ctrl+E : ouvrir la recherche d'entités (tables/procédures)
-        if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key === "e") {
-            event.preventDefault();
-            if (this.state.connected()) {
-                document.dispatchEvent(new CustomEvent("open-entity-search"));
-            }
-        }
+        return this.state.connected() && !this.dbService.readOnly() && table !== null;
     }
 
     /**
@@ -470,114 +521,6 @@ export class AppComponent {
                     this.dbService.openFile(filePath);
                 }
             }
-        }
-    }
-
-    /**
-     * Affiche la modale "À propos".
-     */
-    private showAboutDialog(): void {
-        this.alertCtrl.create({
-            title: this.state.appName(),
-            message: `Version ${this.state.appVersion()}`,
-            color: "primary",
-            actions: [
-                {
-                    text: "OK",
-                    role: "cancel",
-                },
-            ],
-        });
-    }
-
-    /**
-     * Ouvre le modal de création d'une nouvelle table.
-     */
-    private async openCreateTable(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: CreateTableComponent,
-            componentProps: {},
-            backdropClose: false,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<CreateTableComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
-        modal.didDismiss.subscribe(async result => {
-            if (result.role === "confirm") {
-                await this.dbService.refreshDatabase();
-            }
-        });
-    }
-
-    /**
-     * Ouvre le modal de changement de mot de passe / chiffrement.
-     */
-    private async openChangePassword(): Promise<void> {
-        const modal = await this.modalCtrl.create({
-            component: ChangePasswordComponent,
-            componentProps: {},
-            backdropClose: false,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<ChangePasswordComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
-    }
-
-    /**
-     * Ouvre le modal d'édition de schéma de la table active.
-     */
-    private async openSchemaEditor(): Promise<void> {
-        const table = this.dbService.selectedTable();
-        const fields = this.dbService.tableSchema()?.fields ?? [];
-        if (!table || fields.length === 0) {
-            return;
-        }
-        const modal = await this.modalCtrl.create({
-            component: SchemaEditorComponent,
-            componentProps: { tableName: table, fields },
-            backdropClose: false,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<SchemaEditorComponent>();
-        if (comp) {
-            comp.dismiss = async data => {
-                if (data?.["changed"] === true) {
-                    const actions = comp.getAlterActions();
-                    for (const action of actions) {
-                        await this.dbService.alterTable(action);
-                    }
-                }
-                modal.dismiss(data as Partial<UIDismissData>);
-            };
-        }
-    }
-
-    /**
-     * Ouvre le modal de visualisation des index de la table active.
-     */
-    private async openIndexViewer(): Promise<void> {
-        const table = this.dbService.selectedTable();
-        const fields = this.dbService.tableSchema()?.fields ?? [];
-        if (!table) {
-            return;
-        }
-        const modal = await this.modalCtrl.create({
-            component: IndexViewerComponent,
-            componentProps: { tableName: table, fields },
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<IndexViewerComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
         }
     }
 }

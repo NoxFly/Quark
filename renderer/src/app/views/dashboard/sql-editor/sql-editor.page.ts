@@ -28,22 +28,29 @@ import {
     signal,
     viewChild,
 } from "@angular/core";
+import type { R_SqlExecResponse } from "@shared/types";
+import type { SqlHistoryEntry, SqlHistoryItemView } from "src/app/core/models/sql-history.model";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
-import { StateService } from "src/app/core/services/state.service";
 import { MonacoPreloadService } from "src/app/core/services/monaco-preload.service";
+import { SqlHistoryService } from "src/app/core/services/sql-history.service";
+import { StateService } from "src/app/core/services/state.service";
 import { ThemeService } from "src/app/core/services/theme.service";
-import type { R_SqlExecResponse } from "@shared/types";
-import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
-import { ButtonComponent } from "@ui/button/button.component";
+import { compactQuery, formatExecutionTime } from "src/app/shared/helpers/sql-history.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import { VirtualRows } from "src/app/shared/helpers/virtual-rows.helper";
+import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
+import { ButtonComponent } from "@ui/button/button.component";
 
 /** Lignes demandées au main à chaque page supplémentaire. */
 const RESULT_PAGE_SIZE = 1000;
 
 /** Hauteur de ligne attendue (voir la feuille de style), avant mesure. */
-const ESTIMATED_ROW_HEIGHT = 29;
+const ESTIMATED_ROW_HEIGHT = 32;
+
+/** Bornes de la hauteur automatique de l'éditeur, qui suit son contenu. */
+const EDITOR_MIN_HEIGHT = 100;
+const EDITOR_MAX_HEIGHT = 280;
 
 /** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
 declare const monaco: typeof import("monaco-editor");
@@ -54,7 +61,8 @@ declare const monaco: typeof import("monaco-editor");
  * Raccourci : Ctrl+Shift+Q
  *
  * L'éditeur Monaco est chargé dynamiquement via un script AMD loader
- * pré-configuré depuis les assets Angular (`/vs/`).
+ * pré-configuré depuis les assets Angular (`/vs/`). Son thème est dérivé des
+ * design tokens (`--syntax-*`) par `MonacoPreloadService`.
  */
 @Component({
     selector: "app-sql-editor",
@@ -67,6 +75,7 @@ declare const monaco: typeof import("monaco-editor");
 export class SqlEditorPage {
     protected readonly dbService = inject(DatabaseService);
     protected readonly i18n = inject(I18nService);
+    protected readonly history = inject(SqlHistoryService);
     private readonly state = inject(StateService);
     private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly themeService = inject(ThemeService);
@@ -80,8 +89,7 @@ export class SqlEditorPage {
     protected readonly isExecuting = signal<boolean>(false);
     protected readonly hasInput = signal<boolean>(false);
 
-    /** Historique des requêtes exécutées (les 20 dernières). */
-    protected readonly queryHistory = signal<string[]>([]);
+    /** Position dans l'historique lors de la navigation Ctrl+↑/↓ (-1 : hors historique). */
     private historyIndex = -1;
 
     /** Indique si le panneau d'historique est visible. */
@@ -89,6 +97,15 @@ export class SqlEditorPage {
 
     private editor: import("monaco-editor").editor.IStandaloneCodeEditor | null = null;
     private completionDisposable: import("monaco-editor").IDisposable | null = null;
+
+    /**
+     * L'utilisateur a redimensionné l'éditeur à la main : sa hauteur ne suit plus
+     * le contenu, qui l'écraserait à chaque frappe.
+     */
+    private manualEditorHeight = false;
+
+    /** Dernière hauteur appliquée automatiquement, pour reconnaître un redimensionnement manuel. */
+    private autoEditorHeight = 0;
 
     /** Nombre de colonnes du résultat. */
     protected readonly resultColumns = computed(() => this.result()?.columns ?? []);
@@ -116,14 +133,34 @@ export class SqlEditorPage {
     /** Retourne true si le résultat est un SELECT. */
     protected readonly isSelectResult = computed(() => this.result()?.isSelect === true);
 
-    /** Temps d'exécution SQL formaté. */
-    protected readonly executionTime = computed(() => {
-        const ms = this.result()?.executionTimeMs;
-        if (ms === undefined) {
-            return null;
+    /** Statut affiché à droite de la barre d'outils : « Prêt », « 23 lignes · 6 ms », erreur. */
+    protected readonly statusText = computed(() => {
+        if (this.isExecuting()) {
+            return this.i18n.t("sqlEditor.executing");
         }
-        return ms < 1 ? `< 1 ms` : ms < 1000 ? `${ms.toFixed(1)} ms` : `${(ms / 1000).toFixed(2)} s`;
+
+        const error = this.errorMessage();
+
+        if (error) {
+            return error;
+        }
+
+        const result = this.result();
+
+        if (!result) {
+            return this.i18n.t("sqlEditor.ready");
+        }
+
+        return this.describeResult(result.isSelect, this.totalResultRows(), result.rowsAffected, result.executionTimeMs);
     });
+
+    /** Historique prêt à l'affichage. */
+    protected readonly historyItems = computed<SqlHistoryItemView[]>(() => this.history.entries().map(entry => ({
+        entry,
+        compactQuery: compactQuery(entry.query),
+        time: this.i18n.formatDate(entry.executedAt, { hour: "2-digit", minute: "2-digit" }),
+        result: this.describeHistoryEntry(entry),
+    })));
 
     public constructor() {
         afterNextRender(() => this.initMonaco());
@@ -148,12 +185,13 @@ export class SqlEditorPage {
             onCleanup(() => observer.disconnect());
         });
 
-        // Réagir aux changements de thème pour mettre à jour Monaco.
+        // Les couleurs de Monaco sont figées dans son thème : on le redéfinit à
+        // chaque changement de thème de l'application.
         effect(() => {
-            const theme = this.themeService.currentTheme();
+            this.themeService.currentTheme();
+
             if (this.editor) {
-                const monacoTheme = theme === "light" ? "vs" : "vs-dark";
-                monaco.editor.setTheme(monacoTheme);
+                this.monacoPreload.applyAppTheme();
             }
         });
 
@@ -179,12 +217,12 @@ export class SqlEditorPage {
     }
 
     /**
-     * Exécute la requête SQL courante.
-     * En mode readonly, seules les requêtes SELECT sont autorisées.
+     * Exécute la requête SQL courante et l'inscrit dans l'historique, qu'elle
+     * aboutisse ou non. En mode readonly, seules les requêtes SELECT sont autorisées.
      */
     protected async execute(): Promise<void> {
         const sql = this.getSql();
-        if (!sql) {
+        if (!sql || this.isExecuting()) {
             return;
         }
 
@@ -202,25 +240,37 @@ export class SqlEditorPage {
 
         try {
             const response = await this.dbService.execSql(sql);
+            const rows = response.isSelect ? response.totalRows ?? response.rows.length : response.rowsAffected;
+
             this.result.set(response);
             this.resultRows.set(response.rows);
-            this.addToHistory(sql);
+            this.recordHistory({
+                query: sql,
+                executedAt: Date.now(),
+                status: "ok",
+                isSelect: response.isSelect,
+                rows,
+                durationMs: response.executionTimeMs,
+                error: null,
+            });
         }
         catch (err) {
-            this.errorMessage.set(extractIpcErrorMessage(err instanceof Error ? err.message : String(err)));
+            const message = extractIpcErrorMessage(err instanceof Error ? err.message : String(err));
+
+            this.errorMessage.set(message);
+            this.recordHistory({
+                query: sql,
+                executedAt: Date.now(),
+                status: "error",
+                isSelect: false,
+                rows: 0,
+                durationMs: null,
+                error: message,
+            });
         }
         finally {
             this.isExecuting.set(false);
         }
-    }
-
-    /**
-     * Efface le résultat et le message d'erreur.
-     */
-    protected clearResult(): void {
-        this.result.set(null);
-        this.resultRows.set([]);
-        this.errorMessage.set(null);
     }
 
     /**
@@ -236,32 +286,14 @@ export class SqlEditorPage {
     }
 
     /**
-     * Rapatrie la page suivante du résultat conservé par le main.
+     * Fin d'un éventuel redimensionnement de l'éditeur par sa poignée : une
+     * hauteur différente de la dernière hauteur automatique vient de l'utilisateur.
      */
-    private async loadMoreRows(): Promise<void> {
-        const result = this.result();
-        const loaded = this.resultRows().length;
+    protected onEditorResizeEnd(): void {
+        const container = this.editorContainerRef()?.nativeElement;
 
-        if (this.fetchingRows || !result?.resultId || loaded >= this.totalResultRows()) {
-            return;
-        }
-
-        this.fetchingRows = true;
-
-        try {
-            const rows = await this.dbService.fetchSqlRows(result.resultId, loaded, RESULT_PAGE_SIZE);
-
-            // La requête a pu être relancée pendant la lecture : cette page
-            // appartient alors à un résultat qui n'est plus affiché.
-            if (this.result() === result) {
-                this.resultRows.update(existing => existing.concat(rows));
-            }
-        }
-        catch (err) {
-            this.errorMessage.set(extractIpcErrorMessage(err));
-        }
-        finally {
-            this.fetchingRows = false;
+        if (container && this.autoEditorHeight > 0 && container.offsetHeight !== this.autoEditorHeight) {
+            this.manualEditorHeight = true;
         }
     }
 
@@ -270,6 +302,14 @@ export class SqlEditorPage {
      */
     protected toggleHistory(): void {
         this.historyVisible.update(v => !v);
+    }
+
+    /**
+     * Vide l'historique de la base courante.
+     */
+    protected clearHistory(): void {
+        this.history.clear();
+        this.historyIndex = -1;
     }
 
     /**
@@ -304,13 +344,76 @@ export class SqlEditorPage {
     }
 
     /**
-     * Ajoute une requête à l'historique (dédupliquée, max 20 entrées).
+     * Les colonnes d'un résultat n'ont pas de type déclaré : seul le texte garde
+     * la police de l'interface, le reste (nombres, NULL, JSON) est en chasse fixe.
      */
-    private addToHistory(sql: string): void {
-        this.queryHistory.update(history => {
-            const filtered = history.filter(q => q !== sql);
-            return [sql, ...filtered].slice(0, 20);
-        });
+    protected isMonoCell(value: unknown): boolean {
+        return typeof value !== "string";
+    }
+
+    /**
+     * Rapatrie la page suivante du résultat conservé par le main.
+     */
+    private async loadMoreRows(): Promise<void> {
+        const result = this.result();
+        const loaded = this.resultRows().length;
+
+        if (this.fetchingRows || !result?.resultId || loaded >= this.totalResultRows()) {
+            return;
+        }
+
+        this.fetchingRows = true;
+
+        try {
+            const rows = await this.dbService.fetchSqlRows(result.resultId, loaded, RESULT_PAGE_SIZE);
+
+            // La requête a pu être relancée pendant la lecture : cette page
+            // appartient alors à un résultat qui n'est plus affiché.
+            if (this.result() === result) {
+                this.resultRows.update(existing => existing.concat(rows));
+            }
+        }
+        catch (err) {
+            this.errorMessage.set(extractIpcErrorMessage(err));
+        }
+        finally {
+            this.fetchingRows = false;
+        }
+    }
+
+    /**
+     * Libellé du résultat d'une exécution : « 23 lignes · 6 ms » ou « 1 ligne(s) affectée(s) · 2 ms ».
+     */
+    private describeResult(isSelect: boolean, rows: number, rowsAffected: number, durationMs: number | null): string {
+        const count = isSelect
+            ? this.i18n.t("sqlEditor.rowCount", { count: this.i18n.formatNumber(rows) })
+            : this.i18n.t("sqlEditor.rowsAffected", { count: this.i18n.formatNumber(rowsAffected) });
+
+        if (durationMs === null) {
+            return count;
+        }
+
+        const duration = formatExecutionTime(durationMs);
+
+        return `${count} · ${duration}`;
+    }
+
+    /**
+     * Libellé du résultat d'une entrée de l'historique : son message d'erreur, ou son résultat.
+     */
+    private describeHistoryEntry(entry: SqlHistoryEntry): string {
+        if (entry.status === "error") {
+            return entry.error ?? "";
+        }
+
+        return this.describeResult(entry.isSelect, entry.rows, entry.rows, entry.durationMs);
+    }
+
+    /**
+     * Ajoute une exécution à l'historique et sort de la navigation Ctrl+↑/↓.
+     */
+    private recordHistory(entry: SqlHistoryEntry): void {
+        this.history.add(entry);
         this.historyIndex = -1;
     }
 
@@ -327,7 +430,7 @@ export class SqlEditorPage {
      * Navigue dans l'historique des requêtes.
      */
     private navigateHistory(delta: number): void {
-        const history = this.queryHistory();
+        const history = this.history.entries();
         if (history.length === 0) {
             return;
         }
@@ -335,9 +438,9 @@ export class SqlEditorPage {
         this.historyIndex = Math.max(-1, Math.min(history.length - 1, this.historyIndex + delta));
 
         if (this.historyIndex >= 0) {
-            const query = history[this.historyIndex];
-            if (query !== undefined) {
-                this.loadFromHistory(query);
+            const entry = history[this.historyIndex];
+            if (entry !== undefined) {
+                this.loadFromHistory(entry.query);
             }
         }
     }
@@ -356,29 +459,58 @@ export class SqlEditorPage {
     }
 
     /**
+     * Ajuste la hauteur de l'éditeur à son contenu, entre ses deux bornes, tant
+     * que l'utilisateur ne l'a pas fixée lui-même.
+     */
+    private fitEditorHeight(container: HTMLElement): void {
+        if (!this.editor || this.manualEditorHeight) {
+            return;
+        }
+
+        const contentHeight = this.editor.getContentHeight();
+        const height = Math.round(Math.min(EDITOR_MAX_HEIGHT, Math.max(EDITOR_MIN_HEIGHT, contentHeight)));
+
+        if (height !== this.autoEditorHeight) {
+            this.autoEditorHeight = height;
+            container.style.height = `${height}px`;
+        }
+    }
+
+    /**
      * Crée l'instance Monaco Editor et configure l'autocomplétion DB.
      */
     private createEditor(container: HTMLElement): void {
-        // Déterminer le thème en fonction du thème actif
-        const theme = this.themeService.currentTheme() === "light" ? "vs" : "vs-dark";
+        const theme = this.monacoPreload.applyAppTheme();
 
+        // Fira Code 12,5 px, interligne 1,6 : la grammaire de la maquette.
         this.editor = monaco.editor.create(container, {
             value: "",
             language: "sql",
             theme,
             minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+            fontSize: 12.5,
+            lineHeight: 20,
+            fontFamily: "'Fira Code', ui-monospace, Consolas, monospace",
             lineNumbers: "on",
+            lineNumbersMinChars: 3,
+            lineDecorationsWidth: 10,
+            glyphMargin: false,
+            folding: false,
             scrollBeyondLastLine: false,
             automaticLayout: true,
             wordWrap: "on",
             tabSize: 4,
             suggestOnTriggerCharacters: true,
             quickSuggestions: true,
-            padding: { top: 8, bottom: 8 },
+            padding: { top: 12, bottom: 12 },
+            overviewRulerLanes: 0,
+            hideCursorInOverviewRuler: true,
+            scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
             readOnly: this.dbService.readOnly(),
         });
+
+        this.fitEditorHeight(container);
+        this.editor.onDidContentSizeChange(() => this.fitEditorHeight(container));
 
         // Ctrl+Enter → exécuter
         this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -393,7 +525,8 @@ export class SqlEditorPage {
                     e.preventDefault();
                     e.stopPropagation();
                     this.navigateHistory(-1);
-                } else if (e.keyCode === monaco.KeyCode.DownArrow) {
+                }
+                else if (e.keyCode === monaco.KeyCode.DownArrow) {
                     e.preventDefault();
                     e.stopPropagation();
                     this.navigateHistory(1);

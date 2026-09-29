@@ -18,6 +18,9 @@
 import { Controller, Get, inject, Post, type Request } from "@noxfly/noxus/main";
 import type {
     ConnectionConnectResult,
+    ConnectionFolder,
+    ConnectionFolderInput,
+    ConnectionMasterPasswordBody,
     ConnectionProfile,
     ConnectionProfileInput,
     ConnectionVaultStatus,
@@ -31,9 +34,21 @@ import { ConnectionsService } from "src/modules/connections/connections.service"
 export class ConnectionsController {
     private readonly connections = inject(ConnectionsService);
 
+    /**
+     * État du coffre. Sans mot de passe maître, le lire suffit à déverrouiller le
+     * coffre par le trousseau du système.
+     */
     @Get("status")
-    public getStatus(): ConnectionVaultStatus {
-        return this.connections.store.getStatus();
+    public async getStatus(): Promise<ConnectionVaultStatus> {
+        return await this.connections.store.getStatus();
+    }
+
+    /**
+     * Active ou désactive la protection du coffre par mot de passe maître.
+     */
+    @Post("master-password")
+    public async setMasterPassword(request: Request): Promise<void> {
+        await this.connections.store.setMasterPassword(request.body as ConnectionMasterPasswordBody);
     }
 
     @Post("initialize")
@@ -74,6 +89,31 @@ export class ConnectionsController {
     public async delete(request: Request): Promise<void> {
         const { id } = request.body as { id: string };
         await this.connections.store.delete(id);
+    }
+
+    // --- Dossiers ---
+
+    @Get("folders")
+    public listFolders(): ConnectionFolder[] {
+        return this.connections.store.listFolders();
+    }
+
+    @Post("folder-create")
+    public async createFolder(request: Request): Promise<ConnectionFolder> {
+        const { input } = request.body as { input: ConnectionFolderInput };
+        return await this.connections.store.createFolder(input);
+    }
+
+    @Post("folder-update")
+    public async updateFolder(request: Request): Promise<ConnectionFolder> {
+        const { id, input } = request.body as { id: string; input: ConnectionFolderInput };
+        return await this.connections.store.updateFolder(id, input);
+    }
+
+    @Post("folder-delete")
+    public async deleteFolder(request: Request): Promise<void> {
+        const { id } = request.body as { id: string };
+        await this.connections.store.deleteFolder(id);
     }
 
     @Post("connect")

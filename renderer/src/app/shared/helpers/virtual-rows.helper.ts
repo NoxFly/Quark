@@ -24,13 +24,13 @@ export interface VirtualRange {
 }
 
 /**
- * Virtualisation verticale d'un `<table>` par lignes d'espacement.
+ * Virtualisation verticale d'une grille par blocs d'espacement.
  *
- * Seules les lignes visibles (plus une marge) sont dans le DOM ; deux lignes
- * vides, en tête et en fin de `<tbody>`, occupent la hauteur des autres. Cette
- * technique garde un vrai tableau (largeurs de colonnes partagées, en-tête
- * `sticky`), ce que ne permet pas le viewport du CDK, dont la translation du
- * contenu casse le `position: sticky` de l'en-tête.
+ * Seules les lignes visibles (plus une marge) sont dans le DOM ; deux blocs
+ * vides, en tête et en fin de liste, occupent la hauteur des autres. Cette
+ * technique garde les lignes dans le flux normal (largeurs de colonnes partagées,
+ * en-tête `sticky`), ce que ne permet pas le viewport du CDK, dont la translation
+ * du contenu casse le `position: sticky` de l'en-tête.
  *
  * La hauteur de ligne n'est pas supposée : elle est mesurée sur une ligne rendue
  * (`measure`), car une estimation fausse d'un pixel décale la position de
@@ -97,6 +97,17 @@ export class VirtualRows {
         const height = row?.getBoundingClientRect().height ?? 0;
 
         if (height > 0 && Math.abs(height - this.rowHeight()) > 0.1) {
+            this.rowHeight.set(height);
+        }
+    }
+
+    /**
+     * Impose la hauteur de ligne attendue, par exemple quand la densité de la
+     * grille change : la mesure suivante la corrigera si le rendu diffère.
+     * @param height - Hauteur d'une ligne, en pixels.
+     */
+    public setRowHeight(height: number): void {
+        if (height > 0) {
             this.rowHeight.set(height);
         }
     }

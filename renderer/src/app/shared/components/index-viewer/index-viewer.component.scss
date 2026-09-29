@@ -15,219 +15,198 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
+@use "src/app/shared/styles/tool-ui.scss" as tool;
 
-.index-viewer {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
-    width: 480px;
-    max-height: 80vh;
+:host {
+    display: block;
+    height: 100%;
+    overflow: auto;
+    background: var(--bg-app);
 }
 
-.modal-header {
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--border-color);
-
-    h2 {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text-color);
-    }
-}
-
-.error-banner {
-    padding: 10px 24px;
-    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
-    color: var(--color-danger);
-    font-size: 13px;
-}
-
-.modal-body {
-    @include flex(flex, column, nowrap, stretch, stretch, 0);
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px 24px;
-    gap: 6px;
-}
-
-.loading,
-.empty {
-    padding: 16px 0;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-style: italic;
-}
-
-.index-item {
-    padding: 10px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--surface-alt);
+.index-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 900px;
+    padding: 24px 28px;
+    color: var(--text);
 }
 
 .index-header {
-    @include flex(flex, row, nowrap, space-between, center, 8px);
-    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
 }
 
-.index-name {
-    @include flex(flex, row, nowrap, flex-start, center, 6px);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-color);
+.index-title {
+    @include tool.page-title;
+
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.badge {
-    font-size: 9px;
-    font-weight: 700;
-    padding: 2px 5px;
-    border-radius: 3px;
-
-    &.unique {
-        background: color-mix(in srgb, var(--interactive) 20%, transparent);
-        color: var(--interactive);
-    }
-
-    &.origin {
-        background: var(--surface);
-        color: var(--text-muted);
-        border: 1px solid var(--border-color);
-    }
+.error-notice {
+    @include tool.error-notice;
 }
 
-.index-columns {
-    font-size: 12px;
-    color: var(--text-muted);
-    font-family: "Consolas", monospace;
-}
-
-.drop-btn {
-    background: none;
-    border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
-    color: var(--color-danger);
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.15s;
-
-    &:hover:not(:disabled) {
-        background: color-mix(in srgb, var(--color-danger) 15%, transparent);
-    }
-
-    &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
-}
-
-// --- Créer un index ---
-
-.create-section {
-    border-top: 1px solid var(--border-color);
-    padding: 12px 24px;
-}
-
-.toggle-create-btn {
-    background: none;
-    border: none;
-    color: var(--interactive);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0;
-    margin-bottom: 10px;
-
-    &:hover {
-        text-decoration: underline;
-    }
-}
+// --- Formulaire de création ---
 
 .create-form {
-    @include flex(flex, column, nowrap, stretch, stretch, 10px);
+    @include tool.bordered-box;
+
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    background: var(--bg-subtle);
 }
 
 .form-row {
-    @include flex(flex, row, nowrap, flex-start, center, 12px);
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
 }
 
-.form-group {
-    @include flex(flex, column, nowrap, stretch, flex-start, 5px);
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
     flex: 1;
 
-    label {
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    // `ui-input` encapsule son champ : un sélecteur `input[type=...]` posé ici
-    // ne l'atteint pas, et son conteneur interne reste à sa largeur par défaut.
-    // La largeur passe donc par la variable que le composant expose.
     ui-input {
         --width: 100%;
 
         display: block;
         margin: 0;
     }
+}
 
-    input[type="text"] {
-        width: 100%;
-        padding: 6px 8px;
-        border: 1px solid var(--border-color);
-        border-radius: 5px;
-        background: var(--surface-alt);
-        color: var(--text-color);
-        font-size: 13px;
-        outline: none;
-        box-sizing: border-box;
-        transition: border-color 0.15s;
-
-        &:focus {
-            border-color: var(--interactive);
-        }
-    }
+.field-label {
+    @include tool.field-label;
 }
 
 .checkbox-label {
-    @include flex(flex, row, nowrap, flex-start, center, 6px);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-color);
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
     cursor: pointer;
-    white-space: nowrap;
 }
 
-.col-checkboxes {
-    @include flex(flex, row, nowrap, flex-start, center, 8px);
+.column-choices {
+    display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
 
-.col-checkbox {
-    @include flex(flex, row, nowrap, flex-start, center, 5px);
+.column-choice {
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    background: var(--bg-app);
     font-size: 12px;
-    color: var(--text-color);
     cursor: pointer;
-    padding: 3px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--surface-alt);
-    transition: background 0.15s, border-color 0.15s;
 
     &:hover {
-        background: var(--surface);
+        border-color: var(--accent);
     }
 
-    input[type="checkbox"] {
-        margin: 0;
+    &.selected {
+        background: var(--bg-selected);
+        border-color: var(--accent);
     }
 }
 
-.modal-actions {
-    @include flex(flex, row, nowrap, flex-end, center, 8px);
-    padding: 12px 24px;
-    border-top: 1px solid var(--border-color);
+.column-type {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+// --- Tableau des index ---
+
+.index-table {
+    @include tool.bordered-box;
+
+    --index-columns: 1fr 1fr 100px 100px;
+
+    &--editable {
+        --index-columns: 1fr 1fr 100px 100px 90px;
+    }
+}
+
+.index-row {
+    @include tool.table-body-row;
+
+    display: grid;
+    grid-template-columns: var(--index-columns);
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+
+    > span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &--head {
+        @include tool.table-head-row;
+
+        &:hover {
+            background: var(--bg-subtle);
+        }
+    }
+}
+
+.index-name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+
+    .mono {
+        font-size: 11.5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.index-origin {
+    flex: none;
+    font-size: 10px;
+    color: var(--text-faint);
+}
+
+.index-size {
+    color: var(--text-muted);
+}
+
+.index-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.index-empty {
+    padding: 24px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-faint);
 }

@@ -15,12 +15,10 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use "src/theme/mixins.scss" as *;
-
 :host {
     display: none;
     width: 100%;
-    flex-shrink: 0;
+    flex: none;
 
     &.visible {
         display: block;
@@ -28,124 +26,112 @@
 }
 
 .statusbar {
-    @include flex($hor: space-between, $ver: center);
     height: var(--statusbar-height);
-    padding: 0 12px;
-    background: var(--surface-alt);
-    border-top: 1px solid rgba(127, 127, 127, 0.15);
-    font-size: 0.7em;
-    color: rgba(127, 127, 127, 0.7);
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text);
     user-select: none;
 }
 
-.left,
-.right {
-    @include flex($hor: flex-start, $gap: 12px);
+.left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 12px;
+    color: var(--text-secondary);
+    min-width: 0;
+    white-space: nowrap;
 }
 
-.table-name {
-    font-weight: 600;
-    color: rgba(127, 127, 127, 0.8);
+.record-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
 }
 
 .table-size {
-    color: rgba(127, 127, 127, 0.5);
-    font-size: 0.9em;
+    color: var(--text-faint);
 }
 
 .selection-info {
-    color: var(--interactive);
+    color: var(--accent);
 }
 
-.transaction-badge {
-    padding: 1px 6px;
-    border-radius: 3px;
-    background: color-mix(in srgb, var(--color-warning), transparent 85%);
-    color: var(--color-warning);
-    font-weight: 600;
+.spacer {
+    flex: 1;
 }
 
-.edit-mode-btn {
+.right {
+    display: flex;
+    align-items: stretch;
+}
 
+.item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    white-space: nowrap;
 
-    @include flex($gap: 5px);
-    padding: 1px 8px;
-    border: none;
-    border-radius: 3px;
-    background: transparent;
-    color: rgba(127, 127, 127, 0.6);
-    cursor: pointer;
-    font-size: 1em;
-    transition:
-        background 0.15s,
-        color 0.15s;
+    &.clickable {
+        cursor: pointer;
 
-    .segoe-icon {
-        font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 0.9em;
-    }
-
-    .edit-mode-label {
-        font-size: 0.95em;
-    }
-
-    &:hover {
-        background: rgba(127, 127, 127, 0.12);
-        color: var(--text-color);
+        &:hover {
+            background: var(--bg-hover);
+        }
     }
 
     &.active {
-        color: var(--interactive);
+        color: var(--accent);
     }
 }
 
-.sql-editor-btn {
-    @include flex($gap: 5px);
-    padding: 1px 8px;
-    border: none;
-    border-radius: 3px;
-    background: transparent;
-    color: rgba(127, 127, 127, 0.6);
+.transaction {
+    background: var(--warning);
+    color: var(--accent-fg);
+    font-weight: 600;
     cursor: pointer;
-    font-size: 1em;
-    transition:
-        background 0.15s,
-        color 0.15s;
-
-    .segoe-icon {
-        font-family: "Segoe Fluent Icons", sans-serif;
-        font-size: 0.9em;
-    }
 
     &:hover {
-        background: rgba(127, 127, 127, 0.12);
-        color: var(--text-color);
-    }
-
-    &.active {
-        color: var(--interactive);
-        background: color-mix(in srgb, var(--interactive), transparent 90%);
+        background: var(--warning-hover);
     }
 }
 
-.db-type-badge {
-    padding: 1px 6px;
-    border-radius: 3px;
-    color: rgba(127, 127, 127, 0.6);
-    font-size: 0.95em;
+.edit-mode {
+    color: var(--text-secondary);
+
+    .dot {
+        font-size: 8px;
+    }
+
+    &.editing {
+        background: var(--warning);
+        color: var(--accent-fg);
+
+        &:hover {
+            background: var(--warning-hover);
+        }
+    }
+}
+
+.database-type {
+    padding: 0 12px;
+    background: var(--accent);
+    color: var(--accent-fg);
     font-weight: 600;
-    user-select: none;
-}
 
-
-@media screen and (max-width: 700px) {
-    .table-name {
-        display: none;
+    .monogram {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        opacity: .8;
     }
 }
 
 @media screen and (max-width: 600px) {
-    .sql-editor-btn {
+    .table-size,
+    .selection-info {
         display: none;
     }
 }

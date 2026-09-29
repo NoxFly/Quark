@@ -15,18 +15,28 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { DatabaseService } from "src/app/core/services/database.service";
-import { I18nService } from "src/app/core/services/i18n.service";
 import { ButtonComponent } from "@ui/button/button.component";
 import { InputComponent } from "@ui/input/input.component";
+import { DatabaseService } from "src/app/core/services/database.service";
+import { I18nService } from "src/app/core/services/i18n.service";
+import { NoxusService } from "src/app/core/services/noxus.service";
+import { StateService } from "src/app/core/services/state.service";
+import { isEncryptedFile } from "src/app/shared/helpers/database-encryption.helper";
+import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
+
+/** Longueur minimale d'un nouveau mot de passe. */
+const MIN_PASSWORD_LENGTH = 4;
 
 /**
- * Modal pour changer ou supprimer le mot de passe SQLCipher.
- * - Chiffrer une base non chiffrée
- * - Changer le mot de passe d'une base chiffrée
- * - Supprimer le chiffrement d'une base chiffrée
+ * Modale « Chiffrement » d'une base SQLite :
+ * - chiffrer une base qui ne l'est pas ;
+ * - changer le mot de passe d'une base chiffrée ;
+ * - retirer le chiffrement (après une confirmation en place).
+ *
+ * L'état de chiffrement vient de la liste des bases récentes ; s'il est inconnu,
+ * les deux actions restent proposées avec un texte neutre.
  */
 @Component({
     selector: "app-change-password",
@@ -36,57 +46,105 @@ import { InputComponent } from "@ui/input/input.component";
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [FormsModule, ButtonComponent, InputComponent],
 })
-export class ChangePasswordComponent {
+export class ChangePasswordComponent implements OnInit {
     private readonly dbService = inject(DatabaseService);
+    private readonly noxus = inject(NoxusService);
+    private readonly state = inject(StateService);
     protected readonly i18n = inject(I18nService);
 
     /** Callback de fermeture. */
     public dismiss?: (data?: { changed: boolean } | null) => void;
 
-    protected readonly mode = signal<"set" | "remove">("set");
+    /** La base est chiffrée (`null` : inconnu). */
+    protected readonly encrypted = signal<boolean | null>(null);
+
     protected readonly newPassword = signal<string>("");
     protected readonly confirmPassword = signal<string>("");
     protected readonly isSaving = signal<boolean>(false);
     protected readonly errorMessage = signal<string | null>(null);
-    protected readonly success = signal<boolean>(false);
 
-    protected get passwordsMatch(): boolean {
-        return this.newPassword() === this.confirmPassword();
-    }
+    /** Le retrait du chiffrement attend une seconde confirmation. */
+    protected readonly removeArmed = signal<boolean>(false);
 
-    protected get canSubmit(): boolean {
-        if (this.mode() === "remove") {
-            return true;
+    /** Action aboutie, `null` tant qu'aucune ne l'est. */
+    protected readonly done = signal<"set" | "remove" | null>(null);
+
+    protected readonly passwordsMatch = computed(() => this.newPassword() === this.confirmPassword());
+
+    protected readonly canSetPassword = computed(() => {
+        return !this.isSaving() && this.newPassword().length >= MIN_PASSWORD_LENGTH && this.passwordsMatch();
+    });
+
+    /** Texte d'explication, selon l'état de chiffrement connu. */
+    protected readonly descriptionKey = computed(() => {
+        switch (this.encrypted()) {
+            case true: return "changePassword.encryptedDescription";
+            case false: return "changePassword.plainDescription";
+            default: return "changePassword.unknownDescription";
         }
-        const pwd = this.newPassword();
-        return pwd.length >= 4 && this.passwordsMatch;
+    });
+
+    /** Libellé du bouton principal : chiffrer une base en clair, sinon changer le mot de passe. */
+    protected readonly setLabelKey = computed(() => {
+        return this.encrypted() === false ? "changePassword.encrypt" : "changePassword.change";
+    });
+
+    /**
+     *
+     */
+    public async ngOnInit(): Promise<void> {
+        try {
+            const recents = await this.noxus.ipc.getRecentDatabases();
+            this.encrypted.set(isEncryptedFile(recents, this.state.filePath()));
+        }
+        catch {
+            // État inconnu : les deux actions restent proposées.
+        }
     }
 
     /**
-     * Applique le changement de mot de passe.
+     * Chiffre la base ou change son mot de passe.
      */
-    protected async apply(): Promise<void> {
-        if (!this.canSubmit) {
+    protected async setPassword(): Promise<void> {
+        if (!this.canSetPassword()) {
             return;
         }
 
+        await this.apply(this.newPassword(), "set");
+    }
+
+    /**
+     * Retire le chiffrement au second clic : le premier affiche l'avertissement.
+     */
+    protected async removeEncryption(): Promise<void> {
+        if (!this.removeArmed()) {
+            this.removeArmed.set(true);
+            return;
+        }
+
+        await this.apply(null, "remove");
+    }
+
+    protected close(): void {
+        this.dismiss?.({ changed: this.done() !== null });
+    }
+
+    /**
+     * Applique le nouveau mot de passe (`null` retire le chiffrement).
+     */
+    private async apply(password: string | null, action: "set" | "remove"): Promise<void> {
         this.isSaving.set(true);
         this.errorMessage.set(null);
 
         try {
-            const newPwd = this.mode() === "remove" ? null : this.newPassword();
-            await this.dbService.changePassword(newPwd);
-            this.success.set(true);
+            await this.dbService.changePassword(password);
+            this.done.set(action);
         }
         catch (err) {
-            this.errorMessage.set(err instanceof Error ? err.message : String(err));
+            this.errorMessage.set(extractIpcErrorMessage(err));
         }
         finally {
             this.isSaving.set(false);
         }
-    }
-
-    protected close(changed: boolean): void {
-        this.dismiss?.({ changed });
     }
 }

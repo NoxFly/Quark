@@ -33,35 +33,43 @@ import {
 import { FormsModule } from "@angular/forms";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
+import { SettingsService } from "src/app/core/services/settings.service";
 import { StateService } from "src/app/core/services/state.service";
 import { BatchEditComponent } from "src/app/shared/components/batch-edit/batch-edit.component";
 import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
 import type { ContextMenuItem } from "src/app/shared/components/context-menu/context-menu.component";
 import { ImportDataComponent } from "src/app/shared/components/import-data/import-data.component";
-import { IndexViewerComponent } from "src/app/shared/components/index-viewer/index-viewer.component";
 import { RecordEditorComponent } from "src/app/shared/components/record-editor/record-editor.component";
-import type { RecordEditorMode } from "src/app/shared/components/record-editor/record-editor.component";
+import type { RecordEditorMode } from "src/app/shared/components/record-editor/record-editor.model";
 import { SchemaEditorComponent } from "src/app/shared/components/schema-editor/schema-editor.component";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 import type { DbRecord, FieldDef } from "@shared/types";
-import { ButtonComponent } from "@ui/button/button.component";
-import { InputComponent } from "@ui/input/input.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { VirtualRows } from "src/app/shared/helpers/virtual-rows.helper";
+import {
+    formatEpoch,
+    gridMinWidth,
+    gridTemplateColumns,
+    isTextType,
+    isTimestampCandidate,
+    rowMarksFromHistory,
+    type RowMark,
+} from "src/app/shared/helpers/data-grid.helper";
+import type { GridColumn } from "src/app/views/dashboard/table-data/table-data.model";
 
-/** Hauteur de ligne attendue (voir `$row-height` dans la feuille de style), avant mesure. */
-const ESTIMATED_ROW_HEIGHT = 30;
+/** Lignes chargées examinées pour détecter les colonnes d'epochs. */
+const TIMESTAMP_SAMPLE_SIZE = 50;
 
 /**
  * Page d'affichage des données d'une table avec :
- * - Colonnes resizable
+ * - Colonnes redimensionnables (largeurs flexibles selon le type, fixes une fois redimensionnées)
  * - Édition inline des cellules (clic simple)
  * - Tri par colonne
- * - Sélection multiple de lignes
- * - Infinite scroll, lignes virtualisées
+ * - Sélection de lignes (clic, Ctrl+clic, Maj+clic)
+ * - Infinite scroll, lignes virtualisées (hauteur selon la densité réglée)
  * - Mode transaction
- * - Barre de filtre
+ * - Barre de recherche texte / SQL
  */
 @Component({
     selector: "app-table-data",
@@ -69,11 +77,12 @@ const ESTIMATED_ROW_HEIGHT = 30;
     templateUrl: "./table-data.page.html",
     styleUrl: "./table-data.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, ContextMenuComponent, ButtonComponent, InputComponent, TooltipDirective],
+    imports: [FormsModule, ContextMenuComponent, TooltipDirective],
     host: {
-        "[class.transaction-mode]": "dbService.inTransaction()",
         "[class.edit-mode]": "!dbService.readOnly()",
         "(keydown)": "onKeydown($event)",
+        // Ctrl+N (raccourci global géré par AppComponent).
+        "(document:open-new-record)": "newRecord()",
         "tabindex": "0",
     },
 })
@@ -82,6 +91,7 @@ export class TableDataPage {
     protected readonly state = inject(StateService);
     protected readonly isNoSql = computed(() => this.state.isNoSqlDatabase());
     protected readonly i18n = inject(I18nService);
+    private readonly settings = inject(SettingsService);
     private readonly injector = inject(Injector);
     private readonly destroyRef = inject(DestroyRef);
     private readonly modalCtrl = inject(ModalController);
@@ -94,11 +104,17 @@ export class TableDataPage {
 
     protected readonly columnWidths = signal<Map<string, number>>(new Map());
 
-    /** Ligne survolée par le curseur clavier en mode readonly. */
+    /** Ligne sous le curseur clavier (flèches, Entrée). */
     protected readonly cursorRowId = signal<number | null>(null);
 
-    /** Colonnes dont le timestamp est affiché en date formatée. */
-    protected readonly timestampColumns = signal<Set<string>>(new Set());
+    /** Ligne de départ d'une sélection par plage (Maj+clic). */
+    private selectionAnchor: number | null = null;
+
+    /**
+     * Affichage en date choisi colonne par colonne. Une colonne absente suit le
+     * réglage `timestampsAsDates`.
+     */
+    private readonly timestampOverrides = signal<ReadonlyMap<string, boolean>>(new Map());
 
     private readonly scrollContainer = viewChild<ElementRef<HTMLDivElement>>("scrollContainer");
     private readonly contextMenu = viewChild(ContextMenuComponent);
@@ -110,11 +126,53 @@ export class TableDataPage {
     protected readonly records = computed(() => this.dbService.tableData());
     protected readonly totalCount = computed(() => this.dbService.totalCount());
 
+    /** Hauteur des lignes, selon la densité réglée. */
+    protected readonly rowHeight = this.settings.rowHeight;
+
     /**
      * Seules les lignes visibles sont rendues : une table de plusieurs milliers
-     * de lignes chargées garde un DOM de quelques dizaines de `<tr>`.
+     * de lignes chargées garde un DOM de quelques dizaines de lignes.
      */
-    protected readonly virtual = new VirtualRows(computed(() => this.records().length), ESTIMATED_ROW_HEIGHT);
+    protected readonly virtual = new VirtualRows(computed(() => this.records().length), this.settings.rowHeight());
+
+    /** Colonnes prêtes pour l'affichage (police, badge FK, affichage en date). */
+    protected readonly columns = computed<GridColumn[]>(() => {
+        const samples = this.records().slice(0, TIMESTAMP_SAMPLE_SIZE);
+        const overrides = this.timestampOverrides();
+        const datesByDefault = this.settings.settings().timestampsAsDates;
+
+        return this.fields().map(field => {
+            const timestampCandidate = isTimestampCandidate(field, samples.map(record => record[field.name]));
+
+            return {
+                field,
+                mono: !isTextType(field.type),
+                timestampCandidate,
+                showAsDate: timestampCandidate && (overrides.get(field.name) ?? datesByDefault),
+                fkTitle: field.fk ? `→ ${field.fk.table}.${field.fk.column}` : "",
+            };
+        });
+    });
+
+    /** `grid-template-columns` partagé par l'en-tête et toutes les lignes. */
+    protected readonly gridCols = computed(() => gridTemplateColumns(this.fields(), this.columnWidths()));
+
+    /** Largeur minimale de la grille, au-delà de laquelle elle défile horizontalement. */
+    protected readonly gridMinWidth = computed(() => gridMinWidth(this.fields(), this.columnWidths()));
+
+    /** Lignes insérées ou modifiées depuis le début de l'historique (marque de gauche). */
+    protected readonly rowMarks = computed<Map<number, RowMark>>(() => {
+        const table = this.tableName();
+        return table ? rowMarksFromHistory(this.dbService.mutationHistory.history(), table) : new Map();
+    });
+
+    /** Préfixe du champ de recherche : loupe en mode texte, `WHERE` en mode requête. */
+    protected readonly searchPrefix = computed(() => {
+        if (!this.sqlFilterMode()) {
+            return "⌕";
+        }
+        return this.isNoSql() ? "{ }" : "WHERE";
+    });
 
     protected readonly visibleRecords = computed(() => {
         const { start, end } = this.virtual.range();
@@ -136,7 +194,6 @@ export class TableDataPage {
     protected readonly loading = computed(() => this.dbService.loading());
     protected readonly orderBy = computed(() => this.dbService.orderBy());
     protected readonly orderDir = computed(() => this.dbService.orderDir());
-    protected readonly inTransaction = computed(() => this.dbService.inTransaction());
     protected readonly tableName = computed(() => this.dbService.selectedTable());
     protected readonly allRowsSelected = computed(() => this.dbService.allRowsSelected());
     protected readonly sqlFilterMode = computed(() => this.dbService.sqlFilterMode());
@@ -159,7 +216,15 @@ export class TableDataPage {
         // sur l'estimation, qui dépend du thème et de la police.
         afterRenderEffect(() => {
             this.visibleRecords();
-            this.virtual.measure(this.scrollContainer()?.nativeElement.querySelector<HTMLElement>("tr.data-row"));
+            this.rowHeight();
+            this.virtual.measure(this.scrollContainer()?.nativeElement.querySelector<HTMLElement>(".grid-row"));
+        });
+
+        // Changement de densité : la nouvelle hauteur vaut dès le calcul suivant,
+        // sans attendre qu'une ligne rendue soit mesurée.
+        effect(() => {
+            const height = this.rowHeight();
+            untracked(() => this.virtual.setRowHeight(height));
         });
 
         // La hauteur visible suit les redimensionnements de la fenêtre.
@@ -189,7 +254,8 @@ export class TableDataPage {
             this.tableName(); // Lire le signal pour déclencher l'effet
             this.filterInput.set("");
             this.cursorRowId.set(null);
-            this.timestampColumns.set(new Set());
+            this.selectionAnchor = null;
+            this.timestampOverrides.set(new Map());
             if (this.filterTimeout) {
                 clearTimeout(this.filterTimeout);
                 this.filterTimeout = null;
@@ -198,24 +264,18 @@ export class TableDataPage {
     }
 
     /**
-     * Retourne la largeur d'une colonne, ou 150px par défaut.
+     * Largeur rendue d'une colonne, point de départ d'un redimensionnement.
+     * @param headerCell - Cellule d'en-tête de la colonne.
      */
-    protected getColumnWidth(colName: string): number {
-        return this.columnWidths().get(colName) ?? 150;
+    private getRenderedColumnWidth(colName: string, headerCell: HTMLElement | null): number {
+        return this.columnWidths().get(colName) ?? headerCell?.getBoundingClientRect().width ?? 150;
     }
 
     /**
-     * Retourne le badge PK/FK pour un champ.
-     * En mode NoSQL, la clé primaire s'affiche "ID" plutôt que "PK".
+     * Libellé du badge de clé primaire : « ID » en NoSQL, « PK » sinon.
      */
-    protected getFieldBadge(field: FieldDef): string {
-        if (field.pk) {
-            return this.state.isNoSqlDatabase() ? "ID" : "PK";
-        }
-        if (field.fk) {
-            return `FK → ${field.fk.table}`;
-        }
-        return "";
+    protected primaryKeyLabel(): string {
+        return this.isNoSql() ? "ID" : "PK";
     }
 
     // --- Tri ---
@@ -246,9 +306,14 @@ export class TableDataPage {
     }
 
     /**
-     * Toggle le mode de filtre SQLite / full-text et réapplique le filtre.
+     * Choisit le mode de recherche (texte ou requête) et réapplique le filtre.
+     * @param sql - `true` pour le mode requête (clause WHERE ou filtre NoSQL).
      */
-    protected toggleSqlFilterMode(): void {
+    protected setFilterMode(sql: boolean): void {
+        if (this.sqlFilterMode() === sql) {
+            return;
+        }
+
         this.dbService.toggleSqlFilterMode();
         const currentFilter = this.filterInput();
         if (currentFilter.trim().length > 0) {
@@ -262,14 +327,15 @@ export class TableDataPage {
      * Gère le clic sur une cellule : Ctrl+Click pour FK navigation, sinon édition (en mode readwrite).
      */
     protected onCellClick(event: MouseEvent, rowid: number, field: FieldDef, currentValue: unknown): void {
-        // FK Ctrl+Click : naviguer vers la table référencée
+        // FK Ctrl+Click : naviguer vers la table référencée, sans toucher à la sélection
         if (event.ctrlKey && field.fk && currentValue !== null && currentValue !== undefined) {
+            event.stopPropagation();
             this.navigateToForeignKey(field.fk.table, field.fk.column, currentValue);
             return;
         }
 
-        // En mode readonly, le clic est géré par onRowClick
-        if (this.dbService.readOnly()) {
+        // Ctrl / Maj servent à la sélection (voir onRowClick), pas à l'édition.
+        if (this.dbService.readOnly() || event.ctrlKey || event.metaKey || event.shiftKey) {
             return;
         }
 
@@ -277,11 +343,59 @@ export class TableDataPage {
     }
 
     /**
-     * Gère le clic sur une ligne en mode readonly : positionne le curseur.
+     * Sélectionne la ligne cliquée : seule par défaut, ajoutée ou retirée avec
+     * Ctrl, par plage depuis la dernière ligne cliquée avec Maj.
      */
     protected onRowClick(event: MouseEvent, record: DbRecord): void {
         const rowid = record["rowid"] as number;
         this.cursorRowId.set(rowid);
+
+        if (event.shiftKey && this.selectionAnchor !== null) {
+            this.selectRange(this.selectionAnchor, rowid, event.ctrlKey || event.metaKey);
+            return;
+        }
+
+        this.selectionAnchor = rowid;
+
+        if (event.ctrlKey || event.metaKey) {
+            this.dbService.toggleRowSelection(rowid);
+        }
+        else {
+            this.selectOnly(rowid);
+        }
+    }
+
+    /**
+     * Remplace la sélection par une seule ligne.
+     */
+    private selectOnly(rowid: number): void {
+        this.dbService.allRowsSelected.set(false);
+        this.dbService.selectedRowIds.set(new Set([rowid]));
+    }
+
+    /**
+     * Sélectionne les lignes chargées comprises entre deux lignes, incluses.
+     * @param additive - Ajoute la plage à la sélection au lieu de la remplacer.
+     */
+    private selectRange(fromRowid: number, toRowid: number, additive: boolean): void {
+        const records = this.records();
+        const from = records.findIndex(r => r["rowid"] === fromRowid);
+        const to = records.findIndex(r => r["rowid"] === toRowid);
+
+        if (from === -1 || to === -1) {
+            this.selectOnly(toRowid);
+            return;
+        }
+
+        const [start, end] = from <= to ? [from, to] : [to, from];
+        const next = new Set(additive ? this.dbService.selectedRowIds() : []);
+
+        for (const record of records.slice(start, end + 1)) {
+            next.add(record["rowid"] as number);
+        }
+
+        this.dbService.allRowsSelected.set(false);
+        this.dbService.selectedRowIds.set(next);
     }
 
     /**
@@ -359,7 +473,7 @@ export class TableDataPage {
             return;
         }
 
-        const headerHeight = container.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+        const headerHeight = container.querySelector(".grid-header")?.getBoundingClientRect().height ?? 0;
         this.virtual.scrollToIndex(container, index, headerHeight);
     }
 
@@ -374,7 +488,7 @@ export class TableDataPage {
 
         // Après le rendu, focus et select-all sur l'input
         afterNextRender(() => {
-            const input = document.querySelector<HTMLInputElement>(".cell-edit");
+            const input = this.scrollContainer()?.nativeElement.querySelector<HTMLInputElement>(".cell-edit");
             if (input) {
                 input.focus();
                 input.select();
@@ -391,7 +505,22 @@ export class TableDataPage {
         const newValue = this.editValue();
         this.editingCell.set(null);
 
+        if (this.isUnchanged(cell.rowid, cell.column, newValue)) {
+            return;
+        }
+
         await this.dbService.updateCell(cell.rowid, cell.column, newValue);
+    }
+
+    /**
+     * Indique si la valeur saisie est celle de la cellule : quitter une cellule
+     * sans la modifier ne doit ni écrire en base, ni démarrer de transaction
+     * automatique, ni marquer la ligne comme modifiée.
+     */
+    private isUnchanged(rowid: number, column: string, value: string): boolean {
+        const current = this.records().find(r => r["rowid"] === rowid)?.[column];
+        const shown = current === null || current === undefined ? "" : String(current);
+        return shown === value;
     }
 
     protected onEditKeydown(event: KeyboardEvent): void {
@@ -421,7 +550,9 @@ export class TableDataPage {
         // Commit la cellule courante d'abord
         const currentValue = this.editValue();
         this.editingCell.set(null);
-        this.dbService.updateCell(cell.rowid, cell.column, currentValue);
+        if (!this.isUnchanged(cell.rowid, cell.column, currentValue)) {
+            void this.dbService.updateCell(cell.rowid, cell.column, currentValue);
+        }
 
         const fieldNames = this.fields().map(f => f.name);
         const records = this.records();
@@ -504,7 +635,9 @@ export class TableDataPage {
         event.stopPropagation();
 
         const startX = event.clientX;
-        const startWidth = this.getColumnWidth(colName);
+        // Une colonne flexible n'a pas de largeur mémorisée : on part de sa largeur rendue.
+        const headerCell = (event.target as HTMLElement).parentElement;
+        const startWidth = this.getRenderedColumnWidth(colName, headerCell);
 
         const onMouseMove = (e: MouseEvent): void => {
             const delta = e.clientX - startX;
@@ -525,18 +658,18 @@ export class TableDataPage {
         document.addEventListener("mouseup", onMouseUp);
     }
 
-    // --- Transaction ---
+    // --- Nouvel enregistrement ---
 
-    protected async beginTransaction(): Promise<void> {
-        await this.dbService.transactionAction("begin");
-    }
+    /**
+     * Ouvre le formulaire de création. En lecture seule, le mode édition est
+     * d'abord activé : le bouton « Nouveau » reste ainsi toujours utilisable.
+     */
+    protected newRecord(): void {
+        if (this.dbService.readOnly()) {
+            this.dbService.toggleReadOnly();
+        }
 
-    protected async commitTransaction(): Promise<void> {
-        await this.dbService.transactionAction("commit");
-    }
-
-    protected async rollbackTransaction(): Promise<void> {
-        await this.dbService.transactionAction("rollback");
+        void this.openRecordEditor("create");
     }
 
     // --- Export ---
@@ -560,6 +693,14 @@ export class TableDataPage {
      */
     protected onRowContextMenu(event: MouseEvent, record: DbRecord): void {
         const rowid = record["rowid"] as number;
+
+        // Clic droit hors de la sélection : la ligne visée devient la sélection.
+        if (!this.isRowSelected(rowid)) {
+            this.selectOnly(rowid);
+            this.selectionAnchor = rowid;
+        }
+        this.cursorRowId.set(rowid);
+
         const selCount = this.dbService.selectedCount();
         const hasMultipleSelection = selCount > 1 || this.allRowsSelected();
         const isReadOnly = this.dbService.readOnly();
@@ -702,10 +843,22 @@ export class TableDataPage {
             editor.dismiss = (data) => modal.dismiss(data as Partial<UIDismissData>);
         }
 
-        modal.didDismiss.subscribe(result => {
-            if (result.role === "confirm") {
-                // Recharger les données après modification
-                this.dbService.loadTableData(true);
+        modal.didDismiss.subscribe(async result => {
+            if (result.role !== "confirm") {
+                return;
+            }
+
+            // Recharger les données après modification
+            await this.dbService.loadTableData(true);
+
+            // Une ligne créée est sélectionnée et amenée à l'écran si elle fait
+            // partie des lignes chargées (sinon le tri la place plus loin).
+            const insertedRowid = (result.data as { rowid?: unknown } | undefined)?.rowid;
+            if (typeof insertedRowid === "number" && this.records().some(r => r["rowid"] === insertedRowid)) {
+                this.selectOnly(insertedRowid);
+                this.selectionAnchor = insertedRowid;
+                this.cursorRowId.set(insertedRowid);
+                this.scrollRowIntoView(insertedRowid);
             }
         });
     }
@@ -723,106 +876,48 @@ export class TableDataPage {
     }
 
     /**
-     * Formate une valeur pour l'affichage.
-     * Si la colonne est marquée comme timestamp et la valeur est un nombre plausible, affiche la date formatée.
+     * Formate une valeur pour l'affichage : `NULL`, date pour une colonne
+     * affichée en date, `BLOB`, JSON pour un objet (document NoSQL imbriqué).
      */
-    protected formatValue(value: unknown, field?: FieldDef): string {
+    protected formatValue(value: unknown, column: GridColumn): string {
         if (value === null || value === undefined) {
             return "NULL";
         }
 
-        if (field && this.timestampColumns().has(field.name)) {
-            const ts = Number(value);
-            if (!Number.isNaN(ts) && this.isPlausibleTimestamp(ts)) {
-                return this.formatTimestamp(ts);
+        if (column.showAsDate) {
+            const date = formatEpoch(value, this.i18n.locale());
+            if (date !== null) {
+                return date;
             }
+        }
+
+        if (this.isBlobValue(value)) {
+            return "BLOB";
+        }
+
+        if (typeof value === "object") {
+            return JSON.stringify(value);
         }
 
         return String(value);
     }
 
     /**
-     * Vérifie si une valeur numérique est un timestamp plausible.
-     * Supporte les timestamps en secondes et en millisecondes.
+     * Bascule l'affichage en date d'une colonne d'epochs.
      */
-    private isPlausibleTimestamp(value: number): boolean {
-        // Timestamp en secondes : entre 1970 et 2100
-        if (value >= 0 && value <= 4_102_444_800) {
-            return true;
-        }
-        // Timestamp en millisecondes
-        if (value >= 0 && value <= 4_102_444_800_000) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Formate un timestamp en date lisible (dd/MM/yyyy HH:mm:ss).
-     */
-    private formatTimestamp(ts: number): string {
-        // Convertir en millisecondes si nécessaire
-        const ms = ts > 4_102_444_800 ? ts : ts * 1000;
-        const date = new Date(ms);
-        const locale = this.i18n.locale();
-        return new Intl.DateTimeFormat(locale, {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false,
-        }).format(date);
-    }
-
-    /**
-     * Toggle l'affichage timestamp/date pour une colonne.
-     */
-    protected toggleTimestampColumn(fieldName: string): void {
-        this.timestampColumns.update(set => {
-            const next = new Set(set);
-            if (next.has(fieldName)) {
-                next.delete(fieldName);
-            }
-            else {
-                next.add(fieldName);
-            }
+    protected toggleTimestampColumn(column: GridColumn): void {
+        this.timestampOverrides.update(overrides => {
+            const next = new Map(overrides);
+            next.set(column.field.name, !column.showAsDate);
             return next;
         });
     }
 
     /**
-     * Vérifie si une colonne est en mode timestamp affiché.
+     * Marque de gauche d'une ligne (insérée / modifiée pendant la session).
      */
-    protected isTimestampColumn(fieldName: string): boolean {
-        return this.timestampColumns().has(fieldName);
-    }
-
-    /**
-     * Vérifie si un champ pourrait contenir des timestamps.
-     * Heuristique basée sur le type et le nom de la colonne.
-     */
-    protected couldBeTimestamp(field: FieldDef): boolean {
-        const type = field.type.toLowerCase();
-        const name = field.name.toLowerCase();
-        const timestampTypes = ["timestamp", "datetime"];
-        const timestampNames = ["timestamp", "created", "updated", "date", "time", "at", "_at", "_date"];
-
-        if (timestampTypes.some(t => type.includes(t))) {
-            if (timestampNames.some(n => name.includes(n))) {
-                return true;
-            }
-            // Aussi afficher le bouton si le premier record chargé a une valeur plausible
-            const firstRecord = this.records()[0];
-            if (firstRecord) {
-                const val = Number(firstRecord[field.name]);
-                if (!Number.isNaN(val) && this.isPlausibleTimestamp(val)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+    protected rowMark(record: DbRecord): RowMark | undefined {
+        return this.rowMarks().get(record["rowid"] as number);
     }
 
     /**
@@ -870,7 +965,9 @@ export class TableDataPage {
         });
         const editor = modal.getComponentInstance<BatchEditComponent>();
         if (editor) {
-            editor.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
+            // L'éditeur rend { column, value } ou null : le rôle est posé ici,
+            // sinon la fermeture arrivait avec le rôle « none » et rien n'était appliqué.
+            editor.dismiss = data => modal.dismiss(data ? { role: "confirm", data } : { role: "cancel" });
         }
         modal.didDismiss.subscribe(async result => {
             if (result.role === "confirm" && result.data) {
@@ -937,25 +1034,14 @@ export class TableDataPage {
     }
 
     /**
-     * Ouvre le modal de visualisation et gestion des index de la table courante.
+     * Ouvre l'onglet de visualisation et gestion des index de la table courante.
      */
     protected async openIndexViewer(): Promise<void> {
         const table = this.dbService.selectedTable();
-        const fields = this.fields();
         if (!table) {
             return;
         }
-        const modal = await this.modalCtrl.create({
-            component: IndexViewerComponent,
-            componentProps: { tableName: table, fields },
-            backdropClose: true,
-            showDots: false,
-            blurry: false,
-        });
-        const comp = modal.getComponentInstance<IndexViewerComponent>();
-        if (comp) {
-            comp.dismiss = data => modal.dismiss(data as Partial<UIDismissData>);
-        }
+        await this.dbService.openIndexesTab(table);
     }
 
     /**

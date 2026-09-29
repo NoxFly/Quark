@@ -43,7 +43,8 @@
         "vitest": "^4.1.0"
     },
     "dependencies": {
-        "@noxfly/noxus": "^3.0.0",
+        "@libsql/client": "^0.18.0",
+        "@noxfly/noxus": "^3.0.1",
         "better-sqlite3-multiple-ciphers": "^12.8.0",
         "fast-xml-parser": "^5.8.0",
         "mongodb": "^7.1.1",

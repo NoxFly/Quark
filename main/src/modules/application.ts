@@ -215,12 +215,16 @@ export class Application implements IApp {
             app.dock?.setMenu(dockMenu);
         }
         else {
-            // Sur Windows/Linux, on utilise le menu de la barre des tâches via jumplist
+            // Sur Windows/Linux, on utilise le menu de la barre des tâches via jumplist.
+            // La version portable doit relancer son exécutable d'origine : le
+            // `process.execPath` extrait en dossier temporaire n'existe plus après fermeture.
+            const executable = environment.portableExecutable ?? process.execPath;
+
             app.setUserTasks([
                 {
-                    program: process.execPath,
+                    program: executable,
                     arguments: "--new-window",
-                    iconPath: process.execPath,
+                    iconPath: executable,
                     iconIndex: 0,
                     title: "New Window",
                     description: "Open a new window",
@@ -281,6 +285,15 @@ export class Application implements IApp {
      */
     public rememberRecentNetwork(entry: Parameters<RecentDatabases["addNetwork"]>[0]): void {
         this.recentDatabases.addNetwork(entry);
+    }
+
+    /**
+     * Enregistre une base SQLite distante dans l'historique, sans son jeton.
+     * @param url - URL de la base (sans jeton).
+     * @param hasToken - Un jeton a été fourni et devra être ressaisi.
+     */
+    public rememberRecentRemote(url: string, hasToken: boolean): void {
+        this.recentDatabases.addRemote(url, hasToken);
     }
 
     public getRecentDatabases(): RecentDatabaseEntry[] {

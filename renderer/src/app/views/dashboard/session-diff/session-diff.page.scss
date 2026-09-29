@@ -15,269 +15,263 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use 'src/theme/mixins.scss' as *;
+@use "src/app/shared/styles/tool-ui.scss" as tool;
 
 :host {
     display: block;
     height: 100%;
-    overflow: hidden;
+    overflow: auto;
+    background: var(--bg-app);
 }
 
 .session-diff {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    background: var(--surface);
+    gap: 16px;
+    max-width: 960px;
+    padding: 24px 28px;
     color: var(--text);
 
-    // Deux niveaux de surbrillance, comme un diff git dans un éditeur : le voile
-    // léger marque la ligne concernée, le voile appuyé marque le fragment
-    // réellement différent à l'intérieur de la valeur.
-    --diff-removed-line: color-mix(in srgb, var(--color-danger) 14%, transparent);
-    --diff-removed-token: color-mix(in srgb, var(--color-danger) 34%, transparent);
-    --diff-added-line: color-mix(in srgb, var(--color-success) 14%, transparent);
-    --diff-added-token: color-mix(in srgb, var(--color-success) 34%, transparent);
-}
+    // Deux niveaux de surbrillance, comme un diff git : le fond léger marque la
+    // ligne concernée, le fond appuyé le fragment réellement différent.
+    --diff-removed-token: color-mix(in srgb, var(--danger) 22%, transparent);
+    --diff-added-token: color-mix(in srgb, var(--success) 22%, transparent);
 
-/* --- Barre d'outils --- */
-
-.diff-toolbar {
-    @include flex($hor: space-between, $gap: 16px);
-
-    flex: 0 0 auto;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-alt, var(--surface));
-
-    .toolbar-title {
-        @include flex($hor: flex-start, $ver: baseline, $gap: 10px);
-
-        min-width: 0;
-
-        h1 {
-            margin: 0;
-            font-size: 14px;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-    }
-
-    .toolbar-since,
-    .count,
-    .count-sep {
-        font-size: 11px;
-        color: var(--text-secondary, var(--text));
-    }
-
-    .toolbar-counts {
-        @include flex($gap: 6px);
-
-        flex: 1 1 auto;
-        white-space: nowrap;
-    }
-
-    .toolbar-actions {
-        @include flex($hor: flex-end, $gap: 6px);
-
-        flex: 0 0 auto;
-    }
-
-    .toolbar-filter {
-        width: 180px;
-        padding: 4px 8px;
-        border: 1px solid var(--border);
-        border-radius: 3px;
-        background: var(--surface);
-        color: inherit;
-        font-size: 12px;
-
-        &:focus {
-            border-color: var(--interactive);
-            outline: none;
-        }
-    }
-
-    .view-toggle {
-        @include flex();
-
-        border: 1px solid var(--border);
-        border-radius: 3px;
-        overflow: hidden;
-    }
-
-    .view-toggle__button {
-        @include flex();
-
-        width: 26px;
-        height: 24px;
-        border: none;
-        background: transparent;
-        color: inherit;
-        cursor: pointer;
-
-        &:hover {
-            background: var(--surface-raised, var(--surface));
-        }
-
-        &.active {
-            background: var(--interactive);
-            color: var(--text-inverse);
-        }
-    }
-
-    .toolbar-button {
-        @include flex();
-
-        width: 26px;
-        height: 26px;
-        border: 1px solid transparent;
-        border-radius: 3px;
-        background: transparent;
-        color: inherit;
-        cursor: pointer;
-
-        &:hover:not(:disabled) {
-            background: var(--surface-raised, var(--surface));
-        }
-
-        &:disabled {
-            opacity: .4;
-            cursor: default;
-        }
+    // La grille aligne toutes les colonnes d'une table : elle prend toute la largeur.
+    &--grid {
+        max-width: none;
     }
 }
 
-/* --- Bandeaux --- */
+.segoe-icon {
+    font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+}
 
-.diff-error,
-.diff-notice {
-    flex: 0 0 auto;
-    padding: 8px 16px;
+// --- En-tête ---
+
+.diff-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.diff-heading {
+    min-width: 0;
+}
+
+.diff-title {
+    @include tool.page-title;
+}
+
+.diff-info {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.diff-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.diff-filter {
+    @include tool.field-input(28px);
+
+    width: 180px;
+    min-width: 0;
     font-size: 12px;
 }
 
+.icon-button {
+    @include tool.button-icon(28px);
+
+    font-size: 13px;
+}
+
+// --- Bandeaux ---
+
 .diff-error {
-    background: var(--diff-removed-line);
-    color: var(--color-danger);
+    @include tool.error-notice;
 }
 
 .diff-notice {
-    background: color-mix(in srgb, var(--color-warning) 16%, transparent);
-}
-
-/* --- Corps --- */
-
-.diff-body {
-    flex: 1 1 auto;
-    padding: 12px 16px 32px;
-    overflow: auto;
+    @include tool.warning-notice;
 }
 
 .diff-placeholder {
-    margin: 48px 0;
+    margin: 32px 0;
     text-align: center;
-    font-size: 13px;
-    color: var(--text-secondary, var(--text));
+    font-size: 12.5px;
+    color: var(--text-faint);
 }
 
-/* --- Groupe de table --- */
+// --- Liste ---
 
-.table-diff,
-.opaque-diff {
-    margin-bottom: 18px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    overflow: hidden;
+.diff-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-faint);
+    border: 1px dashed var(--border-control);
+    border-radius: 5px;
+}
+
+// --- Groupe de table ---
+
+.table-diff {
+    @include tool.bordered-box;
 }
 
 .table-header {
-    @include flex($hor: flex-start, $gap: 8px);
-
-    padding: 8px 12px;
-    background: var(--surface-raised, var(--surface-alt, var(--surface)));
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: var(--bg-subtle);
+    font-size: 12px;
     cursor: pointer;
     user-select: none;
 
+    &:hover {
+        background: var(--bg-hover);
+    }
+
     .table-chevron {
-        font-size: 10px;
-        opacity: .7;
+        font-size: 9px;
+        color: var(--text-muted);
     }
 
     .table-name {
-        flex: 1 1 auto;
+        flex: 1;
+        min-width: 0;
         font-weight: 600;
-        font-size: 13px;
-    }
-
-    .table-stats {
-        @include flex($gap: 8px);
-
-        font-size: 11px;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .stat--insert {
-        color: var(--color-success);
-    }
-
-    .stat--update {
-        color: var(--color-warning);
-    }
-
-    .stat--delete {
-        color: var(--color-danger);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 }
 
-/* --- Ligne modifiée --- */
-
-.row-diff {
-    border-top: 1px solid var(--border);
-}
-
-.row-header {
-    @include flex($hor: flex-start, $gap: 8px);
-
-    padding: 5px 12px;
-    background: var(--surface-alt, var(--surface));
+.table-stats {
+    display: flex;
+    gap: 6px;
+    font-family: var(--font-mono);
     font-size: 11px;
+}
 
-    .row-kind {
-        padding: 1px 6px;
-        border-radius: 2px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: .04em;
-        font-size: 10px;
+.stat {
+    padding: 1px 6px;
+    border-radius: 9px;
+    font-weight: 600;
+
+    &--insert {
+        background: var(--success-bg);
+        color: var(--success-text);
     }
 
-    .row-id {
-        font-family: monospace;
-        opacity: .8;
+    &--update {
+        background: var(--bg-accent-soft);
+        color: var(--accent-hover);
     }
 
-    .row-time {
-        margin-left: auto;
-        opacity: .55;
+    &--delete {
+        background: var(--danger-bg);
+        color: var(--danger-text);
     }
 }
 
-.row-diff--insert .row-kind {
-    background: var(--diff-added-token);
-    color: var(--color-success);
+// --- Pastilles ---
+
+.kind-pill {
+    flex: none;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent-fg);
+    background: var(--accent);
+
+    &--insert {
+        background: var(--success);
+    }
+
+    &--delete {
+        background: var(--danger);
+    }
 }
 
-.row-diff--delete .row-kind {
-    background: var(--diff-removed-token);
-    color: var(--color-danger);
+.status-pill {
+    flex: none;
+    padding: 2px 7px;
+    border-radius: 9px;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: var(--success-bg);
+    color: var(--success-text);
+
+    &--pending {
+        background: var(--warning-bg);
+        color: var(--warning-text);
+    }
 }
 
-.row-diff--update .row-kind {
-    background: color-mix(in srgb, var(--color-warning) 30%, transparent);
-    color: var(--color-warning);
+// --- Fiches ---
+
+.table-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    border-top: 1px solid var(--border-subtle);
 }
 
-/* --- Panneaux côte à côte --- */
+.change-card {
+    @include tool.bordered-box;
+
+    background: var(--bg-app);
+}
+
+.change-head {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+}
+
+.change-table {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.change-detail {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.change-time {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+}
 
 .row-panes {
     display: grid;
@@ -294,91 +288,91 @@
     padding: 6px 0;
 
     &--before {
-        border-right: 1px solid var(--border);
+        border-right: 1px solid var(--border-subtle);
     }
 }
 
 .pane-title {
     padding: 0 12px 4px;
     font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    opacity: .5;
 }
 
 .pane-absent {
-    padding: 8px 12px;
+    padding: 6px 12px;
     font-size: 12px;
     font-style: italic;
-    opacity: .5;
+    color: var(--text-faint);
 }
 
 .diff-line {
     display: grid;
-    grid-template-columns: minmax(80px, 22%) 1fr;
+    grid-template-columns: 10px minmax(80px, 22%) 1fr;
     gap: 10px;
-    padding: 2px 12px;
-    font-family: monospace;
-    font-size: 12px;
-    line-height: 1.5;
+    padding: 5px 12px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.4;
 
     &.removed {
-        background: var(--diff-removed-line);
+        background: var(--danger-bg);
+        color: var(--danger-text);
     }
 
     &.added {
-        background: var(--diff-added-line);
+        background: var(--success-bg);
+        color: var(--success-text);
     }
+}
+
+.line-sign {
+    user-select: none;
 }
 
 .line-column {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    opacity: .6;
+    opacity: .7;
 }
 
 .line-value {
     min-width: 0;
     white-space: pre-wrap;
-    word-break: break-word;
+    word-break: break-all;
 }
 
-// Second niveau de surbrillance : le fragment réellement différent à l'intérieur
-// d'une valeur, quelle que soit la mise en page.
-.removed .segment-changed,
-td.removed .segment-changed {
+// Second niveau de surbrillance : le fragment réellement différent (`diffInline`).
+.removed .segment-changed {
     background: var(--diff-removed-token);
     border-radius: 2px;
 }
 
-.added .segment-changed,
-td.added .segment-changed {
+.added .segment-changed {
     background: var(--diff-added-token);
     border-radius: 2px;
 }
 
-/* --- Vue grille --- */
+// --- Grille ---
 
 .grid-scroll {
-    // Une table large déborde : elle défile dans son propre cadre plutôt que de
-    // faire défiler la page entière et de perdre les autres tables de vue.
+    // Une table large défile dans son propre cadre plutôt que la page entière.
     overflow-x: auto;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-subtle);
 }
 
 .diff-grid {
     width: 100%;
     border-collapse: collapse;
-    font-family: monospace;
-    font-size: 12px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
     white-space: nowrap;
 
     th,
     td {
-        padding: 3px 10px;
+        height: 26px;
+        padding: 0 10px;
         text-align: left;
-        border-right: 1px solid var(--border);
+        border-right: 1px solid var(--border-subtle);
 
         &:last-child {
             border-right: none;
@@ -389,10 +383,13 @@ td.added .segment-changed {
         position: sticky;
         top: 0;
         z-index: 1;
-        background: var(--surface-alt, var(--surface));
-        font-weight: 600;
+        height: 32px;
+        background: var(--bg-subtle);
+        border-bottom: 1px solid var(--border);
+        font-family: var(--font-ui);
         font-size: 11px;
-        opacity: .75;
+        font-weight: 600;
+        color: var(--text-muted);
     }
 
     td {
@@ -403,10 +400,14 @@ td.added .segment-changed {
     }
 
     .grid-sign,
-    .grid-rowid {
+    .grid-rowid,
+    .grid-status {
         width: 1%;
-        opacity: .55;
         user-select: none;
+    }
+
+    .grid-rowid {
+        color: var(--text-faint);
     }
 
     .grid-sign {
@@ -414,31 +415,38 @@ td.added .segment-changed {
         font-weight: 700;
     }
 
+    .grid-status {
+        font-family: var(--font-ui);
+    }
+
     .grid-line td {
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid var(--border-subtle);
     }
 
     // Les deux lignes d'une même modification restent solidaires : le trait de
-    // séparation ne tombe qu'après la seconde. Une suppression, elle, n'a pas de
-    // ligne « après » et garde donc le sien.
+    // séparation ne tombe qu'après la seconde.
     .grid-line--before:has(+ .grid-line--after) td {
         border-bottom: none;
     }
 
     .grid-line--before .grid-sign {
-        color: var(--color-danger);
+        color: var(--danger-text);
+        background: var(--danger-bg);
     }
 
     .grid-line--after .grid-sign {
-        color: var(--color-success);
+        color: var(--success-text);
+        background: var(--success-bg);
     }
 
     td.removed {
-        background: var(--diff-removed-line);
+        background: var(--danger-bg);
+        color: var(--danger-text);
     }
 
     td.added {
-        background: var(--diff-added-line);
+        background: var(--success-bg);
+        color: var(--success-text);
     }
 
     td.cell-absent {
@@ -449,80 +457,61 @@ td.added .segment-changed {
             var(--border) 4px,
             var(--border) 5px
         );
-        opacity: .35;
+        opacity: .5;
     }
 }
 
 .show-more {
     display: block;
     width: 100%;
-    padding: 8px;
+    height: 32px;
     border: none;
-    border-top: 1px solid var(--border);
-    background: var(--surface-alt, var(--surface));
-    color: var(--interactive);
-    cursor: pointer;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-subtle);
+    color: var(--accent-hover);
     font-size: 12px;
+    cursor: pointer;
 
     &:hover {
-        background: var(--surface-raised, var(--surface));
+        background: var(--bg-hover);
     }
 }
 
-/* --- Opérations non détaillées --- */
+// --- Opérations non détaillées ---
+
+.opaque-diff {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.opaque-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
 
 .opaque-hint {
-    margin: 0;
-    padding: 8px 12px;
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    opacity: .6;
-}
-
-.opaque-entry {
-    padding: 8px 12px;
-    border-top: 1px solid var(--border);
-}
-
-.opaque-head {
-    @include flex($hor: flex-start, $gap: 8px);
-
-    font-size: 11px;
-
-    .opaque-category {
-        padding: 1px 6px;
-        border-radius: 2px;
-        background: var(--surface-raised, var(--surface-alt, var(--surface)));
-        text-transform: uppercase;
-        letter-spacing: .04em;
-        font-size: 10px;
-        font-weight: 600;
-    }
-
-    .opaque-label {
-        flex: 1 1 auto;
-    }
-
-    .opaque-time {
-        opacity: .55;
-    }
+    font-size: 11.5px;
+    color: var(--text-faint);
 }
 
 .opaque-detail {
-    margin: 6px 0 0;
-    padding: 6px 8px;
+    margin: 0;
+    padding: 6px 12px;
     max-height: 160px;
     overflow: auto;
-    border-radius: 3px;
-    background: var(--surface-alt, var(--surface));
-    font-family: monospace;
-    font-size: 11px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-secondary);
     white-space: pre-wrap;
-    word-break: break-word;
+    word-break: break-all;
 }
 
 .opaque-rows {
-    margin-top: 4px;
+    padding: 0 12px 8px;
     font-size: 11px;
-    opacity: .6;
+    color: var(--text-muted);
 }

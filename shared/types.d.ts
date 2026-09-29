@@ -86,6 +86,11 @@ export type R_ConnectNetworkResponse = {
 
 export type R_PasswordBody = {
     password: string;
+    /**
+     * Mémoriser le mot de passe dans le trousseau du système (`safeStorage`,
+     * « trousseau Windows ») pour ouvrir ce fichier sans saisie la prochaine fois.
+     */
+    remember?: boolean;
 };
 
 export type R_PasswordResponse = {
@@ -305,7 +310,36 @@ export type R_NetworkConnectBody = {
     clientId?: string;
     /** Tenant ID Azure AD (requis pour `service-principal`). */
     tenantId?: string;
+    /** URI de connexion complète (MongoDB) ; prioritaire sur hôte / port / identifiants. */
+    uri?: string;
+    /** Chiffrer la connexion (SSL / TLS). Défaut : comportement historique du driver. */
+    ssl?: boolean;
+    /** Délai avant abandon de l'établissement de la connexion, en secondes. */
+    timeoutSeconds?: number;
 };
+
+/**
+ * Ouverture d'une base SQLite distante (libSQL / Turso : `libsql://`, `https://`, `wss://`).
+ */
+export type R_RemoteSqliteBody = {
+    url: string;
+    /** Jeton d'authentification (optionnel selon le serveur). */
+    authToken?: string;
+    timeoutSeconds?: number;
+};
+
+/**
+ * Cible d'un test de connexion : une connexion réseau, une base SQLite distante
+ * ou un fichier SQLite local (dont on vérifie seulement l'existence et la lisibilité).
+ *
+ * `profileId` (optionnel) : profil du coffre en cours d'édition. Son secret étant
+ * write-only, le formulaire ne peut pas le renvoyer ; un mot de passe (ou jeton)
+ * vide est alors complété côté main par celui du profil, si le coffre est déverrouillé.
+ */
+export type R_TestConnectionBody =
+    | ({ kind: "network"; profileId?: string } & R_NetworkConnectBody)
+    | ({ kind: "remote-sqlite"; profileId?: string } & R_RemoteSqliteBody)
+    | { kind: "file"; filePath: string };
 
 // --- Stored Procedures (MSSQL) ---
 

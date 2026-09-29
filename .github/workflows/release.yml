@@ -193,6 +193,17 @@ jobs:
         env:
           UPDATE_REPOSITORY: ${{ github.repository }}
 
+      # Windows publie un installeur NSIS et une version portable : une release
+      # qui n'aurait que l'un des deux doit échouer plutôt que paraître complète.
+      - name: Check Windows artifacts
+        if: matrix.os_label == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls out/*Setup*.exe > /dev/null || { echo "::error::Installer missing."; exit 1; }
+          ls out/*Portable*.exe > /dev/null || { echo "::error::Portable build missing."; exit 1; }
+          ls -la out/*.exe
+
       # Le manifeste est produit ici, où l'artefact et son empreinte sont connus.
       - name: Generate update manifest
         shell: bash

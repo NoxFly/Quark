@@ -127,11 +127,13 @@ export class StoredProcedurePage {
             void this.initMonaco(container);
         });
 
-        // Réagir aux changements de thème pour mettre à jour Monaco.
+        // Les couleurs de Monaco sont figées dans son thème : on le redéfinit à
+        // chaque changement de thème de l'application.
         effect(() => {
-            const theme = this.themeService.currentTheme();
+            this.themeService.currentTheme();
+
             if (this.editor) {
-                monaco.editor.setTheme(this.resolveMonacoTheme(theme));
+                this.monacoPreload.applyAppTheme();
             }
         });
 
@@ -449,16 +451,6 @@ export class StoredProcedurePage {
     }
 
     /**
-     * Résout le thème Monaco à partir du thème applicatif.
-     */
-    private resolveMonacoTheme(appTheme: string): string {
-        if (appTheme === "light") {
-            return "vs";
-        }
-        return "vs-dark";
-    }
-
-    /**
      * Attend que Monaco soit chargé puis crée l'éditeur.
      */
     private async initMonaco(container: HTMLElement): Promise<void> {
@@ -478,7 +470,7 @@ export class StoredProcedurePage {
      * Crée l'instance Monaco Editor pour la procédure stockée.
      */
     private createEditor(container: HTMLElement): void {
-        const theme = this.resolveMonacoTheme(this.themeService.currentTheme());
+        const theme = this.monacoPreload.applyAppTheme();
         const initialDefinition = this.procedure()?.definition ?? "";
 
         this.editor = monaco.editor.create(container, {
@@ -486,14 +478,16 @@ export class StoredProcedurePage {
             language: "sql",
             theme,
             minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+            fontSize: 12.5,
+            lineHeight: 20,
+            fontFamily: "'Fira Code', ui-monospace, Consolas, monospace",
             lineNumbers: "on",
             scrollBeyondLastLine: false,
             automaticLayout: true,
             wordWrap: "on",
             tabSize: 4,
-            padding: { top: 8, bottom: 8 },
+            padding: { top: 12, bottom: 12 },
+            overviewRulerLanes: 0,
             readOnly: this.dbService.readOnly(),
         });
 

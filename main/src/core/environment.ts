@@ -102,12 +102,18 @@ const manifestUrl = `https://github.com/${updateRepository}/releases/latest/down
 
 // ---
 
+// Défini par le lanceur de la cible « portable » d'electron-builder.
+const portableExecutable = process.env["PORTABLE_EXECUTABLE_FILE"] || null;
+
+// ---
+
 export const environment: Environment = {
     env: appEnv,
     rootDir,
     publicDir,
     rendererDir,
     os,
+    portableExecutable,
     product: {
         name: appName,
         displayName: appDisplayName,

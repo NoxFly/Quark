@@ -15,24 +15,13 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
 import { I18nService } from "src/app/core/services/i18n.service";
-import { ButtonComponent } from "@ui/button/button.component";
-
-/** Définition d'un raccourci clavier. */
-interface ShortcutEntry {
-    keys: string;
-    description: string;
-}
-
-/** Groupe de raccourcis. */
-interface ShortcutGroup {
-    title: string;
-    shortcuts: ShortcutEntry[];
-}
+import { APP_SHORTCUTS, formatShortcut } from "src/app/shared/helpers/shortcut.helper";
+import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 
 /**
- * Modal affichant l'ensemble des raccourcis clavier de l'application.
+ * Modale listant les raccourcis clavier de l'application (libellé / touches).
  */
 @Component({
     selector: "app-shortcuts",
@@ -40,60 +29,22 @@ interface ShortcutGroup {
     templateUrl: "./shortcuts.component.html",
     styleUrl: "./shortcuts.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ButtonComponent],
+    imports: [TranslatePipe],
 })
 export class ShortcutsComponent {
-    protected readonly i18n = inject(I18nService);
+    private readonly i18n = inject(I18nService);
 
-    /** Callback de fermeture. */
+    /** Callback de fermeture, fourni par l'ouvreur de la modale. */
     public dismiss?: () => void;
 
-    /** Groupes de raccourcis clavier. */
-    protected readonly groups = signal<ShortcutGroup[]>([
-        {
-            title: "shortcuts.group.file",
-            shortcuts: [
-                { keys: "Ctrl+O", description: "shortcuts.open" },
-                { keys: "Ctrl+Shift+N", description: "shortcuts.newWindow" },
-                { keys: "Ctrl+K  Ctrl+F", description: "shortcuts.closeFile" },
-                { keys: "Ctrl+Shift+R", description: "shortcuts.refreshDb" },
-                { keys: "Ctrl+R", description: "shortcuts.recentDb" },
-                { keys: "Ctrl+Alt+R", description: "shortcuts.reload" },
-                { keys: "Alt+F4", description: "shortcuts.quit" },
-            ],
-        },
-        {
-            title: "shortcuts.group.edit",
-            shortcuts: [
-                { keys: "Ctrl+D", description: "shortcuts.toggleEditMode" },
-                { keys: "Ctrl+T", description: "shortcuts.startTransaction" },
-                { keys: "Ctrl+Z", description: "shortcuts.undo" },
-                { keys: "Ctrl+Y", description: "shortcuts.redo" },
-            ],
-        },
-        {
-            title: "shortcuts.group.view",
-            shortcuts: [
-                { keys: "Ctrl+E", description: "shortcuts.entitySearch" },
-                { keys: "Ctrl+Shift+Q", description: "shortcuts.sqlEditor" },
-                { keys: "F11", description: "shortcuts.fullscreen" },
-                { keys: "Ctrl+K  Ctrl+T", description: "shortcuts.changeTheme" },
-            ],
-        },
-        {
-            title: "shortcuts.group.tabs",
-            shortcuts: [
-                { keys: "Ctrl+W", description: "shortcuts.closeTab" },
-            ],
-        },
-        {
-            title: "shortcuts.group.sqlEditor",
-            shortcuts: [
-                { keys: "Ctrl+Enter", description: "shortcuts.executeSql" },
-                { keys: "Ctrl+↑ / Ctrl+↓", description: "shortcuts.sqlHistory" },
-            ],
-        },
-    ]);
+    protected readonly shortcuts = APP_SHORTCUTS;
+
+    /**
+     * Combinaison affichée dans la langue courante (« Ctrl+Maj+C »).
+     */
+    protected format(keys: string): string {
+        return formatShortcut(keys, key => this.i18n.t(key));
+    }
 
     protected close(): void {
         this.dismiss?.();

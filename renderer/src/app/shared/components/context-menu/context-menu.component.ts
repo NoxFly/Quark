@@ -19,23 +19,14 @@ import {
     ChangeDetectionStrategy,
     Component,
     ElementRef,
-    HostListener,
     inject,
     OnDestroy,
     signal,
 } from "@angular/core";
+import type { ContextMenuItem } from "./context-menu.types";
 
-/**
- * Définition d'un item du menu contextuel.
- */
-export interface ContextMenuItem {
-    label: string;
-    icon?: string;
-    action: () => void;
-    danger?: boolean;
-    disabled?: boolean;
-    separator?: boolean;
-}
+// Réexporté ici : les appelants importent le type depuis le composant.
+export type { ContextMenuItem } from "./context-menu.types";
 
 /**
  * Menu contextuel positionné au clic droit.
@@ -46,6 +37,12 @@ export interface ContextMenuItem {
     templateUrl: "./context-menu.component.html",
     styleUrl: "./context-menu.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
+    host: {
+        "(document:click)": "onDocumentClick()",
+        // `open()` arrête la propagation : ce clic droit-ci vise donc un autre endroit.
+        "(document:contextmenu)": "onDocumentClick()",
+        "(document:keydown.escape)": "onEscape()",
+    },
 })
 export class ContextMenuComponent implements OnDestroy {
     private readonly el = inject(ElementRef<HTMLElement>);
@@ -54,15 +51,18 @@ export class ContextMenuComponent implements OnDestroy {
     protected readonly posX = signal<number>(0);
     protected readonly posY = signal<number>(0);
     protected readonly items = signal<ContextMenuItem[]>([]);
+    protected readonly title = signal<string>("");
 
     /**
      * Ouvre le menu contextuel à la position donnée.
+     * @param title En-tête facultatif du menu (nom de l'objet visé), en police mono.
      */
-    public open(event: MouseEvent, items: ContextMenuItem[]): void {
+    public open(event: MouseEvent, items: ContextMenuItem[], title: string = ""): void {
         event.preventDefault();
         event.stopPropagation();
 
         this.items.set(items);
+        this.title.set(title);
         this.posX.set(event.clientX);
         this.posY.set(event.clientY);
         this.visible.set(true);
@@ -110,19 +110,18 @@ export class ContextMenuComponent implements OnDestroy {
         this.close();
     }
 
-    @HostListener("document:click")
+    /**
+     * Un clic ailleurs referme le menu.
+     */
     protected onDocumentClick(): void {
         if (this.visible()) {
             this.close();
         }
     }
 
-    @HostListener("document:contextmenu")
-    protected onDocumentContextMenu(): void {
-        // Le composant parent gère le nouveau contextmenu
-    }
-
-    @HostListener("document:keydown.escape")
+    /**
+     *
+     */
     protected onEscape(): void {
         if (this.visible()) {
             this.close();

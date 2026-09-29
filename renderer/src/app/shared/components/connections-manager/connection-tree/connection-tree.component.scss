@@ -1,0 +1,111 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+:host {
+    display: block;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 6px 0;
+}
+
+.folder,
+.profile {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+        background: var(--border-subtle);
+    }
+
+    .name {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.folder {
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+
+    &.selected {
+        background: var(--bg-hover);
+    }
+
+    .chevron {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-s);
+        color: var(--text-muted);
+        transition: transform 0.12s;
+
+        &.open {
+            transform: rotate(90deg);
+        }
+
+        &:hover {
+            background: var(--border-control);
+            color: var(--text);
+        }
+    }
+
+    .folder-icon {
+        flex: none;
+        color: var(--text-faint);
+    }
+
+    .count {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        font-weight: 400;
+        color: var(--text-faint);
+    }
+}
+
+.profile {
+    gap: 8px;
+    height: 30px;
+    padding: 0 10px 0 32px;
+    border-left: 2px solid transparent;
+    font-size: 12.5px;
+    color: var(--text);
+
+    &.selected {
+        background: var(--bg-hover);
+        border-left-color: var(--accent);
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        flex: none;
+    }
+}

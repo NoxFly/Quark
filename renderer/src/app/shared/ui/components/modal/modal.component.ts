@@ -19,6 +19,7 @@ import {
     AfterViewInit,
     ChangeDetectionStrategy,
     Component,
+    inject,
     input,
     OnDestroy,
     OnInit,
@@ -27,6 +28,7 @@ import {
     ViewContainerRef,
     ViewEncapsulation
 } from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { UIComponent } from "src/app/shared/ui/UIComponent.directive";
 
 @Component({
@@ -40,16 +42,21 @@ import { UIComponent } from "src/app/shared/ui/UIComponent.directive";
         "[class.show-dots]": "showDots()",
         "[class.blurry]": "blurry()",
         "[class.animated]": "animated()",
+        "[class.has-close-button]": "closeButton()",
     }
 })
 export class ModalComponent extends UIComponent implements OnInit, OnDestroy, AfterViewInit {
+    protected readonly i18n = inject(I18nService);
+
     public readonly component = input.required<Type<new () => any>>();
     public readonly componentProps = input<Record<string, any>>({});
     public readonly showBackdrop = input<boolean>(true);
-    public readonly showDots = input<boolean>(true);
+    // Maquette : voile uni, sans points ni flou. Les deux effets restent disponibles sur demande.
+    public readonly showDots = input<boolean>(false);
     public readonly backdropClose = input<boolean>(true);
     public readonly keyboardClose = input<boolean>(true);
-    public readonly blurry = input<boolean>(true);
+    public readonly blurry = input<boolean>(false);
+    public readonly closeButton = input<boolean>(false);
 
     public readonly injectedComponent = viewChild("injectedComponent", { read: ViewContainerRef });
     public readonly contentContainer = viewChild.required("content", { read: ViewContainerRef });
@@ -111,6 +118,13 @@ export class ModalComponent extends UIComponent implements OnInit, OnDestroy, Af
         ) {
             this.dismiss({ role: "cancel" });
         }
+    }
+
+    /**
+     * Bouton ✕ de l'en-tête : ferme comme un clic sur le voile.
+     */
+    protected closeClick(): void {
+        this.dismiss({ role: "cancel" });
     }
 
     /**

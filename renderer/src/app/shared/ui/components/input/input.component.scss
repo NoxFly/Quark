@@ -15,320 +15,259 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-@use 'src/theme/mixins.scss' as *;
-
+// Champ texte de la maquette : 32 px, bordure de contrôle, rayon 4, padding
+// 0 10px, fond du champ, bordure accent au focus (pas de halo). Libellé 12 px
+// `--text-muted` au-dessus, écart 6 px. Variante `mono` : Fira Code 12 px.
+// Variables surchargeables : `--width` (250 px), `--height` (32 px), `--bg-color`,
+// `--fg-color`.
 
 :host {
-    --fg-color: var(--text-color);
-    --bg-color: var(--input-background, var(--surface));
+    --fg-color: var(--text);
+    --bg-color: var(--bg-input);
 
-    margin: 10px;
-    display: inline-block;
-    width: var(--width);
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
     position: relative;
+    width: var(--width, 250px);
+    max-width: 100%;
+    margin: 0;
+    vertical-align: middle;
 
-    .input-container {
-        display: inline-block;
-    }
-
-    label {
+    > label {
+        font-size: 12px;
+        color: var(--text-muted);
         user-select: none;
     }
 
-    &[type="text"],
-    &[type="email"],
-    &[type="password"],
-    &[type="number"],
-    &[type="date"],
-    &[type="tel"],
-    &[type="url"],
-    &[type="search"],
-    &[type="mail"] {
-        label {
-            margin-bottom: 5px;
-        }
+    // Tous les placements de libellé (`fixed`, `floating`, `stacked`) donnent le
+    // libellé au-dessus du champ, comme dans la maquette : `fixed` le faisait déjà
+    // de fait, le libellé passant à la ligne devant un conteneur pleine largeur.
+}
 
-        .input-container {
-            @include flex($disp: inline-flex, $gap: 5px);
-            width: var(--width, 250px);
-            height: var(--height, 40px);
-            border: 1px solid color-mix(in srgb, var(--bg-color), #000 6%);
-            padding-inline: 10px;
-            border-radius: 5px;
-            color: var(--fg-color);
-            background: var(--bg-color);
-        }
+.input-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    height: var(--height, 32px);
+    padding: 0 10px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    background: var(--bg-color);
+    color: var(--fg-color);
+    transition: border-color .12s;
+}
 
-        input:hover {
-            border-color: transparent;
-        }
+:host(:not([data-disabled="true"])) .input-container:hover {
+    border-color: var(--border-control-hover);
+}
 
-        &.ng-invalid {
-            input {
-                border-bottom: 1px solid var(--status-danger);
-            }
-        }
+:host(.has-focus) .input-container {
+    border-color: var(--accent);
+}
+
+:host(.ng-invalid.ng-dirty) .input-container {
+    border-color: var(--danger);
+}
+
+input {
+    flex: 1;
+    // `min-width: 0` neutralise la largeur intrinsèque d'un champ flex, qui
+    // l'empêcherait sinon de rétrécir sous sa taille par défaut.
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    // Un champ natif n'hérite pas de la typographie de son parent : sans
+    // cela, la police fixée par le composant appelant n'atteint jamais le texte.
+    font: inherit;
+
+    &::placeholder {
+        color: var(--text-faint);
+        font-size: var(--placeholder-font-size, inherit);
+        transform: translateY(var(--placeholder-offset-y, 0));
     }
 
-    &[type="radio"],
-    &[type="checkbox"] {
-        @include flex;
+    &:focus {
+        outline: none;
+    }
+}
 
-        label {
-            flex: 1;
-        }
+:host(.mono) input {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
 
-        .input-container {
-            position: relative;
-            width: 20px;
-            height: 20px;
-            aspect-ratio: 1 / 1;
-            border-radius: 4px;
-        }
+.input-icon {
+    --icon-size: 14px;
 
-        input {
-            appearance: none;
-            -webkit-appearance: none;
-            width: 100%;
-            height: 100%;
-            padding: 0;
-            border: 1px solid color-mix(in srgb, var(--bg-color), #000 20%);
-            background: var(--bg-color);
-            cursor: pointer;
+    flex: none;
+    color: var(--text-faint);
+    pointer-events: none;
+}
 
-            &::after {
-                display: none;
-            }
-        }
+:host(.has-focus) .input-icon {
+    color: var(--text-muted);
+}
+
+// --- Nombre : boutons − / + à la place des flèches natives ---
+
+:host([data-type="number"]) input {
+    text-align: center;
+    appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+}
+
+.stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin: 0 -4px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s, color .12s;
+
+    &:hover:not(:disabled) {
+        background: var(--bg-hover);
+        color: var(--text);
     }
 
-    &[type="radio"] {
-        input {
-            border-radius: 100%;
-        }
-
-        input:checked {
-            &::before {
-                @include absolute;
-
-                content: '';
-                width: 40%;
-                height: 40%;
-                border-radius: 100%;
-                background: var(--interactive);
-            }
-        }
+    &:active:not(:disabled) {
+        background: var(--bg-hover-strong);
     }
 
-    &[type="checkbox"] {
-        input {
-            border-radius: 5px;
-        }
+    &:disabled {
+        opacity: .35;
+        cursor: default;
+    }
+}
 
-        input:checked {
-            border-color: transparent;
+// --- Mot de passe : bascule d'affichage ---
 
-            &::before {
-                @include absolute;
+.password-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin-right: -4px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--text-faint);
+    cursor: pointer;
 
-                content: '';
-                border-bottom: 2px solid var(--interactive);
-                border-left: 2px solid var(--interactive);
-                transform: translate(-50%, -70%) rotate(-45deg);
-                width: 10px;
-                height: 5px;
-            }
-        }
+    ui-icon {
+        --icon-size: 14px;
     }
 
-    &[type="text"],
-    &[type="email"],
-    &[type="password"],
-    &[type="number"] {
-        input::placeholder {
-            font-size: var(--placeholder-font-size, inherit);
-            transform: translateY(var(--placeholder-offset-y, 0));
-        }
+    &:hover {
+        background: var(--bg-hover);
+        color: var(--text);
+    }
+}
+
+// --- Case à cocher / radio : libellé à droite du contrôle ---
+// Le contrôle lui-même reprend le style global (`common.scss`, `form.scss`).
+
+:host([data-type="checkbox"]),
+:host([data-type="radio"]) {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+
+    > label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        cursor: pointer;
     }
 
-    &[type="number"] {
-        input {
-            text-align: center;
-            // Masque les flèches natives : on fournit nos propres boutons +/-.
-            appearance: textfield;
-            -moz-appearance: textfield;
-
-            &::-webkit-outer-spin-button,
-            &::-webkit-inner-spin-button {
-                -webkit-appearance: none;
-                margin: 0;
-            }
-        }
-
-        .stepper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex: 0 0 auto;
-            width: 24px;
-            height: 100%;
-            padding: 0;
-            margin: 0;
-            border: none;
-            border-radius: 4px;
-            background: transparent;
-            color: inherit;
-            font-size: 16px;
-            line-height: 1;
-            cursor: pointer;
-            user-select: none;
-            transition: background 0.15s, opacity 0.15s;
-
-            &:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--bg-color), #000 10%);
-            }
-
-            &:active:not(:disabled) {
-                background: color-mix(in srgb, var(--bg-color), #000 16%);
-            }
-
-            &:disabled {
-                opacity: 0.3;
-                cursor: not-allowed;
-            }
-        }
+    .input-container {
+        width: auto;
+        height: auto;
+        padding: 0;
+        border: none;
+        background: none;
     }
 
     input {
-        padding-inline: 0;
-        height: 100%;
-        margin: 0;
-        // `min-width: 0` neutralise la largeur intrinsèque d'un champ flex, qui
-        // l'empêcherait sinon de rétrécir sous sa taille par défaut.
-        min-width: 0;
-        flex: 1;
-        // Un champ natif n'hérite pas de la typographie de son parent : sans
-        // cela, la police fixée par le composant appelant n'atteint jamais le texte.
-        font: inherit;
-        background: transparent;
-        color: inherit;
-
-        &:active,
-        &:focus {
-            outline: none;
-            border-color: transparent;
-        }
+        flex: none;
+        height: 16px;
+        width: 16px;
     }
+}
 
-    &.has-focus {
-        .input-container {
-            border-color: var(--background-color);
-            outline: 1px solid var(--interactive);
-        }
+// --- Suggestions ---
 
-        .input-icon {
-            opacity: 1;
-        }
-    }
+.datalist {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 10;
+    width: 100%;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-menu);
 
-    .password-icon {
-        --icon-color: color-mix(in srgb, var(--bg-color), #777 50%);
-        --icon-size: 20px;
-        color: var(--icon-color);
+    option {
+        display: block;
+        padding: 5px 10px;
+        border-radius: var(--radius-s);
+        font-size: 12px;
         cursor: pointer;
-        position: relative;
 
         &:hover {
-            --icon-color: color-mix(in srgb, var(--bg-color), #777 70%);
+            background: var(--accent);
+            color: var(--accent-fg);
         }
     }
+}
 
-    &[type="password"]:not(.show-password) {
-        .password-icon {
-            --opacity: 100%;
-
-            &::after {
-                content: '';
-                @include absolute;
-                transform: translate(-50%, -50%) rotate(-45deg);
-                width: 100%;
-                height: 2px;
-                background: currentcolor;
-                border-radius: 5px;
-            }
-        }
+// L'hôte expose l'état via `data-disabled` : champ affiché comme une valeur en
+// lecture seule (sans cadre), tel que l'attendent les écrans qui s'en servent.
+:host([data-disabled="true"]) {
+    .input-container {
+        border-color: transparent;
+        background: none;
+        padding: 0;
+        cursor: not-allowed;
+        opacity: .8;
     }
 
-    &.label-stacked {
-        label {
-            display: block;
-        }
-
-        .input-container {
-            width: 100%;
-        }
-    }
-
-    &.label-fixed {
-        label {
-            display: inline-block;
-        }
-    }
-
-    .input-icon {
-        --icon-size: 15px;
+    // `pointer-events` reste sur le seul champ : posé sur le conteneur, il
+    // neutraliserait aussi les commandes qu'il héberge.
+    input {
         pointer-events: none;
-        color: inherit;
-        opacity: 0.3;
-        margin-right: 10px;
-    }
-
-    .datalist {
-        @include absolute($top: 100%, $left: 0, $tx: 0, $ty: 5px);
-
-        width: 100%;
-        max-height: 150px;
-        overflow-y: auto;
-        background: var(--bg-color);
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        border-radius: 5px;
-        z-index: 10;
-        outline: none;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-
-        option {
-            width: 100%;
-            display: block;
-            margin: 0;
-            padding: 7px 10px;
-            cursor: pointer;
-
-            &:hover {
-                background: rgba(0, 0, 0, 0.1);
-            }
-        }
-    }
-
-
-
-
-    // L'hôte expose l'état via `data-disabled` : le sélecteur visait `disabled`,
-    // que rien ne pose, et le style désactivé ne s'appliquait donc jamais.
-    &[data-disabled="true"] {
-        input, .input-container {
-            cursor: not-allowed;
-            opacity: 0.8;
-            border: none;
-            background: none;
-            user-select: none;
-            padding: 0;
-        }
-
-        // `pointer-events` reste sur le seul champ : posé sur le conteneur, il
-        // neutraliserait aussi les commandes qu'il héberge (bascule d'affichage
-        // du mot de passe), qui n'ont pas à disparaître avec la saisie.
-        input {
-            pointer-events: none;
-        }
+        user-select: none;
     }
 }

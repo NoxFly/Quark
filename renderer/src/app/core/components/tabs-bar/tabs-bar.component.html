@@ -15,14 +15,11 @@
                 (dragleave)="onDragLeave()"
                 (drop)="onDrop($event, i)"
                 (dragend)="onDragEnd()"
-                [class.sql-editor-tab]="specialTab(tab) !== null"
                 [tooltip]="tabLabel(tab)">
-                @if (specialTab(tab); as special) {
-                    <span class="tab-icon segoe-icon">{{ special.icon }}</span>
-                }
-
+                <span class="tab-icon">{{ tabIcon(tab) }}</span>
                 <span class="tab-label">{{ tabLabel(tab) }}</span>
                 <button
+                    type="button"
                     class="tab-close"
                     (click)="closeTab($event, i)"
                     [tooltip]="i18n.t('tabs.close')">

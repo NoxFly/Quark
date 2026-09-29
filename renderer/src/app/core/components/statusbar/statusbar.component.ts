@@ -20,8 +20,11 @@ import { Router } from "@angular/router";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
+import { ShellService } from "src/app/core/services/shell.service";
 import { StateService } from "src/app/core/services/state.service";
 import { SQL_EDITOR_TAB_ID, TabsService } from "src/app/core/services/tabs.service";
+import { TransactionStatusService } from "src/app/core/services/transaction-status.service";
+import { DRIVER_MONOGRAMS } from "src/app/shared/helpers/driver-presentation.helper";
 
 @Component({
     selector: "app-statusbar",
@@ -38,107 +41,98 @@ export class StatusbarComponent {
     protected readonly state = inject(StateService);
     protected readonly dbService = inject(DatabaseService);
     protected readonly i18n = inject(I18nService);
+    protected readonly transaction = inject(TransactionStatusService);
+    private readonly shell = inject(ShellService);
     private readonly router = inject(Router);
     private readonly tabsService = inject(TabsService);
 
+    /** « 200 / 12 480 lignes » pour la table affichée. */
     protected readonly recordInfo = computed(() => {
-        const loaded = this.dbService.tableData().length;
-        const total = this.dbService.totalCount();
-        const table = this.dbService.selectedTable();
-
-        if (!table) {
+        if (!this.dbService.selectedTable()) {
             return "";
         }
 
         return this.i18n.t(
             this.state.isNoSqlDatabase() ? "statusbar.documents" : "statusbar.rows",
-            { loaded, total },
+            {
+                loaded: this.i18n.formatNumber(this.dbService.tableData().length),
+                total: this.i18n.formatNumber(this.dbService.totalCount()),
+            },
         );
     });
 
     protected readonly tableSizeInfo = computed(() => {
         const size = this.dbService.tableSize();
+
         if (!size || !this.dbService.selectedTable()) {
             return "";
         }
+
         return this.formatSize(size);
     });
 
-    /**
-     * Formate une taille en octets en une représentation lisible.
-     */
-    private formatSize(bytes: number): string {
-        if (bytes === 0) {
-            return "";
-        }
-        if (bytes < 1024) {
-            return `${bytes} B`;
-        }
-        if (bytes < 1024 * 1024) {
-            return `${(bytes / 1024).toFixed(1)} KB`;
-        }
-        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-    }
-
-    protected readonly tableName = computed(() => this.dbService.selectedTable());
-
     protected readonly selectionInfo = computed(() => {
         const count = this.dbService.selectedCount();
-        if (count === 0) {
-            return "";
-        }
-        return this.i18n.t("statusbar.selected", { count });
-    });
-
-    protected readonly transactionInfo = computed(() => {
-        return this.dbService.inTransaction() ? this.i18n.t("statusbar.transaction") : "";
+        return count === 0 ? "" : this.i18n.t("statusbar.selected", { count });
     });
 
     protected readonly readOnly = computed(() => this.dbService.readOnly());
 
-    protected readonly editModeLabel = computed(() => {
-        return this.dbService.readOnly()
-            ? this.i18n.t("statusbar.readOnly")
-            : this.i18n.t("statusbar.readWrite");
+    /** Monogramme du driver actif, dans la pastille de droite. */
+    protected readonly driverMonogram = computed<string>(() => {
+        const type = this.state.driverType();
+        return type ? DRIVER_MONOGRAMS[type] : "";
     });
 
     /**
      * Indique si l'utilisateur est actuellement dans l'éditeur SQL.
      */
-    protected readonly isInSqlEditor = computed(() => this.router.url.includes("/sql-editor"));
+    protected readonly isInSqlEditor = computed(() => this.tabsService.activeTab()?.tableName === SQL_EDITOR_TAB_ID);
 
     /**
      * Bascule entre l'éditeur SQL (onglet dédié) et la vue précédente.
      */
     protected toggleSqlEditor(): void {
-        if (this.isInSqlEditor()) {
-            // Fermer l'onglet SQL editor
-            const sqlIdx = this.tabsService.findTab(SQL_EDITOR_TAB_ID);
-            if (sqlIdx >= 0) {
-                const nextTable = this.tabsService.closeTab(sqlIdx);
-                if (nextTable) {
-                    void this.dbService.activateTab(nextTable);
-                }
-                else {
-                    void this.router.navigate(["/dashboard/no-table"]);
-                }
-            }
-            else {
-                void this.router.navigate(["/dashboard/no-table"]);
-            }
+        if (!this.isInSqlEditor()) {
+            this.shell.openSqlEditor();
+            return;
+        }
+
+        const sqlIdx = this.tabsService.findTab(SQL_EDITOR_TAB_ID);
+        const nextTable = sqlIdx >= 0 ? this.tabsService.closeTab(sqlIdx) : null;
+
+        if (nextTable) {
+            void this.dbService.activateTab(nextTable);
         }
         else {
-            // Ouvrir un onglet SQL editor
-            this.tabsService.openTab(SQL_EDITOR_TAB_ID);
-            this.dbService.selectedTable.set(null);
-            void this.router.navigate(["/dashboard/sql-editor"]);
+            void this.router.navigate(["/dashboard/no-table"]);
         }
     }
 
-    /**
-     * Toggle le mode lecture seule / lecture-écriture.
-     */
     protected toggleReadOnly(): void {
         this.dbService.toggleReadOnly();
+    }
+
+    protected openSessionDiff(): void {
+        this.shell.openSessionDiff();
+    }
+
+    /**
+     * Taille lisible (« 1,4 Mo »), dans la langue courante.
+     */
+    private formatSize(bytes: number): string {
+        if (bytes < 1024) {
+            return this.i18n.t("statusbar.sizeBytes", { size: this.i18n.formatNumber(bytes) });
+        }
+
+        if (bytes < 1024 * 1024) {
+            return this.i18n.t("statusbar.sizeKilobytes", {
+                size: this.i18n.formatNumber(bytes / 1024, { maximumFractionDigits: 1 }),
+            });
+        }
+
+        return this.i18n.t("statusbar.sizeMegabytes", {
+            size: this.i18n.formatNumber(bytes / (1024 * 1024), { maximumFractionDigits: 2 }),
+        });
     }
 }

@@ -21,6 +21,8 @@
  */
 export type DatabaseDriverType =
     | "sqlite"
+    /** SQLite distant (libSQL / Turso), présenté comme le mode « URL distante » de SQLite. */
+    | "libsql"
     | "mysql"
     | "postgresql"
     | "oracle"
@@ -88,6 +90,31 @@ export interface NetworkConnectionConfig {
     database: string;
     /** Options spécifiques au driver (SSL, etc.). */
     options?: Record<string, unknown>;
+}
+
+/**
+ * Options d'établissement d'une connexion, transmises au driver par
+ * `configureConnection` avant `open`. Aucune n'est obligatoire : une option
+ * absente conserve le comportement historique du driver.
+ */
+export interface DriverConnectionOptions {
+    /** Chiffrer la connexion (SSL / TLS). Azure SQL l'impose quoi qu'il arrive. */
+    ssl?: boolean;
+    /** Délai avant abandon de l'établissement de la connexion, en secondes. */
+    timeoutSeconds?: number;
+    /** URI de connexion complète (MongoDB), prioritaire sur l'hôte et les identifiants. */
+    uri?: string;
+    /**
+     * Jeton d'authentification (libSQL / Turso). Transmis à part plutôt que dans
+     * l'URL ouverte : celle-ci devient le `path` du driver, affiché et historisé.
+     */
+    authToken?: string;
+    /** Authentification Azure SQL (ignorée par les autres drivers). */
+    azureAuth?: {
+        mode: import("./connection").AzureAuthMode;
+        clientId?: string;
+        tenantId?: string;
+    };
 }
 
 /**

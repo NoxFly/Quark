@@ -1,19 +1,23 @@
 @if (isOpen()) {
-    <div class="recent-overlay" (click)="close()">
-        <div class="recent-sheet" (click)="$event.stopPropagation()">
-            <div class="recent-header">{{ i18n.t('recentDb.title') }}</div>
+    <div class="recent-backdrop" (click)="close()">
+        <div class="recent-sheet" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+            <div class="recent-header">
+                <span class="section-title">{{ i18n.t('recentDb.title') }}</span>
+                <span class="kbd">Ctrl+R</span>
+            </div>
             <div class="recent-list">
-                @if (entries().length === 0) {
-                    <div class="recent-empty">{{ i18n.t('recentDb.empty') }}</div>
-                }
                 @for (entry of entries(); track entry.lastOpened; let i = $index) {
                     <button
+                        type="button"
                         class="recent-option"
                         [class.selected]="selectedIndex() === i"
+                        (mouseenter)="selectedIndex.set(i)"
                         (click)="selectEntry($event, i)">
-                        <span class="recent-filename">{{ entry.displayName }}</span>
-                        <span class="recent-directory">{{ entry.displaySubtitle }}</span>
+                        <app-recent-database-item [entry]="entry" />
                     </button>
+                }
+                @empty {
+                    <div class="recent-empty">{{ i18n.t('recentDb.empty') }}</div>
                 }
             </div>
         </div>

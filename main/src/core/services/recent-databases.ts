@@ -19,30 +19,15 @@ import { app } from "electron/main";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseDriverType } from "@shared/driver";
-
-/** Entrée dans l'historique des bases récentes. */
-export interface RecentDatabaseEntry {
-    connectionType: "file" | "network";
-    driverType: DatabaseDriverType;
-    displayName: string;
-    displaySubtitle: string;
-    lastOpened: number;
-    requiresPassword: boolean;
-    // Connexion fichier
-    filePath?: string;
-    // Connexion réseau (aucun mot de passe stocké)
-    host?: string;
-    port?: number;
-    username?: string;
-    database?: string;
-}
+import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 
 const MAX_RECENT = 20;
 
 /**
  * Gère la persistance de l'historique des bases de données récemment ouvertes.
  * Stocke dans un fichier JSON dans le dossier userData d'Electron.
- * Supporte les connexions fichier (SQLite, chiffrées ou non) et réseau.
+ * Supporte les connexions fichier (SQLite, chiffrées ou non), réseau et les
+ * bases SQLite distantes (libSQL / Turso). Aucun secret n'y est jamais écrit.
  */
 export class RecentDatabases {
     private readonly filePath: string;
@@ -110,6 +95,33 @@ export class RecentDatabases {
     }
 
     /**
+     * Ajoute ou met à jour une base SQLite distante dans l'historique.
+     * Le jeton d'authentification n'est jamais stocké.
+     * @param url - URL de la base (`libsql://`, `https://`…).
+     * @param hasToken - Un jeton a été fourni : il faudra le redemander.
+     */
+    public addRemote(url: string, hasToken: boolean): void {
+        let displayName = url;
+
+        try {
+            displayName = new URL(url).hostname || url;
+        }
+        catch {
+            // URL déjà validée à l'ouverture : on garde le texte brut par prudence.
+        }
+
+        this.upsert({
+            connectionType: "remote",
+            driverType: "libsql",
+            displayName,
+            displaySubtitle: url,
+            lastOpened: Date.now(),
+            requiresPassword: hasToken,
+            url,
+        });
+    }
+
+    /**
      * Insère ou met à jour une entrée en tête de liste, dans la limite de MAX_RECENT.
      */
     private upsert(entry: RecentDatabaseEntry): void {
@@ -135,6 +147,10 @@ export class RecentDatabases {
 
         if (a.connectionType === "file") {
             return a.filePath === b.filePath;
+        }
+
+        if (a.connectionType === "remote") {
+            return a.url === b.url;
         }
 
         return (

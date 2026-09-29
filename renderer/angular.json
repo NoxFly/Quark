@@ -29,7 +29,21 @@
                             {
                                 "glob": "**/*",
                                 "input": "./node_modules/monaco-editor/min/vs",
-                                "output": "/vs"
+                                "output": "/vs",
+                                "ignore": [
+                                    "nls.messages.cs.js.js",
+                                    "nls.messages.de.js.js",
+                                    "nls.messages.es.js.js",
+                                    "nls.messages.it.js.js",
+                                    "nls.messages.ja.js.js",
+                                    "nls.messages.ko.js.js",
+                                    "nls.messages.pl.js.js",
+                                    "nls.messages.pt-br.js.js",
+                                    "nls.messages.ru.js.js",
+                                    "nls.messages.tr.js.js",
+                                    "nls.messages.zh-cn.js.js",
+                                    "nls.messages.zh-tw.js.js"
+                                ]
                             }
                         ],
                         "styles": [

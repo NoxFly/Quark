@@ -15,7 +15,14 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import type { DatabaseCategory, DatabaseDriverType, DriverCapabilities, DriverInfo } from "@shared/driver";
+import { Logger } from "@noxfly/noxus";
+import type {
+    DatabaseCategory,
+    DatabaseDriverType,
+    DriverCapabilities,
+    DriverConnectionOptions,
+    DriverInfo,
+} from "@shared/driver";
 import type {
     CreateTableColumnDef,
     DatabaseSchema,
@@ -26,8 +33,9 @@ import type {
     TableSchema,
 } from "@shared/types";
 import type { DatabaseDriver } from "src/core/drivers/driver.interface";
+import { toTimeoutMs } from "src/core/drivers/connection-target.helper";
 import { getDriverInfo } from "src/core/drivers/driver-registry";
-import { MongoClient, type Db, ObjectId } from "mongodb";
+import { MongoClient, type Db, type MongoClientOptions, ObjectId } from "mongodb";
 
 /**
  * Driver MongoDB utilisant le package officiel `mongodb`.
@@ -45,6 +53,7 @@ export class MongodbDriver implements DatabaseDriver {
     private db: Db | null = null;
     private _path: string | null = null;
     private _isOpen = false;
+    private connectionOptions: DriverConnectionOptions = {};
 
     public get info(): DriverInfo {
         return getDriverInfo(this.driverType);
@@ -69,37 +78,56 @@ export class MongodbDriver implements DatabaseDriver {
     // --- Cycle de vie ---
 
     /**
+     * Retient l'URI complète, le chiffrement et le délai de la prochaine connexion.
+     */
+    public async configureConnection(options: DriverConnectionOptions): Promise<void> {
+        this.connectionOptions = { ...options };
+    }
+
+    /**
      * Ouvre une connexion MongoDB.
-     * @param connectionUri URI au format `user:password@host:port/database`
+     * @param connectionUri URI au format `user:password@host:port/database`. Avec
+     * une URI complète configurée (`configureConnection`), seule la base en est lue.
      * @returns Toujours `false` (MongoDB ne supporte pas le chiffrement fichier).
      */
     public async open(connectionUri: string): Promise<boolean> {
         const { host, port, database, user, password } = this.parseUri(connectionUri);
 
         let mongoUri: string;
-        if (user && password) {
+        if (this.connectionOptions.uri) {
+            mongoUri = this.connectionOptions.uri;
+        }
+        else if (user && password) {
             mongoUri = `mongodb://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}`;
         }
         else {
             mongoUri = `mongodb://${host}:${port}`;
         }
 
-        this.client = new MongoClient(mongoUri);
-        await this.client.connect();
+        await this.close();
 
-        // client.db() est lazy : il ne vérifie jamais l'existence de la base.
-        // On passe par listDatabases pour s'assurer qu'elle existe réellement.
-        const { databases } = await this.client.db().admin().listDatabases({ nameOnly: true });
-        const dbExists = (databases as { name: string }[]).some(d => d.name === database);
+        const client = new MongoClient(mongoUri, this.buildClientOptions());
+        this.client = client;
 
-        if (!dbExists) {
-            await this.client.close();
+        try {
+            await client.connect();
+        }
+        catch (error) {
+            // Un client dont la connexion a échoué garde ses minuteurs de surveillance.
+            this.client = null;
+            await client.close().catch(() => undefined);
+            throw error;
+        }
+
+        if (!(await this.databaseExists(client, database))) {
+            await client.close();
             this.client = null;
             throw new Error(`Database "${database}" does not exist`);
         }
 
         this.db = this.client.db(database);
-        this._path = connectionUri;
+        // Le chemin est affiché et journalisé : jamais les identifiants qu'il pourrait contenir.
+        this._path = this.connectionOptions.uri ? connectionUri : `${host}:${port}/${database}`;
         this._isOpen = true;
 
         return false;
@@ -107,6 +135,43 @@ export class MongodbDriver implements DatabaseDriver {
 
     public async unlock(_password: string): Promise<void> {
         throw new Error("MongoDB does not support file-level encryption");
+    }
+
+    /**
+     * Options du client : chiffrement (une URI `+srv` l'active d'elle-même) et délais.
+     * Une option absente laisse l'URI ou le défaut du pilote décider.
+     */
+    private buildClientOptions(): MongoClientOptions {
+        const options: MongoClientOptions = {};
+        const timeoutMs = toTimeoutMs(this.connectionOptions.timeoutSeconds);
+
+        if (this.connectionOptions.ssl !== undefined) {
+            options.tls = this.connectionOptions.ssl;
+        }
+
+        if (timeoutMs !== undefined) {
+            options.connectTimeoutMS = timeoutMs;
+            options.serverSelectionTimeoutMS = timeoutMs;
+        }
+
+        return options;
+    }
+
+    /**
+     * `client.db()` est paresseux : il ne vérifie jamais l'existence de la base,
+     * d'où le passage par `listDatabases`. Un compte limité à sa base (Atlas,
+     * utilisateur applicatif) n'a pas ce droit : la base est alors tenue pour
+     * existante, plutôt que de refuser une connexion légitime.
+     */
+    private async databaseExists(client: MongoClient, database: string): Promise<boolean> {
+        try {
+            const { databases } = await client.db().admin().listDatabases({ nameOnly: true });
+            return (databases as { name: string }[]).some(d => d.name === database);
+        }
+        catch (error) {
+            Logger.warn(`MongoDB: unable to list databases, assuming "${database}" exists: ${error instanceof Error ? error.message : String(error)}`);
+            return true;
+        }
     }
 
     public async close(): Promise<void> {
@@ -259,18 +324,18 @@ export class MongodbDriver implements DatabaseDriver {
                 // Mode filtre SQL/NoSQL : parser la requête JSON MongoDB
                 try {
                     query = JSON.parse(queryString.trim());
-                    console.log("[MongoDB] JSON query parsed:", JSON.stringify(query));
+                    Logger.debug(`[MongoDB] JSON query parsed: ${JSON.stringify(query)}`);
                 }
                 catch {
                     // Essayer de convertir le format MongoDB (sans quotes autour des clés) en JSON strict
                     try {
                         const strictJson = queryString.trim().replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
                         query = JSON.parse(strictJson);
-                        console.log("[MongoDB] JSON query parsed (after conversion):", JSON.stringify(query));
+                        Logger.debug(`[MongoDB] JSON query parsed (after conversion): ${JSON.stringify(query)}`);
                     }
                     catch (fallbackErr) {
                         // Si le parse échoue aussi, log et traiter comme requête vide
-                        console.error("[MongoDB] Failed to parse JSON query:", queryString.trim(), fallbackErr);
+                        Logger.error(`[MongoDB] Failed to parse JSON query: ${queryString.trim()}`, fallbackErr);
                         query = {};
                     }
                 }
@@ -286,7 +351,7 @@ export class MongodbDriver implements DatabaseDriver {
 
         try {
             totalCount = await collection.countDocuments(query);
-            console.log("[MongoDB] Query results - total count:", totalCount, "query:", JSON.stringify(query));
+            Logger.debug(`[MongoDB] Query results - total count: ${totalCount}, query: ${JSON.stringify(query)}`);
 
             const sort: Record<string, 1 | -1> = {};
             if (filterOrderClause) {
@@ -357,7 +422,7 @@ export class MongodbDriver implements DatabaseDriver {
                 }
                 catch (fallbackErr) {
                     // Si le fallback échoue aussi, log l'erreur et retourner vide
-                    console.error("Fallback search failed:", fallbackErr);
+                    Logger.error("[MongoDB] Fallback search failed:", fallbackErr);
                     totalCount = 0;
                     docs = [];
                 }
@@ -385,6 +450,12 @@ export class MongodbDriver implements DatabaseDriver {
         const collection = this.db!.collection(tableName);
         const ids = rowids.map(id => this.toObjectId(id));
         await collection.deleteMany({ _id: { $in: ids } });
+    }
+
+    public async truncateTable(tableName: string): Promise<number> {
+        this.ensureOpen();
+        const result = await this.db!.collection(tableName).deleteMany({});
+        return result.deletedCount;
     }
 
     public async getRow(tableName: string, rowid: number): Promise<DbRecord | null> {

@@ -19,12 +19,7 @@ import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from "@ang
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 import { ButtonComponent } from "@ui/button/button.component";
-
-/** Représente le SQL de création d'une table. */
-interface TableSchemaSql {
-    name: string;
-    sql: string;
-}
+import type { TableSchemaSql } from "src/app/core/models/database-schema.model";
 
 /**
  * Modal d'affichage du schéma complet de la base de données.

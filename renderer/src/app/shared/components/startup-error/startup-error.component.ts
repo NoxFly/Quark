@@ -15,7 +15,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, input, output, ViewEncapsulation } from "@angular/core";
+import { ChangeDetectionStrategy, Component, inject, input, output, ViewEncapsulation } from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
 
 /**
  * Écran affiché quand l'initialisation de l'application échoue.
@@ -33,6 +34,10 @@ import { ChangeDetectionStrategy, Component, input, output, ViewEncapsulation } 
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StartupErrorComponent {
+    // Les traductions sont statiques : elles restent disponibles même quand
+    // l'initialisation a échoué.
+    protected readonly i18n = inject(I18nService);
+
     /** Détail technique de l'échec, affiché tel quel pour le support. */
     public readonly details = input<string>("");
 
