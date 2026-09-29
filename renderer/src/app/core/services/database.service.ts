@@ -21,6 +21,7 @@ import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { ConnectionProfile, ConnectionTestResult } from "@shared/connection";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import { describeConnectionUri } from "src/app/shared/helpers/connection-uri.helper";
+import { nextSortState } from "src/app/shared/helpers/data-grid.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import type {
     CreateTableColumnDef,
@@ -40,7 +41,7 @@ import { NoxusService } from "src/app/core/services/noxus.service";
 import { StateService } from "src/app/core/services/state.service";
 import { SessionDiffService } from "src/app/core/services/session-diff.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
-import { getSpecialTab, indexesTabId, TabsService } from "src/app/core/services/tabs.service";
+import { getSpecialTab, indexesTabId, indexesTabTable, TabsService } from "src/app/core/services/tabs.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { SettingsService } from "src/app/core/services/settings.service";
 import { AlertController } from "@ui/alert/alert.controller";
@@ -253,16 +254,17 @@ export class DatabaseService {
 
     /**
      * Rafraîchit la base de données (ferme et réouvre).
-     * Si une table était sélectionnée et qu'elle existe toujours dans le nouveau schéma,
-     * son contenu est rechargé plutôt que de naviguer vers la vue vide.
+     * Les onglets ouverts sont conservés, sauf ceux dont la table a disparu du
+     * nouveau schéma ; l'onglet actif (ou, s'il a été fermé, son voisin) est
+     * réactivé et ses données rechargées, pour que la vue affichée, la table
+     * sélectionnée et l'onglet marqué actif restent cohérents.
      */
     public async refreshDatabase(): Promise<void> {
         try {
             this.loading.set(true);
 
-            // Mémoriser la table active avant le rechargement
-            const previousTable = this.selectedTable();
-            const wasOnTableData = this.router.url.includes("/dashboard/table-data");
+            // Page hors onglets (procédure stockée) : elle reste affichée.
+            const wasOutsideTabs = this.router.url.startsWith("/dashboard/stored-procedure");
 
             const response = await this.noxus.ipc.refreshDatabase();
 
@@ -272,9 +274,6 @@ export class DatabaseService {
             }
 
             if (response.database) {
-                const tableStillExists = previousTable !== null
-                    && response.database.tables.some(t => t.name === previousTable);
-
                 // Mettre à jour le schéma sans naviguer
                 this.state.connected.set(true);
                 this.state.database.set(response.database);
@@ -289,23 +288,7 @@ export class DatabaseService {
                 this.allRowsSelected.set(false);
                 this.mutationHistory.clear();
 
-                if (wasOnTableData && tableStillExists) {
-                    // Recharger les données de la table active en place
-                    const schema = response.database.tables.find(t => t.name === previousTable) ?? null;
-                    this.tableSchema.set(schema);
-                    // Forcer la réinitialisation complète des données
-                    this.tableData.set([]);
-                    this.totalCount.set(0);
-                    await this.loadTableData(true);
-                }
-                else {
-                    // Aucune table active ou table supprimée : aller sur la vue vide
-                    this.selectedTable.set(null);
-                    this.tableData.set([]);
-                    this.totalCount.set(0);
-                    this.tableSchema.set(null);
-                    this.router.navigate(["/dashboard/no-table"]);
-                }
+                await this.restoreTabsAfterRefresh(response.database, wasOutsideTabs);
             }
         }
         catch (err) {
@@ -317,10 +300,92 @@ export class DatabaseService {
     }
 
     /**
+     * @description Après un rechargement du schéma : ferme les onglets dont la
+     * table n'existe plus, puis réactive l'onglet actif restant (table : données
+     * rechargées avec son filtre et son tri ; onglet spécial : sa route).
+     * @param database - Schéma rechargé.
+     * @param stayOnPage - La page affichée n'est pas un onglet : ne pas en changer.
+     */
+    private async restoreTabsAfterRefresh(database: DatabaseSchema, stayOnPage: boolean): Promise<void> {
+        const tables = new Set(database.tables.map(t => t.name));
+        const selected = this.selectedTable();
+
+        // L'onglet actif mémorise l'état courant : si un voisin le remplace,
+        // son propre filtre et son propre tri sont repris, et non ceux-ci.
+        if (selected !== null && this.tabs.activeTab()?.tableName === selected) {
+            this.tabs.updateActiveTab({
+                filter: this.filter(),
+                sqlFilterMode: this.sqlFilterMode(),
+                orderBy: this.orderBy(),
+                orderDir: this.orderDir(),
+            });
+        }
+
+        const active = this.tabs.retainTabs(tab => {
+            const indexedTable = indexesTabTable(tab.tableName);
+
+            if (indexedTable !== null) {
+                return tables.has(indexedTable);
+            }
+
+            return getSpecialTab(tab.tableName) !== null || tables.has(tab.tableName);
+        });
+
+        if (stayOnPage) {
+            if (selected !== null && !tables.has(selected)) {
+                this.clearSelectedTable();
+            }
+            return;
+        }
+
+        if (!active) {
+            this.clearSelectedTable();
+            await this.router.navigate(["/dashboard/no-table"]);
+            return;
+        }
+
+        if (getSpecialTab(active.tableName)) {
+            await this.activateTab(active.tableName);
+            return;
+        }
+
+        const schema = database.tables.find(t => t.name === active.tableName) ?? null;
+        // Une colonne de tri supprimée ferait échouer la requête.
+        const orderBy = schema?.fields.some(f => f.name === active.orderBy) ? active.orderBy : null;
+
+        this.selectedTable.set(active.tableName);
+        this.tableSchema.set(schema);
+        this.filter.set(active.filter);
+        this.sqlFilterMode.set(active.sqlFilterMode);
+        this.orderBy.set(orderBy);
+        this.orderDir.set(orderBy === null ? "ASC" : active.orderDir);
+        this.tableData.set([]);
+        this.totalCount.set(0);
+
+        await this.loadTableData(true);
+
+        if (!this.router.url.startsWith("/dashboard/table-data")) {
+            await this.router.navigate(["/dashboard/table-data"]);
+        }
+    }
+
+    /**
+     * @description Désélectionne la table affichée et vide ses données.
+     */
+    private clearSelectedTable(): void {
+        this.selectedTable.set(null);
+        this.tableData.set([]);
+        this.totalCount.set(0);
+        this.tableSchema.set(null);
+    }
+
+    /**
      * Sélectionne une table et charge ses données.
      * Gère les onglets : ouvre un onglet existant ou en crée un.
+     * @param filter - Filtre imposé à l'ouverture (navigation par clé étrangère),
+     * à la place de celui de l'onglet ; son mode est appliqué avec lui.
      */
-    public async selectTable(tableName: string): Promise<void> {
+    public async selectTable(tableName: string, filter?: { expression: string; sqlMode: boolean }): Promise<void> {
         // Sauvegarder l'état de l'onglet actuel avant de changer
         this.tabs.updateActiveTab({
             filter: this.filter(),
@@ -351,6 +416,11 @@ export class DatabaseService {
             this.orderBy.set(null);
             this.orderDir.set("ASC");
             this.filter.set("");
+        }
+
+        if (filter) {
+            this.filter.set(filter.expression);
+            this.sqlFilterMode.set(filter.sqlMode);
         }
 
         this.selectedRowIds.set(new Set());
@@ -436,13 +506,10 @@ export class DatabaseService {
      * Trie la table par une colonne.
      */
     public async sortBy(column: string): Promise<void> {
-        if (this.orderBy() === column) {
-            this.orderDir.update(d => d === "ASC" ? "DESC" : "ASC");
-        }
-        else {
-            this.orderBy.set(column);
-            this.orderDir.set("ASC");
-        }
+        const next = nextSortState({ orderBy: this.orderBy(), orderDir: this.orderDir() }, column);
+
+        this.orderBy.set(next.orderBy);
+        this.orderDir.set(next.orderDir);
 
         await this.loadTableData(true);
     }
@@ -459,6 +526,8 @@ export class DatabaseService {
      * Met à jour une cellule.
      */
     public async updateCell(rowid: number, column: string, value: unknown): Promise<void> {
+        this.assertWritable();
+
         const table = this.selectedTable();
         if (!table) {
             return;
@@ -579,6 +648,8 @@ export class DatabaseService {
      * Insère une nouvelle ligne dans la table courante.
      */
     public async insertRow(values: Record<string, unknown>): Promise<DbRecord | null> {
+        this.assertWritable();
+
         const table = this.selectedTable();
         if (!table) {
             return null;
@@ -1100,9 +1171,22 @@ export class DatabaseService {
     }
 
     /**
+     * @description Refuse une écriture en lecture seule. Un formulaire (édition
+     * d'enregistrement, édition par lot) peut rester ouvert quand l'utilisateur
+     * repasse en lecture seule : c'est ici que son enregistrement est bloqué.
+     */
+    private assertWritable(): void {
+        if (this.readOnly()) {
+            throw new Error(this.i18n.t("data.readOnlyWriteBlocked"));
+        }
+    }
+
+    /**
      * Applique la même valeur à un champ sur plusieurs lignes.
      */
     public async batchUpdate(rowids: number[], column: string, value: unknown): Promise<void> {
+        this.assertWritable();
+
         const table = this.selectedTable();
         if (!table || rowids.length === 0) {
             return;

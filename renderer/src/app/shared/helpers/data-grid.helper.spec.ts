@@ -21,6 +21,7 @@ import {
     columnMinWidth,
     columnTrack,
     epochUnit,
+    foreignKeyFilter,
     formatEpoch,
     gridMinWidth,
     gridTemplateColumns,
@@ -29,7 +30,10 @@ import {
     isLongTextType,
     isTextType,
     isTimestampCandidate,
+    nextSortState,
+    quoteSqlIdentifier,
     rowMarksFromHistory,
+    sqlLiteral,
 } from "src/app/shared/helpers/data-grid.helper";
 
 function field(name: string, type: string, extra: Partial<FieldDef> = {}): FieldDef {
@@ -170,5 +174,46 @@ describe("rowMarksFromHistory", () => {
         expect(marks.get(2)).toBe("inserted");
         expect(marks.has(3)).toBe(false);
         expect(marks.has(4)).toBe(false);
+    });
+});
+
+describe("nextSortState", () => {
+    it("parcourt ASC → DESC → aucun tri sur la même colonne", () => {
+        const asc = nextSortState({ orderBy: null, orderDir: "ASC" }, "name");
+        expect(asc).toEqual({ orderBy: "name", orderDir: "ASC" });
+
+        const desc = nextSortState(asc, "name");
+        expect(desc).toEqual({ orderBy: "name", orderDir: "DESC" });
+
+        expect(nextSortState(desc, "name")).toEqual({ orderBy: null, orderDir: "ASC" });
+    });
+
+    it("repart en ASC sur une autre colonne", () => {
+        expect(nextSortState({ orderBy: "name", orderDir: "DESC" }, "id")).toEqual({ orderBy: "id", orderDir: "ASC" });
+    });
+});
+
+describe("filtre de clé étrangère", () => {
+    it("écrit une clause WHERE avec le littéral adapté", () => {
+        expect(foreignKeyFilter("client_id", 42, "sqlite")).toBe("client_id = 42");
+        expect(foreignKeyFilter("code", "O'Neil", "postgresql")).toBe("code = 'O''Neil'");
+    });
+
+    it("entoure un nom de colonne atypique des guillemets du dialecte", () => {
+        expect(quoteSqlIdentifier("id client", "mysql")).toBe("`id client`");
+        expect(quoteSqlIdentifier("id client", "mssql")).toBe("[id client]");
+        expect(quoteSqlIdentifier("id \"client\"", "sqlite")).toBe('"id ""client"""');
+        expect(quoteSqlIdentifier("client_id", "mysql")).toBe("client_id");
+    });
+
+    it("produit une requête JSON en MongoDB", () => {
+        expect(foreignKeyFilter("customerId", "abc", "mongodb")).toBe('{"customerId":"abc"}');
+        expect(foreignKeyFilter("count", 3, "mongodb")).toBe('{"count":3}');
+    });
+
+    it("écrit les littéraux SQL", () => {
+        expect(sqlLiteral(null)).toBe("NULL");
+        expect(sqlLiteral(true)).toBe("1");
+        expect(sqlLiteral(10n)).toBe("10");
     });
 });

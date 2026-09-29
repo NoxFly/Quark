@@ -113,17 +113,45 @@
     min-height: 0;
 }
 
-// La hauteur suit le contenu (100 → 280 px, voir la page) ; la poignée native
-// permet de la fixer à la main.
+// La hauteur suit le contenu (100 → 280 px, voir la page) ; la poignée placée
+// dessous permet de la fixer à la main.
 .monaco-container {
     height: 100px;
     min-height: 100px;
-    max-height: 70vh;
     flex: none;
-    resize: vertical;
     overflow: hidden;
-    border-bottom: 1px solid var(--border);
     background: var(--bg-subtle);
+}
+
+// Poignée pleine largeur entre l'éditeur et les résultats, au style de celle de
+// la sidebar : la bordure de 1 px, une zone de saisie de 7 px, l'accent au
+// survol et pendant le glissement.
+.editor-resize-handle {
+    position: relative;
+    height: 1px;
+    flex: none;
+    background: var(--border);
+    cursor: row-resize;
+    z-index: 5;
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: -3px 0;
+    }
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: -1px 0 0;
+        background: transparent;
+        transition: background .15s;
+    }
+
+    &:hover::after,
+    &.resizing::after {
+        background: var(--accent);
+    }
 }
 
 // --- Résultats ---

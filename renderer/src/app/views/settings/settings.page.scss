@@ -47,6 +47,16 @@
     &:hover {
         background: var(--bg-hover-strong);
     }
+
+    // Glyphe Segoe Fluent « Back » : centré sur la hauteur du texte.
+    ui-icon {
+        --icon-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        line-height: 1;
+    }
 }
 
 .settings-content {

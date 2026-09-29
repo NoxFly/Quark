@@ -5,7 +5,10 @@
     en échec), où l'interrupteur doit rester sur l'état réel.
 -->
 <aside class="settings-nav">
-    <button type="button" class="back" (click)="back()">← {{ "settings.back" | translate }}</button>
+    <button type="button" class="back" (click)="back()">
+        <ui-icon src="E72B" nomargin />
+        <span>{{ "settings.back" | translate }}</span>
+    </button>
 </aside>
 
 <div class="settings-content">

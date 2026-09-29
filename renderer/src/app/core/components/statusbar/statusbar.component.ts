@@ -22,7 +22,7 @@ import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { ShellService } from "src/app/core/services/shell.service";
 import { StateService } from "src/app/core/services/state.service";
-import { SQL_EDITOR_TAB_ID, TabsService } from "src/app/core/services/tabs.service";
+import { getSpecialTab, SQL_EDITOR_TAB_ID, TabsService } from "src/app/core/services/tabs.service";
 import { TransactionStatusService } from "src/app/core/services/transaction-status.service";
 import { DRIVER_MONOGRAMS } from "src/app/shared/helpers/driver-presentation.helper";
 
@@ -71,7 +71,20 @@ export class StatusbarComponent {
         return this.formatSize(size);
     });
 
+    /**
+     * L'onglet actif affiche une table : la sélection de lignes n'a de sens que
+     * là, elle n'est pas vidée quand on passe sur l'éditeur SQL, un diff ou des index.
+     */
+    protected readonly isTableTabActive = computed<boolean>(() => {
+        const tableName = this.tabsService.activeTab()?.tableName ?? null;
+        return tableName !== null && getSpecialTab(tableName) === null;
+    });
+
     protected readonly selectionInfo = computed(() => {
+        if (!this.isTableTabActive()) {
+            return "";
+        }
+
         const count = this.dbService.selectedCount();
         return count === 0 ? "" : this.i18n.t("statusbar.selected", { count });
     });

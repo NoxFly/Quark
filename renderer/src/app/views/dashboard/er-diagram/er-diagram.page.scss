@@ -15,12 +15,23 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+// Curseurs du diagramme, au style de Figma (`renderer/public/cursors/`). Comme
+// les polices, le chemin part de la racine du projet renderer : le build copie
+// les images dans `media/` et réécrit l'URL en `./media/…`, résolue contre le
+// document (`<base href="./">`), donc aussi en `file://`. Chaque curseur se
+// replie sur son équivalent système si l'image manque.
+$cursor-arrow: url("public/cursors/arrow.svg") 6 4, default;
+$cursor-pointer: url("public/cursors/pointer.svg") 13 9, pointer;
+$cursor-grab: url("public/cursors/grab.svg") 16 16, grab;
+$cursor-grabbing: url("public/cursors/grabbing.svg") 16 16, grabbing;
+
 :host {
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
     user-select: none;
+    cursor: $cursor-arrow;
 }
 
 .empty-state {
@@ -40,10 +51,13 @@
     overflow: hidden;
     background-color: var(--bg-subtle);
     background-image: radial-gradient(var(--border-control) 1px, transparent 1px);
-    cursor: grab;
+    cursor: $cursor-grab;
 
-    &.panning {
-        cursor: grabbing;
+    // Pendant un glissement (fond ou boîte), la main fermée prime sur le
+    // curseur de tout élément survolé.
+    &.panning,
+    &.panning * {
+        cursor: $cursor-grabbing;
     }
 }
 
@@ -82,7 +96,7 @@
     border-radius: 5px;
     box-shadow: var(--shadow-card);
     overflow: hidden;
-    cursor: default;
+    cursor: $cursor-arrow;
 }
 
 .box-header {
@@ -96,7 +110,7 @@
     font-size: 12.5px;
     font-weight: 600;
     color: var(--text);
-    cursor: pointer;
+    cursor: $cursor-pointer;
 
     &:hover {
         background: var(--bg-hover);
@@ -187,7 +201,7 @@
     box-shadow: var(--shadow-card);
     overflow: hidden;
     font-size: 12px;
-    cursor: default;
+    cursor: $cursor-arrow;
 }
 
 .zoom-button,
@@ -199,7 +213,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
+    cursor: $cursor-pointer;
 
     &:hover {
         background: var(--bg-panel);

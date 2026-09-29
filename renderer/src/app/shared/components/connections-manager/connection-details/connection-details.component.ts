@@ -27,6 +27,7 @@ import {
     tagLabelKey,
 } from "src/app/shared/helpers/connections.helper";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
+import { IconComponent } from "@ui/icon/icon.component";
 import { DriverThumbComponent } from "src/app/shared/components/connections-manager/driver-thumb/driver-thumb.component";
 
 /**
@@ -39,7 +40,7 @@ import { DriverThumbComponent } from "src/app/shared/components/connections-mana
     templateUrl: "./connection-details.component.html",
     styleUrl: "./connection-details.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslatePipe, DriverThumbComponent],
+    imports: [TranslatePipe, DriverThumbComponent, IconComponent],
 })
 export class ConnectionDetailsComponent {
     private readonly i18n = inject(I18nService);

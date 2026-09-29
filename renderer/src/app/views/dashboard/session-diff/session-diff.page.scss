@@ -28,7 +28,6 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    max-width: 960px;
     padding: 24px 28px;
     color: var(--text);
 
@@ -36,11 +35,6 @@
     // ligne concernée, le fond appuyé le fragment réellement différent.
     --diff-removed-token: color-mix(in srgb, var(--danger) 22%, transparent);
     --diff-added-token: color-mix(in srgb, var(--success) 22%, transparent);
-
-    // La grille aligne toutes les colonnes d'une table : elle prend toute la largeur.
-    &--grid {
-        max-width: none;
-    }
 }
 
 .segoe-icon {
@@ -88,6 +82,35 @@
     @include tool.button-icon(28px);
 
     font-size: 13px;
+
+    ui-icon {
+        --icon-size: 16px;
+
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+// --- Annulation d'une modification ---
+
+.revert-slot {
+    flex: none;
+    display: inline-flex;
+}
+
+.row-revert {
+    @include tool.button-icon(22px);
+
+    font-size: 12px;
+
+    ui-icon {
+        --icon-size: 14px;
+
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
 // --- Bandeaux ---
@@ -401,9 +424,16 @@
 
     .grid-sign,
     .grid-rowid,
-    .grid-status {
+    .grid-status,
+    .grid-action {
         width: 1%;
         user-select: none;
+    }
+
+    .grid-action {
+        padding: 0 4px;
+        font-family: var(--font-ui);
+        text-align: center;
     }
 
     .grid-rowid {

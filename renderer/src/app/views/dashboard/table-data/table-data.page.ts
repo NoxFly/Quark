@@ -22,6 +22,7 @@ import {
     Component,
     computed,
     DestroyRef,
+    DOCUMENT,
     effect,
     ElementRef,
     inject,
@@ -48,6 +49,7 @@ import type { DbRecord, FieldDef } from "@shared/types";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { VirtualRows } from "src/app/shared/helpers/virtual-rows.helper";
 import {
+    foreignKeyFilter,
     formatEpoch,
     gridMinWidth,
     gridTemplateColumns,
@@ -95,6 +97,8 @@ export class TableDataPage {
     private readonly injector = inject(Injector);
     private readonly destroyRef = inject(DestroyRef);
     private readonly modalCtrl = inject(ModalController);
+    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+    private readonly document = inject(DOCUMENT);
 
     protected readonly filterInput = signal<string>("");
     private filterTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -249,16 +253,22 @@ export class TableDataPage {
             untracked(() => this.virtual.reset(this.scrollContainer()?.nativeElement));
         });
 
-        // Réinitialiser le filtre lors du changement de table
+        // Changement de table : le champ de recherche reprend le filtre de
+        // l'onglet (restauré, ou imposé par une navigation par clé étrangère).
         effect(() => {
             this.tableName(); // Lire le signal pour déclencher l'effet
-            this.filterInput.set("");
+            this.filterInput.set(untracked(() => this.dbService.filter()));
             this.cursorRowId.set(null);
             this.selectionAnchor = null;
             this.timestampOverrides.set(new Map());
-            if (this.filterTimeout) {
-                clearTimeout(this.filterTimeout);
-                this.filterTimeout = null;
+            this.cancelPendingFilter();
+        });
+
+        // Passage en lecture seule : l'édition en cours est abandonnée, sans
+        // enregistrer, et le champ perd le focus pour ne plus recevoir de saisie.
+        effect(() => {
+            if (this.dbService.readOnly()) {
+                untracked(() => this.cancelEdit());
             }
         });
     }
@@ -363,6 +373,20 @@ export class TableDataPage {
         else {
             this.selectOnly(rowid);
         }
+    }
+
+    /**
+     * Maj+clic et Ctrl+clic sélectionnent des lignes : sans ce blocage, le
+     * navigateur étendrait aussi la sélection de texte depuis le clic précédent.
+     * Le champ d'une cellule en cours d'édition garde son comportement.
+     */
+    protected onRowMouseDown(event: MouseEvent): void {
+        if (!(event.shiftKey || event.ctrlKey || event.metaKey) || (event.target as HTMLElement).closest(".cell-edit")) {
+            return;
+        }
+
+        event.preventDefault();
+        this.document.getSelection()?.removeAllRanges();
     }
 
     /**
@@ -478,6 +502,10 @@ export class TableDataPage {
     }
 
     protected startEdit(rowid: number, column: string, currentValue: unknown): void {
+        if (this.dbService.readOnly()) {
+            return;
+        }
+
         const current = this.editingCell();
         if (current && current.rowid === rowid && current.column === column) {
             return;
@@ -505,7 +533,8 @@ export class TableDataPage {
         const newValue = this.editValue();
         this.editingCell.set(null);
 
-        if (this.isUnchanged(cell.rowid, cell.column, newValue)) {
+        // Le blur du champ peut suivre un passage en lecture seule.
+        if (this.dbService.readOnly() || this.isUnchanged(cell.rowid, cell.column, newValue)) {
             return;
         }
 
@@ -539,6 +568,21 @@ export class TableDataPage {
     }
 
     /**
+     * Abandonne l'édition en cours sans l'enregistrer et retire le focus du
+     * champ, rendu au tableau pour garder la navigation clavier.
+     */
+    private cancelEdit(): void {
+        if (!this.editingCell()) {
+            return;
+        }
+
+        // La cellule est libérée avant le blur : `commitEdit` n'a plus rien à écrire.
+        this.editingCell.set(null);
+        this.scrollContainer()?.nativeElement.querySelector<HTMLInputElement>(".cell-edit")?.blur();
+        this.host.nativeElement.focus({ preventScroll: true });
+    }
+
+    /**
      * Passe à la cellule suivante (ou précédente si shift) en mode édition.
      */
     private moveToNextCell(backward: boolean): void {
@@ -550,6 +594,9 @@ export class TableDataPage {
         // Commit la cellule courante d'abord
         const currentValue = this.editValue();
         this.editingCell.set(null);
+        if (this.dbService.readOnly()) {
+            return;
+        }
         if (!this.isUnchanged(cell.rowid, cell.column, currentValue)) {
             void this.dbService.updateCell(cell.rowid, cell.column, currentValue);
         }
@@ -869,10 +916,25 @@ export class TableDataPage {
      * Navigue vers la table référencée par une clé étrangère.
      */
     private async navigateToForeignKey(tableName: string, columnName: string, value: unknown): Promise<void> {
-        await this.dbService.selectTable(tableName);
-        const filterExpr = `${columnName} = ${typeof value === "string" ? `'${value}'` : value}`;
-        this.filterInput.set(filterExpr);
-        this.dbService.applyFilter(filterExpr);
+        // Le filtre généré est une clause WHERE (ou une requête JSON) : il ne
+        // trouve rien en recherche texte, d'où le passage forcé en mode requête.
+        const expression = foreignKeyFilter(columnName, value, this.state.driverType());
+
+        this.cancelPendingFilter();
+        await this.dbService.selectTable(tableName, { expression, sqlMode: true });
+        // Clé étrangère vers la même table : le changement de table ne
+        // resynchronise pas le champ de recherche.
+        this.filterInput.set(expression);
+    }
+
+    /**
+     * Abandonne une saisie de recherche encore en attente d'application.
+     */
+    private cancelPendingFilter(): void {
+        if (this.filterTimeout) {
+            clearTimeout(this.filterTimeout);
+            this.filterTimeout = null;
+        }
     }
 
     /**
@@ -970,7 +1032,8 @@ export class TableDataPage {
             editor.dismiss = data => modal.dismiss(data ? { role: "confirm", data } : { role: "cancel" });
         }
         modal.didDismiss.subscribe(async result => {
-            if (result.role === "confirm" && result.data) {
+            // Le formulaire a pu rester ouvert pendant un passage en lecture seule.
+            if (result.role === "confirm" && result.data && !this.dbService.readOnly()) {
                 const { column, value } = result.data as { column: string; value: unknown };
                 await this.dbService.batchUpdate(rowids, column, value);
             }

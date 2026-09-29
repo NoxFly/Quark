@@ -23,9 +23,9 @@
                             @else if (item.children) {
                                 <div class="menu-item has-children" role="menuitem" [class.disabled]="item.disabled">
                                     <span class="menu-item-label">
-                                        <span class="menu-item-check">{{ item.checked ? "✓" : "" }}</span>{{ item.label }}
+                                        <span class="menu-item-check">@if (item.checked) {<ui-icon src="E73E" nomargin />}</span>{{ item.label }}
                                     </span>
-                                    <span class="menu-item-shortcut">›</span>
+                                    <span class="menu-item-shortcut submenu-arrow"><ui-icon src="E76C" nomargin /></span>
 
                                     <div class="submenu" role="menu">
                                         @for (child of item.children; track $index) {
@@ -36,7 +36,7 @@
                                                 (click)="executeMenuItem($event, child)"
                                             >
                                                 <span class="menu-item-label">
-                                                    <span class="menu-item-check">{{ child.checked ? "✓" : "" }}</span>{{ child.label }}
+                                                    <span class="menu-item-check">@if (child.checked) {<ui-icon src="E73E" nomargin />}</span>{{ child.label }}
                                                 </span>
                                             </div>
                                         }
@@ -51,7 +51,7 @@
                                     (click)="executeMenuItem($event, item)"
                                 >
                                     <span class="menu-item-label">
-                                        <span class="menu-item-check">{{ item.checked ? "✓" : "" }}</span>{{ item.label }}
+                                        <span class="menu-item-check">@if (item.checked) {<ui-icon src="E73E" nomargin />}</span>{{ item.label }}
                                     </span>
                                     <span class="menu-item-shortcut">{{ item.shortcut ?? "" }}</span>
                                 </div>
@@ -72,7 +72,9 @@
             [class.active]="shell.settingsOpen()"
             [title]="'settings.title' | translate"
             (click)="toggleSettings($event)"
-        >⚙</div>
+        >
+            <ui-icon src="E713" nomargin />
+        </div>
 
         <div class="action window-button" role="button" (click)="reduceApp()">
             <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">

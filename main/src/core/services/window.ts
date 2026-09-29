@@ -23,10 +23,11 @@ import { environment } from "src/core/environment";
 import { RemoteDriver } from "src/core/driver-host/remote-driver";
 import type { DatabaseDriverType } from "@shared/driver";
 import type { ErrorDialogPayload } from "@shared/ipc-renderer";
-import type { SessionOpaqueCategory } from "@shared/session-diff";
+import type { SessionOpaqueCategory, SessionRevertResult, SessionRowRef } from "@shared/session-diff";
 import type { DatabaseSchema, DbRecord, R_TransactionAction } from "@shared/types";
 import { AppEnv } from "src/core/env.dto";
 import { SessionDiff } from "src/core/services/session-diff";
+import { SessionReverter } from "src/core/services/session-revert";
 
 const defaultWindowOptions: BrowserWindowConstructorOptions = {
     webPreferences: {
@@ -506,6 +507,35 @@ export class Window {
         this.notifySessionDiffChanged();
 
         return { rowid, record };
+    }
+
+    /**
+     * Remet une ligne du diff de session dans son état d'origine.
+     *
+     * Passe par la fenêtre pour s'exécuter sur sa connexion, dans la transaction
+     * éventuellement ouverte, et notifier le renderer comme toute mutation.
+     * @param ref - Ligne à annuler.
+     */
+    public async revertSessionRow(ref: SessionRowRef): Promise<SessionRevertResult> {
+        const result = await new SessionReverter(this.database, this._sessionDiff).revertRow(ref);
+
+        this.notifySessionDiffChanged();
+
+        return result;
+    }
+
+    /**
+     * Remet dans leur état d'origine les lignes désignées du diff de session
+     * (toutes si rien n'est désigné).
+     * @param rows - Lignes à annuler.
+     * @param tables - Tables dont toutes les lignes sont à annuler.
+     */
+    public async revertSessionRows(rows?: SessionRowRef[], tables?: string[]): Promise<SessionRevertResult> {
+        const result = await new SessionReverter(this.database, this._sessionDiff).revertAll(rows, tables);
+
+        this.notifySessionDiffChanged();
+
+        return result;
     }
 
     /**

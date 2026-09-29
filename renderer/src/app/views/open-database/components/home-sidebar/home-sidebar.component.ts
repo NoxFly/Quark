@@ -24,6 +24,7 @@ import { SettingsService } from "src/app/core/services/settings.service";
 import { StateService } from "src/app/core/services/state.service";
 import { RecentDatabaseItemComponent } from "src/app/shared/components/recent-databases/recent-database-item/recent-database-item.component";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
+import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
 
 /** Au-delà, la colonne défilerait : la liste complète reste accessible par Ctrl+R. */
 const MAX_RECENTS = 8;
@@ -42,7 +43,7 @@ const MAX_RECENTS = 8;
     templateUrl: "./home-sidebar.component.html",
     styleUrl: "./home-sidebar.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslatePipe, RecentDatabaseItemComponent],
+    imports: [TranslatePipe, RecentDatabaseItemComponent, IconComponent],
 })
 export class HomeSidebarComponent implements OnInit {
     private readonly noxus = inject(NoxusService);

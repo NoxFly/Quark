@@ -15,9 +15,12 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+import { NgTemplateOutlet } from "@angular/common";
 import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, OnInit, signal } from "@angular/core";
 import type {
     SessionOpaqueChange,
+    SessionRevertFailure,
+    SessionRevertResult,
     SessionRowDiff,
     SessionTableDiff,
 } from "@shared/session-diff";
@@ -26,10 +29,12 @@ import { AlertController } from "@ui/alert/alert.controller";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { SessionDiffService } from "src/app/core/services/session-diff.service";
+import { SettingsService } from "src/app/core/services/settings.service";
 import { StateService } from "src/app/core/services/state.service";
 import { diffInline, type DiffSegment } from "src/app/shared/helpers/text-diff.helper";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 import { ButtonComponent } from "@ui/button/button.component";
+import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
 import { SegmentedComponent } from "src/app/shared/ui/components/segmented/segmented.component";
 import type { SegmentedOption } from "src/app/shared/ui/ui.types";
 
@@ -59,6 +64,8 @@ interface RowDiffView {
     kind: SessionRowDiff["kind"];
     columns: ColumnDiffView[];
     lastChangedAt: number;
+    /** La ligne peut être remise dans son état d'origine. */
+    revertible: boolean;
 }
 
 /** Une table modifiée, prête à l'affichage. */
@@ -83,6 +90,13 @@ const KIND_LABELS: Readonly<Record<SessionRowDiff["kind"], string>> = {
     insert: "INSERT",
     update: "UPDATE",
     delete: "DELETE",
+};
+
+/** Infobulle de l'annulation, selon la nature de la modification. */
+const REVERT_TOOLTIPS: Readonly<Record<SessionRowDiff["kind"], string>> = {
+    insert: "sessionDiff.revertInsert",
+    update: "sessionDiff.revertUpdate",
+    delete: "sessionDiff.revertDelete",
 };
 
 /** Instructions qui retirent des données ou des objets. */
@@ -114,7 +128,7 @@ const VIEW_MODE_STORAGE_KEY = "session-diff-view";
     templateUrl: "./session-diff.page.html",
     styleUrl: "./session-diff.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TooltipDirective, ButtonComponent, SegmentedComponent],
+    imports: [NgTemplateOutlet, TooltipDirective, ButtonComponent, SegmentedComponent, IconComponent],
 })
 export class SessionDiffPage implements OnInit, OnDestroy {
     protected readonly sessionDiff = inject(SessionDiffService);
@@ -122,9 +136,37 @@ export class SessionDiffPage implements OnInit, OnDestroy {
     protected readonly state = inject(StateService);
     protected readonly dbService = inject(DatabaseService);
     private readonly alertCtrl = inject(AlertController);
+    private readonly settings = inject(SettingsService);
 
     /** Une validation ou une annulation de transaction est en cours. */
     protected readonly transactionBusy = signal<boolean>(false);
+
+    /** Une annulation de modification est en cours. */
+    protected readonly revertBusy = signal<boolean>(false);
+
+    /**
+     * Les modifications peuvent être annulées depuis la page. En lecture seule,
+     * l'action n'est pas proposée : annuler une modification écrit en base.
+     */
+    protected readonly canRevert = computed(() => !this.dbService.readOnly() && (this.snapshot()?.active ?? false));
+
+    /**
+     * Lignes annulables des tables affichées (filtre compris), toutes lignes
+     * confondues — pas seulement celles dans la limite d'affichage.
+     */
+    protected readonly revertibleCount = computed(() => {
+        let count = 0;
+
+        for (const table of this.filteredTables()) {
+            for (const row of table.rows) {
+                if (row.revertible) {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    });
 
     /** La transaction ouverte peut être validée ou annulée depuis la page. */
     protected readonly canCloseTransaction = computed(() => {
@@ -183,6 +225,14 @@ export class SessionDiffPage implements OnInit, OnDestroy {
         }
 
         return count;
+    });
+
+    /** Tables du journal retenues par le filtre. */
+    private readonly filteredTables = computed<SessionTableDiff[]>(() => {
+        const filter = this.tableFilter().trim().toLowerCase();
+
+        return (this.snapshot()?.tables ?? [])
+            .filter(table => filter.length === 0 || table.table.toLowerCase().includes(filter));
     });
 
     /** Limite d'affichage par table, au-delà de la valeur par défaut. */
@@ -252,12 +302,9 @@ export class SessionDiffPage implements OnInit, OnDestroy {
             return [];
         }
 
-        const filter = this.tableFilter().trim().toLowerCase();
         const limits = this.rowLimits();
 
-        return snapshot.tables
-            .filter(table => filter.length === 0 || table.table.toLowerCase().includes(filter))
-            .map(table => this.buildTableView(table, limits[table.table] ?? DEFAULT_ROW_LIMIT));
+        return this.filteredTables().map(table => this.buildTableView(table, limits[table.table] ?? DEFAULT_ROW_LIMIT));
     });
 
     /**
@@ -355,6 +402,165 @@ export class SessionDiffPage implements OnInit, OnDestroy {
                 },
             ],
         });
+    }
+
+    /**
+     * Infobulle de l'action d'annulation, qui dit ce qu'elle fera réellement
+     * selon la nature de la modification.
+     */
+    protected revertTooltipKey(kind: SessionRowDiff["kind"]): string {
+        return REVERT_TOOLTIPS[kind];
+    }
+
+    /**
+     * Annule une modification : remet la ligne dans son état d'origine en base.
+     *
+     * Annuler un ajout supprime la ligne : la confirmation suit alors le réglage
+     * de confirmation des suppressions, comme toute suppression de données.
+     */
+    protected async revertRow(table: string, row: RowDiffView): Promise<void> {
+        if (!row.revertible || this.revertBusy()) {
+            return;
+        }
+
+        const run = (): Promise<void> => this.runRevert(() => this.sessionDiff.revert({ table, rowid: row.rowid }));
+
+        if (row.kind !== "insert" || !this.settings.settings().confirmDeletions) {
+            await run();
+            return;
+        }
+
+        await this.alertCtrl.create({
+            title: this.i18n.t("sessionDiff.revertInsertTitle"),
+            message: this.i18n.t("sessionDiff.revertInsertMessage", { rowid: row.rowid, table: escapeHtml(table) }),
+            color: "warning",
+            actions: [
+                { text: this.i18n.t("sessionDiff.cancel"), role: "cancel" },
+                {
+                    text: this.i18n.t("sessionDiff.revertInsertConfirm"),
+                    role: "destructive",
+                    color: "danger",
+                    handler: self => {
+                        self.dismiss({ role: "destructive" });
+                        void run();
+                    },
+                },
+            ],
+        });
+    }
+
+    /**
+     * Annule, après confirmation, toutes les modifications des tables affichées
+     * (le filtre de tables est respecté). Les opérations non détaillées ne sont
+     * pas concernées : la confirmation le rappelle.
+     */
+    protected async confirmRevertAll(): Promise<void> {
+        const count = this.revertibleCount();
+
+        if (count === 0 || this.revertBusy()) {
+            return;
+        }
+
+        const tables = this.filteredTables().map(table => table.table);
+        const total = this.filteredTables().reduce((sum, table) => sum + table.rows.length, 0);
+        const skipped = total - count;
+        const lines = [this.i18n.t("sessionDiff.revertAllMessage")];
+
+        if (skipped > 0) {
+            lines.push(this.i18n.t("sessionDiff.revertAllSkipped", { count: skipped }));
+        }
+
+        await this.alertCtrl.create({
+            title: this.i18n.t("sessionDiff.revertAllTitle", { count }),
+            message: lines.join("\n"),
+            color: "warning",
+            actions: [
+                { text: this.i18n.t("sessionDiff.cancel"), role: "cancel" },
+                {
+                    text: this.i18n.t("sessionDiff.revertAllConfirm"),
+                    role: "destructive",
+                    color: "danger",
+                    handler: self => {
+                        self.dismiss({ role: "destructive" });
+                        void this.runRevert(() => this.sessionDiff.revertAll({ tables }));
+                    },
+                },
+            ],
+        });
+    }
+
+    /**
+     * Exécute une annulation et signale ses échecs.
+     */
+    private async runRevert(action: () => Promise<SessionRevertResult>): Promise<void> {
+        this.revertBusy.set(true);
+
+        try {
+            const result = await action();
+
+            if (result.failures.length > 0) {
+                await this.reportRevertFailures(result);
+            }
+        }
+        catch (error) {
+            await this.alertCtrl.create({
+                title: this.i18n.t("sessionDiff.revertFailed"),
+                message: escapeHtml(error instanceof Error ? error.message : String(error)),
+                color: "danger",
+                actions: [{ text: this.i18n.t("sessionDiff.close"), role: "cancel" }],
+            });
+        }
+        finally {
+            this.revertBusy.set(false);
+        }
+    }
+
+    /**
+     * Affiche les lignes qui n'ont pas pu être annulées, avec leur motif : en
+     * message pour un échec isolé, en détail repliable au-delà.
+     */
+    private async reportRevertFailures(result: SessionRevertResult): Promise<void> {
+        const lines = result.failures.map(failure => this.describeFailure(failure));
+        const messages: string[] = [];
+
+        if (result.rolledBack) {
+            messages.push(this.i18n.t("sessionDiff.revertRolledBack"));
+        }
+        else if (result.reverted > 0 || lines.length > 1) {
+            messages.push(this.i18n.t("sessionDiff.revertPartial", { reverted: result.reverted, failed: lines.length }));
+        }
+
+        if (lines.length === 1) {
+            messages.push(escapeHtml(lines[0] ?? ""));
+        }
+
+        await this.alertCtrl.create({
+            title: this.i18n.t("sessionDiff.revertFailed"),
+            message: messages.join("\n"),
+            details: lines.length > 1 ? lines.map(escapeHtml).join("\n") : undefined,
+            color: "danger",
+            actions: [{ text: this.i18n.t("sessionDiff.close"), role: "cancel" }],
+        });
+    }
+
+    /**
+     * Ligne d'échec lisible : « table #rowid (UPDATE) : motif ».
+     */
+    private describeFailure(failure: SessionRevertFailure): string {
+        const kind = failure.kind ? ` (${KIND_LABELS[failure.kind]})` : "";
+
+        return `${failure.table} #${failure.rowid}${kind} : ${this.failureReason(failure)}`;
+    }
+
+    /**
+     * Motif d'un échec, dans la langue courante.
+     */
+    private failureReason(failure: SessionRevertFailure): string {
+        if (failure.reason === "error") {
+            return failure.message;
+        }
+
+        return this.i18n.t(`sessionDiff.revertReason.${failure.reason}`);
     }
 
     /**
@@ -476,6 +682,7 @@ export class SessionDiffPage implements OnInit, OnDestroy {
             rowid: row.rowid,
             kind: row.kind,
             lastChangedAt: row.lastChangedAt,
+            revertible: row.revertible,
             columns: columnNames.map(column => this.buildColumnView(row, column, changed.has(column))),
         };
     }
@@ -594,4 +801,17 @@ function formatCellValue(value: unknown): string {
     }
 
     return String(value);
+}
+
+/**
+ * Neutralise le HTML d'un texte venu de la base (nom de table, message du
+ * driver) : l'alerte interprète son message comme du HTML.
+ */
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }

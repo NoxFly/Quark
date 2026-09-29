@@ -22,6 +22,7 @@ import {
     Component,
     computed,
     DestroyRef,
+    DOCUMENT,
     effect,
     ElementRef,
     inject,
@@ -52,6 +53,9 @@ const ESTIMATED_ROW_HEIGHT = 32;
 const EDITOR_MIN_HEIGHT = 100;
 const EDITOR_MAX_HEIGHT = 280;
 
+/** Hauteur minimale laissée aux résultats quand l'éditeur est agrandi à la main. */
+const RESULTS_MIN_HEIGHT = 80;
+
 /** Déclarations minimales de Monaco pour éviter d'importer les types globaux. */
 declare const monaco: typeof import("monaco-editor");
 
@@ -80,14 +84,22 @@ export class SqlEditorPage {
     private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly themeService = inject(ThemeService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly document = inject(DOCUMENT);
 
     private readonly editorContainerRef = viewChild<ElementRef<HTMLDivElement>>("monacoContainer");
+    private readonly editorMainRef = viewChild<ElementRef<HTMLDivElement>>("editorMain");
     private readonly resultsContainerRef = viewChild<ElementRef<HTMLDivElement>>("resultsContainer");
 
     protected readonly result = signal<R_SqlExecResponse | null>(null);
     protected readonly errorMessage = signal<string | null>(null);
     protected readonly isExecuting = signal<boolean>(false);
     protected readonly hasInput = signal<boolean>(false);
+
+    /** La poignée entre l'éditeur et les résultats est en cours de glissement. */
+    protected readonly isResizingEditor = signal<boolean>(false);
+
+    /** Retire les écouteurs d'un glissement de la poignée resté en cours. */
+    private stopEditorResize: (() => void) | null = null;
 
     /** Position dans l'historique lors de la navigation Ctrl+↑/↓ (-1 : hors historique). */
     private historyIndex = -1;
@@ -104,7 +116,7 @@ export class SqlEditorPage {
      */
     private manualEditorHeight = false;
 
-    /** Dernière hauteur appliquée automatiquement, pour reconnaître un redimensionnement manuel. */
+    /** Dernière hauteur appliquée automatiquement. */
     private autoEditorHeight = 0;
 
     /** Nombre de colonnes du résultat. */
@@ -195,15 +207,19 @@ export class SqlEditorPage {
             }
         });
 
-        // Réagir aux changements du mode readOnly pour mettre à jour l'éditeur.
+        // Réagir aux changements du mode readOnly (et de langue, pour le message
+        // affiché à la saisie en lecture seule) pour mettre à jour l'éditeur.
         effect(() => {
             const readOnly = this.dbService.readOnly();
+            const readOnlyMessage = { value: this.i18n.t("sqlEditor.readOnlyMessage") };
+
             if (this.editor) {
-                this.editor.updateOptions({ readOnly });
+                this.editor.updateOptions({ readOnly, readOnlyMessage });
             }
         });
 
         this.destroyRef.onDestroy(() => {
+            this.stopEditorResize?.();
             this.completionDisposable?.dispose();
             this.editor?.dispose();
         });
@@ -286,14 +302,61 @@ export class SqlEditorPage {
     }
 
     /**
-     * Fin d'un éventuel redimensionnement de l'éditeur par sa poignée : une
-     * hauteur différente de la dernière hauteur automatique vient de l'utilisateur.
+     * Glissement de la poignée placée entre l'éditeur et les résultats : la
+     * hauteur de l'éditeur est fixée à la main, bornée pour laisser de la place
+     * aux résultats, et ne suit plus son contenu.
      */
-    protected onEditorResizeEnd(): void {
+    protected startEditorResize(event: MouseEvent): void {
+        const container = this.editorContainerRef()?.nativeElement;
+        const main = this.editorMainRef()?.nativeElement;
+
+        if (event.button !== 0 || !container || !main) {
+            return;
+        }
+
+        event.preventDefault();
+        this.stopEditorResize?.();
+        this.isResizingEditor.set(true);
+
+        const startY = event.clientY;
+        const startHeight = container.offsetHeight;
+        const maxHeight = Math.max(EDITOR_MIN_HEIGHT, main.clientHeight - RESULTS_MIN_HEIGHT);
+        const root = this.document.documentElement;
+
+        // Le curseur reste celui de la poignée même quand la souris la quitte.
+        root.style.cursor = "row-resize";
+
+        const onMouseMove = (e: MouseEvent): void => {
+            const height = Math.round(Math.min(maxHeight, Math.max(EDITOR_MIN_HEIGHT, startHeight + e.clientY - startY)));
+
+            this.manualEditorHeight = true;
+            container.style.height = `${height}px`;
+        };
+
+        const stop = (): void => {
+            this.isResizingEditor.set(false);
+            root.style.cursor = "";
+            this.document.removeEventListener("mousemove", onMouseMove);
+            this.document.removeEventListener("mouseup", stop);
+            this.stopEditorResize = null;
+        };
+
+        this.stopEditorResize = stop;
+        this.document.addEventListener("mousemove", onMouseMove);
+        this.document.addEventListener("mouseup", stop);
+    }
+
+    /**
+     * Double-clic sur la poignée : l'éditeur reprend la hauteur de son contenu.
+     */
+    protected resetEditorHeight(): void {
         const container = this.editorContainerRef()?.nativeElement;
 
-        if (container && this.autoEditorHeight > 0 && container.offsetHeight !== this.autoEditorHeight) {
-            this.manualEditorHeight = true;
+        this.manualEditorHeight = false;
+        this.autoEditorHeight = 0;
+
+        if (container) {
+            this.fitEditorHeight(container);
         }
     }
 
@@ -507,6 +570,12 @@ export class SqlEditorPage {
             hideCursorInOverviewRuler: true,
             scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
             readOnly: this.dbService.readOnly(),
+            readOnlyMessage: { value: this.i18n.t("sqlEditor.readOnlyMessage") },
+            // Le conteneur rogne ce qui dépasse (overflow: hidden) : le message
+            // de lecture seule, les suggestions et les survols, qui s'affichent
+            // au-dessus de la première ligne ou sous la dernière, sortent donc
+            // de l'éditeur en position fixe pour rester entiers.
+            fixedOverflowWidgets: true,
         });
 
         this.fitEditorHeight(container);

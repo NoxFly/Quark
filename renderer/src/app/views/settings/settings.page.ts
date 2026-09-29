@@ -28,6 +28,7 @@ import { StateService } from "src/app/core/services/state.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import { UpdateService } from "src/app/core/services/update.service";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
+import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
 import { MasterPasswordDialogComponent } from "src/app/views/settings/master-password-dialog/master-password-dialog.component";
 
@@ -65,7 +66,7 @@ const TIMEOUT_OPTIONS: readonly SegmentOption<ConnectionTimeoutSeconds>[] = [
     templateUrl: "./settings.page.html",
     styleUrl: "./settings.page.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ButtonComponent, TranslatePipe],
+    imports: [ButtonComponent, TranslatePipe, IconComponent],
 })
 export class SettingsPage implements OnInit {
     protected readonly settingsService = inject(SettingsService);

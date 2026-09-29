@@ -124,6 +124,16 @@
     color: var(--text-faint);
 }
 
+// Coffre verrouillé : glyphe Segoe Fluent « Lock », monochrome, à la place du compte.
+.manager-lock {
+    --icon-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    line-height: 1;
+}
+
 .links {
     display: flex;
     flex-direction: column;

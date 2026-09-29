@@ -23,6 +23,7 @@ import { StateService } from "src/app/core/services/state.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import { ShellService } from "src/app/core/services/shell.service";
 import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
+import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
 
 /** Largeur initiale de l'explorateur, celle de la maquette (`--sidebar-width`). */
@@ -37,7 +38,7 @@ const SIDEBAR_MAX_WIDTH = 500;
     standalone: true,
     templateUrl: "./sidebar.component.html",
     styleUrl: "./sidebar.component.scss",
-    imports: [ContextMenuComponent, TooltipDirective],
+    imports: [ContextMenuComponent, TooltipDirective, IconComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "[style.width.px]": "width()",
@@ -50,7 +51,7 @@ export class SidebarComponent {
     protected readonly i18n = inject(I18nService);
     protected readonly storedProcService = inject(StoredProceduresService);
     private readonly router = inject(Router);
-    private readonly shell = inject(ShellService);
+    protected readonly shell = inject(ShellService);
 
     protected readonly width = signal<number>(SIDEBAR_DEFAULT_WIDTH);
     protected readonly isResizing = signal<boolean>(false);
@@ -167,10 +168,9 @@ export class SidebarComponent {
             items.push({
                 label: this.i18n.t("sidebar.table.indexViewer"),
                 icon: "\uE773",
-                action: () => {
-                    this.dbService.selectTable(tableName);
-                    document.dispatchEvent(new CustomEvent("open-index-viewer"));
-                },
+                // Seul l'onglet des index s'ouvre : sélectionner la table d'abord
+                // ouvrirait aussi son onglet de données.
+                action: () => void this.dbService.openIndexesTab(tableName),
             });
         }
 

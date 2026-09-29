@@ -15,7 +15,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { DOCUMENT, inject, Injectable, signal } from "@angular/core";
+import { computed, DOCUMENT, inject, Injectable, signal } from "@angular/core";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import type { UIDismissData } from "src/app/shared/ui/ui.types";
 import { DatabaseService } from "src/app/core/services/database.service";
@@ -62,6 +62,13 @@ export class ShellService {
      */
     public readonly isFullscreen = signal<boolean>(false);
 
+    /**
+     * La base ouverte est un fichier local (SQLite). Tout autre driver — réseau,
+     * ou SQLite distant (libSQL) — est une connexion : les libellés de fermeture
+     * (« Fermer le fichier » / « Fermer la connexion ») en dépendent.
+     */
+    public readonly isFileDatabase = computed<boolean>(() => this.state.driverType() === "sqlite");
+
     public constructor() {
         const view = this.document.defaultView;
 
@@ -89,7 +96,7 @@ export class ShellService {
     }
 
     /**
-     * @description Ouvre ou referme la page Paramètres (bouton ⚙ de la titlebar).
+     * @description Ouvre ou referme la page Paramètres (bouton Paramètres de la titlebar).
      */
     public toggleSettings(): void {
         this.settingsOpen.update(open => !open);

@@ -105,6 +105,7 @@
                 [class.selected]="isRowSelected($any(record['rowid']))"
                 [class.cursor]="isCursorRow($any(record['rowid']))"
                 [attr.data-rowid]="record['rowid']"
+                (mousedown)="onRowMouseDown($event)"
                 (click)="onRowClick($event, record)"
                 (contextmenu)="onRowContextMenu($event, record)"
             >

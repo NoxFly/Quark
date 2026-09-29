@@ -16,6 +16,7 @@
  */
 
 import { Injectable, signal, computed } from "@angular/core";
+import { retainTabs } from "src/app/shared/helpers/tabs.helper";
 
 /**
  * Représente l'état d'un onglet de table ouvert.
@@ -225,6 +226,21 @@ export class TabsService {
         this.tabs.update(tabs => tabs.map((tab, i) =>
             i === idx ? { ...tab, ...partial } : tab
         ));
+    }
+
+    /**
+     * @description Ferme les onglets qui ne satisfont pas `keep`, en gardant
+     * l'onglet actif s'il est conservé, sinon en activant son voisin.
+     * @param keep - Indique si un onglet est conservé.
+     * @returns L'onglet actif après l'opération, ou null si aucun ne reste.
+     */
+    public retainTabs(keep: (tab: TableTab) => boolean): TableTab | null {
+        const retained = retainTabs(this.tabs(), this.activeIndex(), keep);
+
+        this.tabs.set(retained.tabs);
+        this.activeIndex.set(retained.activeIndex);
+
+        return this.activeTab() ?? null;
     }
 
     /**

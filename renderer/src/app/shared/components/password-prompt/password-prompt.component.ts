@@ -35,6 +35,7 @@ import { SettingsService } from "src/app/core/services/settings.service";
 import { StateService } from "src/app/core/services/state.service";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
+import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
 
 /**
  * Modale unique de saisie d'un mot de passe d'ouverture.
@@ -50,7 +51,7 @@ import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 @Component({
     selector: "app-password-prompt",
     standalone: true,
-    imports: [ButtonComponent, TranslatePipe],
+    imports: [ButtonComponent, TranslatePipe, IconComponent],
     templateUrl: "./password-prompt.component.html",
     styleUrl: "./password-prompt.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,

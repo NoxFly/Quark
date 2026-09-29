@@ -26,7 +26,7 @@ export const en: Record<string, string> = {
     "menu.newWindow": "New window",
     "menu.refresh": "Refresh",
     "menu.closeFile": "Close file",
-    "menu.disconnect": "Disconnect",
+    "menu.disconnect": "Close connection",
     "menu.quit": "Quit",
     "menu.edit": "Edit",
     "menu.undo": "Undo",
@@ -256,7 +256,7 @@ export const en: Record<string, string> = {
 
     // --- Sidebar ---
     "sidebar.refresh.tooltip": "Refresh database",
-    "sidebar.close.tooltip": "Close database",
+    "sidebar.close.tooltip": "Close file",
     "sidebar.disconnect.tooltip": "Close connection",
     "sidebar.rows": "{count} rows",
     "sidebar.documents": "{count} documents",
@@ -643,6 +643,11 @@ export const en: Record<string, string> = {
     "data.entitySearch.type.table": "Table",
     "data.entitySearch.type.procedure": "Procedure",
 
+    // --- Data (data-fixes agent): read-only mode, SQL editor ---
+    "data.readOnlyWriteBlocked": "Cannot save: the database is back in read-only mode. Switch to edit mode (Ctrl+D) and try again.",
+    "sqlEditor.readOnlyMessage": "Read-only: switch to edit mode (Ctrl+D) to edit the query.",
+    "sqlEditor.resizeHandle": "Resize the editor (double-click: automatic height)",
+
     // --- UI-kit ---
     "ui.alert.showDetails": "Show details",
     "ui.alert.hideDetails": "Hide details",
@@ -675,6 +680,28 @@ export const en: Record<string, string> = {
     "sessionDiff.status.committed": "Committed",
     "sessionDiff.viewGridShort": "Grid",
     "sessionDiff.viewCardsShort": "Cards",
+    // --- Diff de session (agent « diff-fixes ») : annulation des modifications ---
+    "sessionDiff.close": "Close",
+    "sessionDiff.revertUpdate": "Discard change (restore the original values)",
+    "sessionDiff.revertInsert": "Discard insertion (delete the row)",
+    "sessionDiff.revertDelete": "Discard deletion (reinsert the row)",
+    "sessionDiff.revertUnavailable": "This change cannot be discarded: its original state was not captured, or the table schema has changed since.",
+    "sessionDiff.revertAll": "Discard all displayed changes",
+    "sessionDiff.revertAllTitle": "Discard {count} change(s)?",
+    "sessionDiff.revertAllMessage": "The rows of the displayed tables are restored to their original state, in the database. Non-detailed operations (raw SQL, schema, import) are not reverted.",
+    "sessionDiff.revertAllSkipped": "{count} change(s) that cannot be discarded will be skipped.",
+    "sessionDiff.revertAllConfirm": "Discard all",
+    "sessionDiff.revertInsertTitle": "Delete the inserted row?",
+    "sessionDiff.revertInsertMessage": "Discarding this insertion deletes row #{rowid} from table {table}.",
+    "sessionDiff.revertInsertConfirm": "Delete",
+    "sessionDiff.revertFailed": "Discard failed",
+    "sessionDiff.revertPartial": "{reverted} change(s) discarded, {failed} failed.",
+    "sessionDiff.revertRolledBack": "Nothing was discarded: the operation is all-or-nothing, and one row failed.",
+    "sessionDiff.revertReason.not-tracked": "the row is no longer in the journal",
+    "sessionDiff.revertReason.not-revertible": "its original state is unknown",
+    "sessionDiff.revertReason.row-missing": "the row no longer exists in the database",
+    "sessionDiff.revertReason.row-changed": "the row was modified in the meantime (raw SQL, another client…)",
+    "sessionDiff.revertReason.row-exists": "a row already uses its identifier",
     "tabs.indexes": "Indexes · {table}",
     "indexViewer.pageTitle": "Indexes · {table}",
     "indexViewer.colName": "Name",

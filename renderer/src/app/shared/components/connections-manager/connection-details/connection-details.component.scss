@@ -74,6 +74,11 @@
         font-size: 11px;
         color: var(--success);
         white-space: nowrap;
+        gap: 4px;
+
+        ui-icon {
+            --icon-size: 11px;
+        }
     }
 }
 

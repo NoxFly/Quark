@@ -26,7 +26,7 @@ export const fr: Record<string, string> = {
     "menu.newWindow": "Nouvelle fenêtre",
     "menu.refresh": "Rafraîchir",
     "menu.closeFile": "Fermer le fichier",
-    "menu.disconnect": "Se déconnecter",
+    "menu.disconnect": "Fermer la connexion",
     "menu.quit": "Quitter",
     "menu.edit": "Édition",
     "menu.undo": "Annuler",
@@ -256,7 +256,7 @@ export const fr: Record<string, string> = {
 
     // --- Sidebar ---
     "sidebar.refresh.tooltip": "Rafraîchir la base",
-    "sidebar.close.tooltip": "Fermer la base",
+    "sidebar.close.tooltip": "Fermer le fichier",
     "sidebar.disconnect.tooltip": "Fermer la connexion",
     "sidebar.rows.tooltip": "{count} lignes",
     "sidebar.refresh": "Rafraîchir",
@@ -643,6 +643,11 @@ export const fr: Record<string, string> = {
     "data.entitySearch.type.table": "Table",
     "data.entitySearch.type.procedure": "Procédure",
 
+    // --- Données (agent « data-fixes ») : lecture seule, éditeur SQL ---
+    "data.readOnlyWriteBlocked": "Enregistrement impossible : la base est repassée en lecture seule. Passez en mode édition (Ctrl+D) puis réessayez.",
+    "sqlEditor.readOnlyMessage": "Lecture seule : passez en mode édition (Ctrl+D) pour modifier la requête.",
+    "sqlEditor.resizeHandle": "Redimensionner l'éditeur (double-clic : hauteur automatique)",
+
     // --- UI-kit ---
     "ui.alert.showDetails": "Afficher les détails",
     "ui.alert.hideDetails": "Masquer les détails",
@@ -675,6 +680,28 @@ export const fr: Record<string, string> = {
     "sessionDiff.status.committed": "Validée",
     "sessionDiff.viewGridShort": "Grille",
     "sessionDiff.viewCardsShort": "Fiches",
+    // --- Diff de session (agent « diff-fixes ») : annulation des modifications ---
+    "sessionDiff.close": "Fermer",
+    "sessionDiff.revertUpdate": "Annuler la modification (restaurer les valeurs d'origine)",
+    "sessionDiff.revertInsert": "Annuler l'ajout (supprimer la ligne)",
+    "sessionDiff.revertDelete": "Annuler la suppression (réinsérer la ligne)",
+    "sessionDiff.revertUnavailable": "Modification non annulable : son état d'origine n'a pas été capturé, ou le schéma de la table a changé depuis.",
+    "sessionDiff.revertAll": "Annuler toutes les modifications affichées",
+    "sessionDiff.revertAllTitle": "Annuler {count} modification(s) ?",
+    "sessionDiff.revertAllMessage": "Les lignes des tables affichées sont remises dans leur état d'origine, dans la base. Les opérations non détaillées (SQL brut, schéma, import) ne sont pas annulées.",
+    "sessionDiff.revertAllSkipped": "{count} modification(s) non annulable(s) seront ignorée(s).",
+    "sessionDiff.revertAllConfirm": "Tout annuler",
+    "sessionDiff.revertInsertTitle": "Supprimer la ligne ajoutée ?",
+    "sessionDiff.revertInsertMessage": "Annuler cet ajout supprime la ligne #{rowid} de la table {table}.",
+    "sessionDiff.revertInsertConfirm": "Supprimer",
+    "sessionDiff.revertFailed": "L'annulation a échoué",
+    "sessionDiff.revertPartial": "{reverted} modification(s) annulée(s), {failed} en échec.",
+    "sessionDiff.revertRolledBack": "Rien n'a été annulé : l'opération se fait en tout ou rien, et une ligne a échoué.",
+    "sessionDiff.revertReason.not-tracked": "la ligne ne figure plus dans le journal",
+    "sessionDiff.revertReason.not-revertible": "son état d'origine n'est pas connu",
+    "sessionDiff.revertReason.row-missing": "la ligne n'existe plus dans la base",
+    "sessionDiff.revertReason.row-changed": "la ligne a été modifiée entre-temps (SQL brut, autre client…)",
+    "sessionDiff.revertReason.row-exists": "une ligne occupe déjà son identifiant",
     "tabs.indexes": "Index · {table}",
     "indexViewer.pageTitle": "Index · {table}",
     "indexViewer.colName": "Nom",

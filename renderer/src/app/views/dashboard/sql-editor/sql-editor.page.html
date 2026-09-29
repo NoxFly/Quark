@@ -36,8 +36,17 @@
     </div>
 
     <div class="editor-body">
-        <div class="editor-main">
-            <div class="monaco-container" #monacoContainer (mouseup)="onEditorResizeEnd()"></div>
+        <div class="editor-main" #editorMain>
+            <div class="monaco-container" #monacoContainer></div>
+
+            <div
+                class="editor-resize-handle"
+                role="separator"
+                aria-orientation="horizontal"
+                [attr.aria-label]="i18n.t('sqlEditor.resizeHandle')"
+                [class.resizing]="isResizingEditor()"
+                (mousedown)="startEditorResize($event)"
+                (dblclick)="resetEditorHeight()"></div>
 
             <div class="results-panel">
                 @if (errorMessage(); as error) {

@@ -1,6 +1,6 @@
 @let snap = snapshot();
 
-<div class="session-diff" [class.session-diff--grid]="viewMode() === 'grid'">
+<div class="session-diff">
     <header class="diff-header">
         <div class="diff-heading">
             <h2 class="diff-title" [attr.title]="sinceLabel()">{{ i18n.t('sessionDiff.title') }}</h2>
@@ -24,7 +24,7 @@
             />
 
             <button type="button" class="icon-button" (click)="refresh()" [tooltip]="i18n.t('sessionDiff.refresh')">
-                <span class="segoe-icon">&#xE72C;</span>
+                <ui-icon src="E72C" nomargin />
             </button>
 
             <button
@@ -33,8 +33,20 @@
                 [disabled]="!sessionDiff.hasChanges()"
                 (click)="confirmClear()"
                 [tooltip]="i18n.t('sessionDiff.clear')">
-                <span class="segoe-icon">&#xE74D;</span>
+                <ui-icon src="icons/reset-reference.svg" nomargin />
             </button>
+
+            @if (canRevert()) {
+                <button
+                    type="button"
+                    class="icon-button"
+                    [disabled]="revertibleCount() === 0 || revertBusy()"
+                    (click)="confirmRevertAll()"
+                    [tooltip]="i18n.t('sessionDiff.revertAll')"
+                    [attr.aria-label]="i18n.t('sessionDiff.revertAll')">
+                    <ui-icon src="E7A7" nomargin />
+                </button>
+            }
 
             @if (canCloseTransaction()) {
                 <ui-button
@@ -106,6 +118,10 @@
                                         <th class="grid-rowid">#</th>
                                         <th class="grid-status"></th>
 
+                                        @if (canRevert()) {
+                                            <th class="grid-action"></th>
+                                        }
+
                                         @for (column of table.columnNames; track column) {
                                             <th>{{ column }}</th>
                                         }
@@ -130,6 +146,12 @@
                                                     </span>
                                                 </td>
 
+                                                @if (canRevert()) {
+                                                    <td class="grid-action">
+                                                        <ng-container [ngTemplateOutlet]="revertButton" [ngTemplateOutletContext]="{ $implicit: row, table: table.table }" />
+                                                    </td>
+                                                }
+
                                                 @for (column of row.columns; track column.column) {
                                                     <td
                                                         [class.removed]="row.kind === 'delete' || column.changed"
@@ -153,6 +175,15 @@
                                                         </span>
                                                     }
                                                 </td>
+
+                                                @if (canRevert()) {
+                                                    <!-- L'action n'apparaît qu'une fois par modification, sur sa première ligne. -->
+                                                    <td class="grid-action">
+                                                        @if (row.kind === 'insert') {
+                                                            <ng-container [ngTemplateOutlet]="revertButton" [ngTemplateOutletContext]="{ $implicit: row, table: table.table }" />
+                                                        }
+                                                    </td>
+                                                }
 
                                                 @for (column of row.columns; track column.column) {
                                                     <td
@@ -184,6 +215,10 @@
                                             {{ i18n.t(pending ? 'sessionDiff.status.pending' : 'sessionDiff.status.committed') }}
                                         </span>
                                         <span class="change-time">{{ formatTime(row.lastChangedAt) }}</span>
+
+                                        @if (canRevert()) {
+                                            <ng-container [ngTemplateOutlet]="revertButton" [ngTemplateOutletContext]="{ $implicit: row, table: table.table }" />
+                                        }
                                     </div>
 
                                     <div class="row-panes">
@@ -286,3 +321,24 @@
         }
     </div>
 </div>
+
+<!--
+    Annulation d'une modification, à la manière du « Discard change » d'un diff
+    git. Une ligne non annulable garde l'action, désactivée, avec la raison en
+    infobulle : un bouton désactivé n'émet pas de survol, l'infobulle est donc
+    portée par son conteneur.
+-->
+<ng-template #revertButton let-row let-table="table">
+    <span
+        class="revert-slot"
+        [tooltip]="i18n.t(row.revertible ? revertTooltipKey(row.kind) : 'sessionDiff.revertUnavailable')">
+        <button
+            type="button"
+            class="row-revert"
+            [disabled]="!row.revertible || revertBusy()"
+            [attr.aria-label]="i18n.t(revertTooltipKey(row.kind))"
+            (click)="$event.stopPropagation(); revertRow(table, row)">
+            <ui-icon src="E7A7" nomargin />
+        </button>
+    </span>
+</ng-template>

@@ -16,7 +16,13 @@
  */
 
 import { computed, effect, inject, Injectable, Injector, signal, untracked } from "@angular/core";
-import type { SessionDiffSnapshot, SessionDiffSummary } from "@shared/session-diff";
+import type {
+    R_SessionRevertAllBody,
+    R_SessionRevertBody,
+    SessionDiffSnapshot,
+    SessionDiffSummary,
+    SessionRevertResult,
+} from "@shared/session-diff";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
 
@@ -155,6 +161,27 @@ export class SessionDiffService {
     }
 
     /**
+     * @description Remet une ligne dans son état d'origine en base (restaure une
+     * modification, supprime une ligne insérée, réinsère une ligne supprimée),
+     * puis recharge l'instantané.
+     * @param body - Ligne à annuler.
+     * @returns Le résultat de l'annulation, échecs compris.
+     */
+    public async revert(body: R_SessionRevertBody): Promise<SessionRevertResult> {
+        return await this.applyRevert("session-diff/revert", body);
+    }
+
+    /**
+     * @description Remet dans leur état d'origine les lignes ou tables désignées
+     * (tout le journal si rien n'est désigné), puis recharge l'instantané.
+     * @param body - Lignes et/ou tables à annuler.
+     * @returns Le résultat de l'annulation, échecs compris.
+     */
+    public async revertAll(body: R_SessionRevertAllBody): Promise<SessionRevertResult> {
+        return await this.applyRevert("session-diff/revert-all", body);
+    }
+
+    /**
      * Vide la copie locale, sans solliciter le main.
      * Appelé à la fermeture d'une base, quand le journal n'a plus d'objet.
      */
@@ -162,5 +189,29 @@ export class SessionDiffService {
         this.snapshot.set(null);
         this.summary.set(EMPTY_SUMMARY);
         this.error.set(null);
+    }
+
+    /**
+     * Envoie une annulation au main et recharge l'instantané, qu'elle ait
+     * abouti ou non : un échec partiel a pu modifier une partie des lignes.
+     */
+    private async applyRevert(path: string, body: R_SessionRevertBody | R_SessionRevertAllBody): Promise<SessionRevertResult> {
+        try {
+            const result = await this.noxus.request<SessionRevertResult>({
+                method: "POST",
+                path,
+                body,
+            }, {
+                // La durée dépend du nombre de lignes et de la base.
+                timeout: 0,
+            });
+
+            this.summary.set(result.summary);
+
+            return result;
+        }
+        finally {
+            await this.load();
+        }
     }
 }

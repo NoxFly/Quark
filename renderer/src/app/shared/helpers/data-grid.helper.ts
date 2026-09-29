@@ -15,6 +15,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+import type { DatabaseDriverType } from "@shared/driver";
 import type { FieldDef, MutationRecord } from "@shared/types";
 
 /** Largeur de la colonne des numéros de ligne, en pixels. */
@@ -22,6 +23,12 @@ export const ROW_NUMBER_COLUMN_WIDTH = 44;
 
 /** Marque de gauche d'une ligne modifiée pendant la session. */
 export type RowMark = "inserted" | "modified";
+
+/** Tri de la grille : colonne et sens, `orderBy` nul quand aucun tri n'est actif. */
+export interface SortState {
+    orderBy: string | null;
+    orderDir: "ASC" | "DESC";
+}
 
 /**
  * Bornes d'un epoch plausible : de 1980 à 2100. La borne basse écarte les
@@ -234,4 +241,86 @@ export function rowMarksFromHistory(history: readonly MutationRecord[], table: s
     }
 
     return marks;
+}
+
+/**
+ * Tri qui suit un clic sur l'en-tête d'une colonne : ASC → DESC → aucun tri.
+ * Une autre colonne repart en ASC.
+ * @param current - Tri en place.
+ * @param column - Colonne cliquée.
+ */
+export function nextSortState(current: SortState, column: string): SortState {
+    if (current.orderBy !== column) {
+        return { orderBy: column, orderDir: "ASC" };
+    }
+
+    if (current.orderDir === "ASC") {
+        return { orderBy: column, orderDir: "DESC" };
+    }
+
+    return { orderBy: null, orderDir: "ASC" };
+}
+
+/** Identifiant utilisable sans guillemets dans tous les dialectes. */
+const PLAIN_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * Nom de colonne tel qu'il s'écrit dans une clause WHERE du dialecte : entouré
+ * des guillemets du driver seulement s'il en a besoin (espaces, accents…).
+ * @param column - Nom de la colonne.
+ * @param driver - Driver de la base ouverte.
+ */
+export function quoteSqlIdentifier(column: string, driver: DatabaseDriverType | null): string {
+    if (PLAIN_IDENTIFIER_PATTERN.test(column)) {
+        return column;
+    }
+
+    if (driver === "mysql") {
+        return `\`${column.replaceAll("`", "``")}\``;
+    }
+
+    if (driver === "mssql" || driver === "azure") {
+        return `[${column.replaceAll("]", "]]")}]`;
+    }
+
+    return `"${column.replaceAll("\"", "\"\"")}"`;
+}
+
+/**
+ * Filtre en mode requête qui isole les lignes dont la colonne vaut la valeur
+ * donnée : clause WHERE en SQL, document de requête JSON en NoSQL. Sert à la
+ * navigation Ctrl+clic sur une clé étrangère.
+ * @param column - Colonne référencée par la clé étrangère.
+ * @param value - Valeur de la cellule cliquée.
+ * @param driver - Driver de la base ouverte.
+ */
+export function foreignKeyFilter(column: string, value: unknown, driver: DatabaseDriverType | null): string {
+    if (driver === "mongodb") {
+        return JSON.stringify({ [column]: value });
+    }
+
+    return `${quoteSqlIdentifier(column, driver)} = ${sqlLiteral(value)}`;
+}
+
+/**
+ * Littéral SQL d'une valeur : nombres et booléens tels quels, texte entre
+ * apostrophes (doublées à l'intérieur).
+ * @param value - Valeur à écrire.
+ */
+export function sqlLiteral(value: unknown): string {
+    if (value === null || value === undefined) {
+        return "NULL";
+    }
+
+    if (typeof value === "number" || typeof value === "bigint") {
+        return String(value);
+    }
+
+    if (typeof value === "boolean") {
+        return value ? "1" : "0";
+    }
+
+    const text = typeof value === "object" ? JSON.stringify(value) : String(value);
+
+    return `'${text.replaceAll("'", "''")}'`;
 }

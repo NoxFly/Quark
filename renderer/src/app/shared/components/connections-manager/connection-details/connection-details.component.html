@@ -41,7 +41,7 @@
                 @if (p.hasPassword) {
                     <input class="cm-input" type="password" readonly value="••••••••••" />
                     <span class="encrypted" [title]="'connections.view.encryptedTitle' | translate">
-                        🔒 {{ 'connections.view.encrypted' | translate }}
+                        <ui-icon src="E72E"/> {{ 'connections.view.encrypted' | translate }}
                     </span>
                 }
                 @else {

@@ -92,6 +92,24 @@ describe("SessionDiff", () => {
         expect(tables.find(table => table.table === "pets")?.rows[0]?.kind).toBe("update");
     });
 
+    it("forgets a deleted row once reinserted identically", () => {
+        diff.recordDelete("people", 3, { rowid: 3, name: "x" });
+        diff.recordReinsert("people", 3, { rowid: 3, name: "x" });
+
+        expect(diff.getSummary().rows).toBe(0);
+    });
+
+    it("flags the rows that cannot be reverted", () => {
+        diff.recordUpdate("people", 1, { rowid: 1, name: "a" }, { rowid: 1, name: "b" });
+        diff.recordUpdate("people", 2, { rowid: 2, name: "a" }, { rowid: 2, name: "a", added: 1 });
+        diff.recordDelete("people", 3, null);
+
+        expect(diff.getRow("people", 1)?.revertible).toBe(true);
+        // Colonne ajoutée pendant la session : l'annulation toucherait au schéma.
+        expect(diff.getRow("people", 2)?.revertible).toBe(false);
+        expect(diff.getRow("people", 3)?.revertible).toBe(false);
+    });
+
     it("counts opaque operations separately", () => {
         diff.recordOpaque({ category: "sql", label: "SQL statement executed", detail: "DELETE FROM people" });
 

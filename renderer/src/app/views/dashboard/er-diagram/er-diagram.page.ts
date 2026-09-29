@@ -90,7 +90,7 @@ export class ErDiagramPage {
     /** Translation et zoom de la vue. */
     protected readonly view = signal<ErViewport>(INITIAL_VIEW);
 
-    /** Un déplacement de la vue est en cours (curseur « main fermée »). */
+    /** Un déplacement de la vue ou d'une boîte est en cours (curseur « main fermée »). */
     protected readonly panning = signal<boolean>(false);
 
     /** Liens FK recalculés quand les boîtes bougent. */
@@ -269,7 +269,10 @@ export class ErDiagramPage {
                 return;
             }
 
-            drag.moved = true;
+            if (!drag.moved) {
+                drag.moved = true;
+                this.panning.set(true);
+            }
 
             const k = this.view().k;
             const x = drag.startNodeX + dx / k;

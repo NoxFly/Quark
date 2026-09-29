@@ -27,6 +27,7 @@ import { ThemeService } from "src/app/core/services/theme.service";
 import { UpdateService } from "src/app/core/services/update.service";
 import { formatShortcut } from "src/app/shared/helpers/shortcut.helper";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
+import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
 
 /** Ordre des langues dans le sous-menu, celui de la maquette. */
 const MENU_LOCALES: readonly SupportedLocale[] = ["fr", "en"];
@@ -39,7 +40,7 @@ const SEPARATOR: MenuItem = { label: "", separator: true };
     standalone: true,
     templateUrl: "./titlebar.component.html",
     styleUrl: "./titlebar.component.scss",
-    imports: [TranslatePipe],
+    imports: [TranslatePipe, IconComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     host: {
         "(document:click)": "closeMenus()",
@@ -184,7 +185,7 @@ export class TitlebarComponent {
                 disabled: !connected || this.dbService.tabs.activeTabIndex() < 0,
             },
             {
-                label: t(this.state.capabilities()?.networkConnection ? "menu.disconnect" : "menu.closeFile"),
+                label: t(this.shell.isFileDatabase() ? "menu.closeFile" : "menu.disconnect"),
                 shortcut: this.key("Ctrl+K Ctrl+F"),
                 action: () => void this.dbService.closeFile(),
                 disabled: !connected,

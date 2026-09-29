@@ -42,6 +42,11 @@ export interface SessionRowDiff {
     after: DbRecord | null;
     /** Colonnes dont la valeur diffère entre `before` et `after`. Vide pour un insert ou un delete. */
     changedColumns: string[];
+    /**
+     * La ligne peut être remise dans son état d'origine (`session-diff/revert`).
+     * Faux quand l'image à restaurer manque ou que la modification touche au schéma.
+     */
+    revertible: boolean;
     /** Horodatage de la première modification. */
     firstChangedAt: number;
     /** Horodatage de la dernière modification. */
@@ -115,4 +120,71 @@ export interface SessionDiffSnapshot {
      * postérieures ne sont pas détaillées.
      */
     capped: boolean;
+}
+
+/** Désigne une ligne du journal. */
+export interface SessionRowRef {
+    /** Table de la ligne. */
+    table: string;
+    /** Identifiant de la ligne (rowid). */
+    rowid: number;
+}
+
+/** Corps de `session-diff/revert` : la ligne à remettre dans son état d'origine. */
+export type R_SessionRevertBody = SessionRowRef;
+
+/**
+ * Corps de `session-diff/revert-all`. Sans `rows` ni `tables`, toutes les lignes
+ * suivies sont annulées ; les deux listes se cumulent sinon (une liste vide
+ * n'annule rien).
+ */
+export interface R_SessionRevertAllBody {
+    /** Lignes à annuler. */
+    rows?: SessionRowRef[];
+    /** Tables dont toutes les lignes suivies sont à annuler. */
+    tables?: string[];
+}
+
+/**
+ * Motif d'échec d'une annulation, traduit par le renderer.
+ * - `not-tracked` : la ligne n'est plus au journal ;
+ * - `not-revertible` : l'image à restaurer manque, ou le schéma a changé ;
+ * - `row-missing` : la ligne à restaurer ou à supprimer n'existe plus en base ;
+ * - `row-changed` : la ligne a été modifiée hors du journal (SQL brut…) depuis sa dernière capture ;
+ * - `row-exists` : une ligne occupe déjà l'identifiant de la ligne à réinsérer ;
+ * - `error` : erreur du driver (contrainte…), détaillée dans `message`.
+ */
+export type SessionRevertFailureReason =
+    | "not-tracked"
+    | "not-revertible"
+    | "row-missing"
+    | "row-changed"
+    | "row-exists"
+    | "error";
+
+/** Échec de l'annulation d'une ligne. */
+export interface SessionRevertFailure extends SessionRowRef {
+    /** Nature du changement qui devait être annulé, `null` si la ligne n'est pas au journal. */
+    kind: SessionChangeKind | null;
+    /** Motif de l'échec. */
+    reason: SessionRevertFailureReason;
+    /** Message technique (erreur du driver), vide pour un motif autoexplicatif. */
+    message: string;
+}
+
+/** Résultat d'une annulation, unitaire ou groupée. */
+export interface SessionRevertResult {
+    /** Nombre de lignes effectivement remises dans leur état d'origine. */
+    reverted: number;
+    /** Lignes non annulées. */
+    failures: SessionRevertFailure[];
+    /** L'annulation s'est faite dans une transaction ouverte pour l'occasion (tout ou rien). */
+    transactional: boolean;
+    /**
+     * Une ligne a échoué dans la transaction : tout a été annulé, `reverted`
+     * vaut 0. Les lignes non annulables, écartées d'emblée, n'y conduisent pas.
+     */
+    rolledBack: boolean;
+    /** Compteurs du diff après l'opération. */
+    summary: SessionDiffSummary;
 }

@@ -313,6 +313,75 @@ export class SessionDiff {
     }
 
     /**
+     * Enregistre la réinsertion d'une ligne supprimée pendant la session
+     * (annulation d'un `DELETE`).
+     *
+     * L'entrée redevient une modification « image d'origine → image relue » :
+     * si la réinsertion a tout restauré, `pruneIfUnchanged` la retire ; si une
+     * valeur diffère (défaut, déclencheur), l'écart reste visible au lieu d'être
+     * masqué.
+     *
+     * @param table - Table concernée.
+     * @param rowid - Identifiant d'origine de la ligne.
+     * @param after - Image relue après réinsertion, `null` si elle est introuvable.
+     */
+    public recordReinsert(table: string, rowid: number, after: DbRecord | null): void {
+        const key = keyOf(table, rowid);
+        const existing = this.rows.get(key);
+
+        if (existing?.kind !== "delete") {
+            return;
+        }
+
+        this.backupForRollback(key);
+
+        // Ligne réinsérée sous un autre identifiant (le driver ne permet pas de
+        // fixer le sien) : son contenu est restauré, mais elle n'est plus
+        // adressable par l'ancien. La garder montrerait une suppression qui
+        // n'existe plus.
+        if (!after) {
+            this.rows.delete(key);
+            return;
+        }
+
+        existing.kind = "update";
+        existing.after = after;
+        existing.lastChangedAt = Date.now();
+
+        this.pruneIfUnchanged(table, rowid, existing);
+    }
+
+    /**
+     * Retourne l'état public d'une ligne suivie.
+     * @param table - Table concernée.
+     * @param rowid - Identifiant de la ligne.
+     * @returns L'entrée, ou `null` si la ligne n'est pas au journal.
+     */
+    public getRow(table: string, rowid: number): SessionRowDiff | null {
+        const row = this.rows.get(keyOf(table, rowid));
+
+        return row ? this.toPublicRow(row) : null;
+    }
+
+    /**
+     * Liste les lignes suivies, éventuellement restreintes à certaines tables.
+     * @param tables - Tables retenues ; toutes si omis.
+     * @returns Les lignes, avec leur table, dans l'ordre de première modification.
+     */
+    public listRows(tables?: readonly string[]): { table: string; row: SessionRowDiff }[] {
+        const allowed = tables ? new Set(tables) : null;
+        const result: { table: string; row: SessionRowDiff }[] = [];
+
+        for (const row of this.rows.values()) {
+            if (!allowed || allowed.has(row.table)) {
+                result.push({ table: row.table, row: this.toPublicRow(row) });
+            }
+        }
+
+        return result.sort((a, b) => a.row.firstChangedAt - b.row.firstChangedAt || a.row.rowid - b.row.rowid);
+    }
+
+    /**
      * Enregistre une opération dont l'effet ligne à ligne n'est pas capturé.
      * @param change - Description de l'opération.
      */
@@ -478,12 +547,15 @@ export class SessionDiff {
      * Projette une ligne suivie vers sa forme exposée au renderer.
      */
     private toPublicRow(row: TrackedRow): SessionRowDiff {
+        const changedColumns = row.kind === "update" ? changedColumnsOf(row.before, row.after) : [];
+
         return {
             rowid: row.rowid,
             kind: row.kind,
             before: row.before,
             after: row.after,
-            changedColumns: row.kind === "update" ? changedColumnsOf(row.before, row.after) : [],
+            changedColumns,
+            revertible: isRevertible(row.kind, row.before, row.after, changedColumns),
             firstChangedAt: row.firstChangedAt,
             lastChangedAt: row.lastChangedAt,
         };
@@ -538,13 +610,46 @@ export function changedColumnsOf(before: DbRecord | null, after: DbRecord | null
 }
 
 /**
+ * Indique si une ligne du journal peut être remise dans son état d'origine.
+ *
+ * Il faut l'image que l'annulation doit restaurer : l'image d'origine pour une
+ * modification ou une suppression (une capture échouée la laisse à `null`).
+ * Une modification dont une colonne n'existe que d'un côté (colonne ajoutée ou
+ * supprimée en cours de session) touche au schéma, qu'une annulation de
+ * données ne sait pas défaire.
+ *
+ * @param kind - Nature du changement.
+ * @param before - Image d'origine.
+ * @param after - Image courante.
+ * @param changedColumns - Colonnes modifiées.
+ */
+export function isRevertible(
+    kind: SessionRowDiff["kind"],
+    before: DbRecord | null,
+    after: DbRecord | null,
+    changedColumns: readonly string[],
+): boolean {
+    switch (kind) {
+        case "insert":
+            return true;
+        case "delete":
+            return before !== null;
+        case "update":
+            return before !== null
+                && after !== null
+                && changedColumns.length > 0
+                && changedColumns.every(column => column in before && column in after);
+    }
+}
+
+/**
  * Compare deux valeurs de cellule.
  *
  * Les drivers renvoient des primitives, `null`, ou des `Buffer` pour les BLOB :
  * une comparaison `===` classerait deux BLOB identiques comme différents, et
  * `JSON.stringify` sérialiserait tout Buffer en un objet indistinct.
  */
-function valuesEqual(a: unknown, b: unknown): boolean {
+export function valuesEqual(a: unknown, b: unknown): boolean {
     if (a === b) {
         return true;
     }
