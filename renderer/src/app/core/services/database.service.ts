@@ -110,8 +110,7 @@ export class DatabaseService {
             const response = await this.noxus.ipc.openFile(filePath);
 
             if (response.needsPassword) {
-                this.state.needsPassword.set(true);
-                this.state.pendingFilePath.set(filePath);
+                this.requirePassword(filePath);
                 return;
             }
 
@@ -179,30 +178,52 @@ export class DatabaseService {
     public async closeFile(): Promise<void> {
         try {
             await this.noxus.ipc.closeFile();
-            this.state.connected.set(false);
-            this.state.database.set(null);
-            this.state.filePath.set(null);
-            this.state.driverType.set(null);
-            this.state.driverInfo.set(null);
-            this.state.title.set(pkg.name);
-            this.state.fileName.set("");
-            this.selectedTable.set(null);
-            this.tableData.set([]);
-            this.totalCount.set(0);
-            this.tableSize.set(0);
-            this.tableSchema.set(null);
-            this.inTransaction.set(false);
-            this.selectedRowIds.set(new Set());
-            this.allRowsSelected.set(false);
-            this.mutationHistory.clear();
-            this.storedProcService.reset();
-            this.sessionDiffService.resetLocal();
-            this.tabs.closeAll();
+            this.resetConnectionState();
             this.router.navigate(["/open-database"]);
         }
         catch (err) {
             console.error("Failed to close file:", err);
         }
+    }
+
+    /**
+     * Affiche la demande de mot de passe d'une base chiffrée.
+     *
+     * Le main a déjà fermé la base précédente pour ouvrir celle-ci : l'interface
+     * doit l'oublier elle aussi, sinon elle continue d'afficher une base qui
+     * n'est plus ouverte. La demande n'existe que sur la page d'ouverture, où
+     * l'on se rend donc quelle que soit la page courante.
+     */
+    private requirePassword(filePath: string | null): void {
+        this.resetConnectionState();
+        this.state.needsPassword.set(true);
+        this.state.pendingFilePath.set(filePath);
+        this.router.navigate(["/open-database"]);
+    }
+
+    /**
+     * Remet à zéro tout l'état lié à la connexion de la fenêtre.
+     */
+    private resetConnectionState(): void {
+        this.state.connected.set(false);
+        this.state.database.set(null);
+        this.state.filePath.set(null);
+        this.state.driverType.set(null);
+        this.state.driverInfo.set(null);
+        this.state.title.set(pkg.name);
+        this.state.fileName.set("");
+        this.selectedTable.set(null);
+        this.tableData.set([]);
+        this.totalCount.set(0);
+        this.tableSize.set(0);
+        this.tableSchema.set(null);
+        this.inTransaction.set(false);
+        this.selectedRowIds.set(new Set());
+        this.allRowsSelected.set(false);
+        this.mutationHistory.clear();
+        this.storedProcService.reset();
+        this.sessionDiffService.resetLocal();
+        this.tabs.closeAll();
     }
 
     /**
@@ -221,7 +242,7 @@ export class DatabaseService {
             const response = await this.noxus.ipc.refreshDatabase();
 
             if (response.needsPassword) {
-                this.state.needsPassword.set(true);
+                this.requirePassword(this.state.filePath());
                 return;
             }
 
