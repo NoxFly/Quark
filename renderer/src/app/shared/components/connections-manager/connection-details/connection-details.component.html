@@ -1,0 +1,88 @@
+@let p = profile();
+
+<div class="cm-pane">
+    <div class="header">
+        <app-driver-thumb [driverType]="p.driverType" variant="large" />
+        <div class="identity">
+            <div class="cm-title">{{ p.name }}</div>
+            <div class="subtitle">{{ 'connections.view.subtitle' | translate: { type: typeLabel(), folder: folderName() } }}</div>
+        </div>
+        <div class="tag">
+            <span class="dot" [style.background]="dotColor()"></span>{{ tagKey() | translate }}
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="cm-field full">
+            <label>{{ address().labelKey | translate }}</label>
+            <input class="cm-input mono" readonly [value]="address().value" />
+        </div>
+
+        @if (isServicePrincipal()) {
+            <div class="cm-field">
+                <label>{{ 'connections.form.clientId' | translate }}</label>
+                <input class="cm-input mono" readonly [value]="p.clientId || '—'" />
+            </div>
+            <div class="cm-field">
+                <label>{{ 'connections.form.tenantId' | translate }}</label>
+                <input class="cm-input mono" readonly [value]="p.tenantId || '—'" />
+            </div>
+        }
+        @else {
+            <div class="cm-field">
+                <label>{{ 'connections.form.username' | translate }}</label>
+                <input class="cm-input" readonly [value]="p.username || '—'" />
+            </div>
+        }
+
+        <div class="cm-field">
+            <label>{{ (isServicePrincipal() ? 'connections.form.clientSecret' : 'connections.form.password') | translate }}</label>
+            <div class="secret">
+                @if (p.hasPassword) {
+                    <input class="cm-input" type="password" readonly value="••••••••••" />
+                    <span class="encrypted" [title]="'connections.view.encryptedTitle' | translate">
+                        <ui-icon src="E72E"/> {{ 'connections.view.encrypted' | translate }}
+                    </span>
+                }
+                @else {
+                    <input class="cm-input" readonly value="—" />
+                }
+            </div>
+        </div>
+
+        <div class="cm-field">
+            <label>{{ 'connections.form.database' | translate }}</label>
+            <input class="cm-input" readonly [value]="databaseName()" />
+        </div>
+
+        <div class="cm-field">
+            <label>{{ 'connections.view.lastConnected' | translate }}</label>
+            <input class="cm-input" readonly [value]="lastConnected()" />
+        </div>
+    </div>
+
+    <div class="cm-field">
+        <label>{{ 'connections.form.notes' | translate }}</label>
+        <div class="notes">{{ notes() }}</div>
+    </div>
+</div>
+
+<div class="cm-footer">
+    <button type="button" class="cm-btn" [disabled]="busy()" (click)="importRequested.emit()">
+        {{ 'connections.import' | translate }}
+    </button>
+    <button type="button" class="cm-btn" [disabled]="busy()" [title]="'connections.exportTitle' | translate"
+        (click)="exportRequested.emit()">
+        {{ 'connections.export' | translate }}
+    </button>
+    <div class="cm-spacer"></div>
+    <button type="button" class="cm-btn danger-quiet" [disabled]="busy()" (click)="deleteRequested.emit()">
+        {{ 'connections.delete' | translate }}
+    </button>
+    <button type="button" class="cm-btn" [disabled]="busy()" (click)="editRequested.emit()">
+        {{ 'connections.edit' | translate }}
+    </button>
+    <button type="button" class="cm-btn primary" [disabled]="busy()" (click)="connectRequested.emit()">
+        {{ 'connections.connect' | translate }}
+    </button>
+</div>

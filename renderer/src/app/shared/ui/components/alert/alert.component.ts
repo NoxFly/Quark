@@ -1,13 +1,24 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import type { OnInit } from "@angular/core";
-import { ChangeDetectionStrategy, Component, computed, input, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { UIComponent } from "src/app/shared/ui/UIComponent.directive";
-import type { UIAction, UIColor } from "src/app/shared/ui/ui.types";
+import type { ExtendedUIColor, UIAction, UIColor } from "src/app/shared/ui/ui.types";
 import { ButtonComponent } from "../button/button.component";
 import { BypassPipe } from "src/app/shared/pipes/bypass.pipe";
 
@@ -21,9 +32,12 @@ import { BypassPipe } from "src/app/shared/pipes/bypass.pipe";
     host: {
         "[class.details-opened]": "detailsOpened()",
         "[attr.data-color]": "color() ?? null",
+        "(document:keyup.escape)": "onEscape()",
     }
 })
-export class AlertComponent extends UIComponent implements OnInit {
+export class AlertComponent extends UIComponent {
+    protected readonly i18n = inject(I18nService);
+
     protected readonly defaultActions: UIAction[] = [
         { text: "Ok", role: "cancel", handler: (_self, action) => this.dismiss({ role: action.role }) },
     ];
@@ -37,6 +51,18 @@ export class AlertComponent extends UIComponent implements OnInit {
     protected readonly detailsOpened = signal<boolean>(false);
     protected readonly hasActions = computed(() => this.actions().length > 0);
     protected readonly hasDetails = computed(() => this.details().length > 0);
+
+    /** Pastille de la maquette : « ! » pour une alerte d'erreur ou d'avertissement, « i » sinon. */
+    protected readonly badge = computed<string>(() => {
+        const color = this.color();
+        if (color === "danger" || color === "warning") {
+            return "!";
+        }
+        if (color === "success") {
+            return "✓";
+        }
+        return "i";
+    });
 
     protected readonly formattedDetails = computed(() => {
         const raw = this.details();
@@ -146,13 +172,21 @@ export class AlertComponent extends UIComponent implements OnInit {
     }
 
     /**
-     *
+     * Couleur du bouton d'une action : celle qu'elle impose, sinon celle de son rôle.
+     * Les variantes en dégradé, abandonnées par la maquette, retombent sur leur couleur pleine.
      */
-    public ngOnInit(): void {
-        this.document.addEventListener("keyup", (e) => {
-            if(e.key === "Escape") {
-                this.dismiss({ role: "cancel" });
-            }
-        });
+    protected actionColor(action: UIAction): ExtendedUIColor {
+        const color = action.color ?? this.getButtonRoleClass(action);
+        return color.endsWith("-gradient") ? color.replace("-gradient", "") as ExtendedUIColor : color;
+    }
+
+    /**
+     * Échap ferme l'alerte. Écouté par l'hôte plutôt que par un `addEventListener`
+     * sur le document, qui n'était jamais retiré et survivait à l'alerte.
+     */
+    protected onEscape(): void {
+        if (!this.disappearing()) {
+            this.dismiss({ role: "cancel" });
+        }
     }
 }

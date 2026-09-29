@@ -1,0 +1,24 @@
+<div class="shell-modal">
+    <div class="shell-modal-header">
+        <div class="shell-modal-title">{{ "about.title" | translate }}</div>
+        <button type="button" class="shell-modal-close" [attr.aria-label]="'shortcuts.close' | translate" (click)="close()">✕</button>
+    </div>
+
+    <div class="shell-modal-body">
+        <div class="about-identity">
+            <img class="about-logo" src="images/logo-quark.png" alt="Quark" />
+            <div>
+                <div class="about-name">{{ state.appName() || "Quark" }} {{ state.appVersion() }}</div>
+                @if (platform) {
+                    <div class="about-build">{{ platform }}</div>
+                }
+            </div>
+        </div>
+
+        <div class="about-description">{{ "about.description" | translate }}</div>
+
+        <div class="about-update">
+            {{ "about.autoUpdate" | translate: { state: ((autoUpdate() ? "about.enabled" : "about.disabled") | translate) } }}
+        </div>
+    </div>
+</div>

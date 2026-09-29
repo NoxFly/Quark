@@ -1,89 +1,134 @@
-button {
-    background: var(--btn-bg, var(--color-light-shade));
-    border: 2px solid transparent;
-    padding: var(--btn-padding, 5px 25px);
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+// Bouton natif : allure « secondaire » de la maquette. Tout est placé sous
+// `:where()` (spécificité nulle) : ce ne sont que des valeurs par défaut, que
+// n'importe quel style de composant doit pouvoir remplacer sans surenchère.
+//
+// Classes utilitaires : `.btn-primary`, `.btn-danger` (plein), `.btn-danger-subtle`
+// (discret), `.btn-success`, `.btn-warning`, `.btn-cancel` (secondaire), `.btn-ghost`
+// et `.clear` (sans fond), `.btn-small` (28 px, barres d'outils).
+
+:where(button) {
+    --btn-bg: var(--bg-input);
+    --btn-fg: var(--text);
+    --btn-border: var(--border-control);
+    --btn-hover-bg: var(--bg-panel);
+    --btn-hover-border: var(--btn-border);
+
+    // `inline-block` et non `flex` : bien des boutons de composants comptent sur
+    // `text-align` pour placer leur contenu.
     display: inline-block;
-    border-radius: var(--btn-radius, 5px);
-    color: var(--btn-fg, var(--color-medium));
-    font-size: inherit;
-    font-weight: 500;
-    min-width: var(--btn-min-width, 200px);
-    cursor: pointer;
-    transition-duration: .1s;
-    user-select: none;
     position: relative;
-    height: var(--btn-height, unset);
-    width: var(--btn-width, unset);
-    font-family: var(--font-family);
+    height: var(--btn-height, auto);
+    width: var(--btn-width, auto);
+    min-width: var(--btn-min-width, 0);
+    padding: var(--btn-padding, 7px 14px);
+    border: 1px solid var(--btn-border);
+    border-radius: var(--btn-radius, var(--radius-m));
+    background: var(--btn-bg);
+    color: var(--btn-fg);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 400;
+    line-height: 1.2;
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s, border-color .12s, color .12s;
 
-    &:not(:disabled) {
-        &:hover {
-            border-color: rgba(255, 255, 255, 0.1);
-            --btn-bg: var(--color-primary);
-            --btn-fg: var(--color-primary-contrast);
-        }
-
-        &:active {
-            --btn-bg: var(--color-primary-shade);
-            --btn-fg: var(--color-primary-contrast);
-            transform: scale(.96);
-        }
-
-        &.btn-cancel {
-            --btn-bg: var(--color-light-shade);
-            --btn-fg: var(--color-medium);
-
-            &:hover {
-                filter: brightness(.9);
-                --btn-bg: var(--color-light-shade);
-                --btn-fg: var(--color-medium);
-            }
-        }
-
-        &.btn-primary {
-            --btn-bg: var(--color-primary);
-            --btn-fg: var(--color-primary-contrast);
-
-            &:hover {
-                --btn-bg: var(--color-primary-shade);
-            }
-        }
-
-        &.btn-danger {
-            --btn-bg: var(--color-danger-shade);
-            --btn-fg: var(--color-danger-contrast);
-
-            &:hover {
-                --btn-bg: var(--color-danger);
-            }
-        }
-
-        &.btn-success {
-            --btn-bg: var(--color-success);
-            --btn-fg: var(--color-success-contrast);
-
-            &:hover {
-                --btn-bg: var(--color-success-shade);
-            }
-        }
-
-        &.btn-warning {
-            --btn-bg: var(--color-warning);
-            --btn-fg: var(--color-warning-contrast);
-
-            &:hover {
-                --btn-bg: var(--color-warning-shade);
-            }
-        }
-
-        &.clear {
-            background: transparent;
-            --btn-fg: var(--btn-bg);
-        }
+    &:where(:not(:disabled):hover) {
+        background: var(--btn-hover-bg);
+        border-color: var(--btn-hover-border);
     }
 
-    &:disabled {
+    &:where(:focus-visible) {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: 1px;
+    }
+
+    &:where(:disabled) {
         cursor: default;
         opacity: .5;
     }
+}
+
+:where(button.btn-small) {
+    --btn-height: 28px;
+    --btn-padding: 0 12px;
+
+    font-size: 12px;
+}
+
+:where(button.btn-primary),
+:where(button.btn-danger),
+:where(button.btn-success),
+:where(button.btn-warning) {
+    --btn-fg: var(--accent-fg);
+    --btn-border: transparent;
+
+    font-weight: 600;
+}
+
+:where(button.btn-primary) {
+    --btn-bg: var(--accent);
+    --btn-hover-bg: var(--accent-hover);
+}
+
+:where(button.btn-danger) {
+    --btn-bg: var(--danger);
+    --btn-hover-bg: var(--danger-hover);
+}
+
+:where(button.btn-success) {
+    --btn-bg: var(--success);
+    --btn-hover-bg: var(--success-text);
+}
+
+:where(button.btn-warning) {
+    --btn-bg: var(--warning);
+    --btn-hover-bg: var(--warning-hover);
+}
+
+:where(button.btn-danger-subtle) {
+    --btn-bg: transparent;
+    --btn-fg: var(--danger);
+    --btn-border: transparent;
+    --btn-hover-bg: var(--danger-bg);
+    --btn-hover-border: var(--danger-border);
+}
+
+:where(button.btn-ghost),
+:where(button.clear) {
+    --btn-bg: transparent;
+    --btn-border: transparent;
+    --btn-hover-bg: var(--bg-hover);
+}
+
+// `.clear` combiné à une couleur : texte dans la teinte, sans fond.
+:where(button.clear.btn-primary) {
+    --btn-fg: var(--accent-hover);
+    --btn-hover-bg: var(--bg-accent-soft);
+
+    font-weight: 400;
+}
+
+:where(button.clear.btn-danger) {
+    --btn-fg: var(--danger);
+    --btn-hover-bg: var(--danger-bg);
+
+    font-weight: 400;
 }

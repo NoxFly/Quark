@@ -1,0 +1,93 @@
+<div class="shell-modal">
+    <div class="shell-modal-header">
+        <div class="shell-modal-title">{{ i18n.t(isNoSql() ? 'createTable.title.nosql' : 'createTable.title') }}</div>
+        <button type="button" class="shell-modal-close" [attr.aria-label]="i18n.t('indexViewer.close')" (click)="cancel()">✕</button>
+    </div>
+
+    <div class="shell-modal-body">
+        <label class="field">
+            <span class="field-label">{{ i18n.t(isNoSql() ? 'createTable.tableName.nosql' : 'createTable.tableName') }}</span>
+            <ui-input
+                type="text"
+                [(ngModel)]="tableName"
+                [placeholder]="i18n.t(isNoSql() ? 'createTable.tableNamePlaceholder.nosql' : 'createTable.tableNamePlaceholder')"
+                (keydown.enter)="confirm()" />
+        </label>
+
+        <div class="field">
+            <div class="columns-header">
+                <span class="section-title">{{ i18n.t(isNoSql() ? 'createTable.columns.nosql' : 'createTable.columns') }}</span>
+                <ui-button size="small" (click)="addColumn()">
+                    + {{ i18n.t(isNoSql() ? 'createTable.addColumn.nosql' : 'createTable.addColumn') }}
+                </ui-button>
+            </div>
+
+            <div class="columns-table">
+                <div class="col-header">
+                    <span>{{ i18n.t('createTable.colName') }}</span>
+                    <span>{{ i18n.t('createTable.colType') }}</span>
+                    <span class="centered">PK</span>
+                    <span class="centered">NN</span>
+                    <span class="centered">UQ</span>
+                    <span>{{ i18n.t('createTable.colDefault') }}</span>
+                    <span></span>
+                </div>
+
+                @for (col of columns(); track $index; let i = $index) {
+                    <div class="col-row">
+                        <ui-input
+                            type="text"
+                            [value]="col.name"
+                            (input)="updateColumn(i, 'name', $any($event.target).value)"
+                            [placeholder]="i18n.t('createTable.colNamePlaceholder')" />
+                        <ui-select
+                            [selected]="col.type"
+                            (selectionChange)="updateColumn(i, 'type', $event[0]?.value())">
+                            @for (type of columnTypes; track type) {
+                                <ui-select-option [value]="type">{{ type }}</ui-select-option>
+                            }
+                        </ui-select>
+                        <input
+                            type="checkbox"
+                            [attr.aria-label]="'PRIMARY KEY'"
+                            [checked]="col.primaryKey"
+                            (change)="updateColumn(i, 'primaryKey', $any($event.target).checked)" />
+                        <input
+                            type="checkbox"
+                            [attr.aria-label]="'NOT NULL'"
+                            [checked]="col.notNull"
+                            (change)="updateColumn(i, 'notNull', $any($event.target).checked)" />
+                        <input
+                            type="checkbox"
+                            [attr.aria-label]="'UNIQUE'"
+                            [checked]="col.unique"
+                            (change)="updateColumn(i, 'unique', $any($event.target).checked)" />
+                        <ui-input
+                            type="text"
+                            [value]="col.defaultValue ?? ''"
+                            (input)="updateColumn(i, 'defaultValue', $any($event.target).value || null)"
+                            [placeholder]="i18n.t('createTable.defaultPlaceholder')" />
+                        <button type="button" class="remove-btn" (click)="removeColumn(i)">✕</button>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (sqlPreview()) {
+            <div class="field">
+                <span class="section-title">{{ i18n.t('createTable.sqlPreview') }}</span>
+                <pre class="sql-preview">{{ sqlPreview() }}</pre>
+            </div>
+        }
+    </div>
+
+    <div class="dialog-footer">
+        <ui-button (click)="cancel()">{{ i18n.t('editor.cancel') }}</ui-button>
+        <ui-button
+            color="primary"
+            [disabled]="!isValid()"
+            (click)="confirm()">
+            {{ i18n.t('createTable.create') }}
+        </ui-button>
+    </div>
+</div>

@@ -1,20 +1,34 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import {
     AfterViewInit,
+    booleanAttribute,
     ChangeDetectionStrategy,
     ChangeDetectorRef,
     Component,
+    computed,
     DOCUMENT,
     ElementRef,
     forwardRef,
     inject,
     input,
     model,
+    numberAttribute,
     OnDestroy,
     output,
     signal,
@@ -22,6 +36,7 @@ import {
 } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 import { IconComponent } from "@ui/icon/icon.component";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { randomId } from "src/app/shared/helpers/utils";
 
 // https://developer.mozilla.org/fr/docs/Web/HTML/Reference/Attributes/autocomplete
@@ -101,13 +116,16 @@ type InputType = "text" | "password" | "email" | "number" | "checkbox" | "radio"
         "[attr.data-disabled]": "isDisabled() ? 'true' : null",
         "[class]": "'label-' + this.labelPlacement()",
         "[class.has-focus]": "hasFocus()",
-        "[class.show-password]": "type() === 'password' && this.inputElement().nativeElement.type === 'text'",
+        "[class.show-password]": "passwordVisible()",
+        "[class.mono]": "mono()",
+        "[attr.data-type]": "type()",
     },
 })
 export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDestroy {
     private readonly document = inject(DOCUMENT);
     private readonly elementRef = inject(ElementRef<HTMLElement>);
     private readonly cdr = inject(ChangeDetectorRef);
+    protected readonly i18n = inject(I18nService);
 
     public readonly type = input.required<InputType>();
     public readonly placeholder = input<string>("");
@@ -121,6 +139,34 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
     public readonly icon = input<string | undefined>(undefined);
     public readonly suggestions = model<string[]>([]); // disponible que pour le type "text"
     public readonly checked = model<boolean>(false); // radio et checkbox seulement
+    /** Variante monospace de la maquette (chemins, ports, URI) : Fira Code 12 px. */
+    public readonly mono = input<boolean, unknown>(false, { transform: booleanAttribute });
+
+    // Contraintes numériques (type "number" uniquement).
+    // `numberAttribute` coerce les attributs statiques (ex: min="5") en nombre.
+    public readonly min = input<number | undefined, unknown>(undefined, { transform: v => v == null ? undefined : numberAttribute(v) });
+    public readonly max = input<number | undefined, unknown>(undefined, { transform: v => v == null ? undefined : numberAttribute(v) });
+    public readonly step = input<number, unknown>(1, { transform: v => numberAttribute(v, 1) });
+
+    /** Vrai si la valeur courante a atteint le minimum (désactive le bouton "-"). */
+    protected readonly atMin = computed<boolean>(() => {
+        const min = this.min();
+        if (min === undefined) {
+            return false;
+        }
+        const parsed = Number.parseFloat(this.value());
+        return Number.isFinite(parsed) && parsed <= min;
+    });
+
+    /** Vrai si la valeur courante a atteint le maximum (désactive le bouton "+"). */
+    protected readonly atMax = computed<boolean>(() => {
+        const max = this.max();
+        if (max === undefined) {
+            return false;
+        }
+        const parsed = Number.parseFloat(this.value());
+        return Number.isFinite(parsed) && parsed >= max;
+    });
 
     protected id = randomId();
 
@@ -131,6 +177,7 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
     public readonly selfChange = output<InputComponent>();
 
     protected readonly hasFocus = signal<boolean>(false);
+    protected readonly passwordVisible = signal<boolean>(false);
 
     private readonly _blurController: AbortController = new AbortController();
 
@@ -243,12 +290,61 @@ export class InputComponent implements ControlValueAccessor, AfterViewInit, OnDe
     // ---
 
     /**
+     * Incrémente la valeur numérique d'un pas (bouton "+").
+     */
+    protected increment(): void {
+        this.stepValue(1);
+    }
+
+    /**
+     * Décrémente la valeur numérique d'un pas (bouton "-").
+     */
+    protected decrement(): void {
+        this.stepValue(-1);
+    }
+
+    /**
+     * Applique un pas à la valeur numérique en respectant `min`, `max` et `step`.
+     */
+    private stepValue(direction: 1 | -1): void {
+        if (this.isDisabled() !== false) {
+            return;
+        }
+
+        const step = this.step() > 0 ? this.step() : 1;
+        const min = this.min();
+        const max = this.max();
+
+        const parsed = Number.parseFloat(this.value());
+        const current = Number.isFinite(parsed) ? parsed : (min ?? 0);
+
+        let next = current + direction * step;
+
+        if (min !== undefined && next < min) {
+            next = min;
+        }
+        if (max !== undefined && next > max) {
+            next = max;
+        }
+
+        this.setValue(String(this.normalizeToStep(next, step)));
+        this.inputElement().nativeElement.focus();
+    }
+
+    /**
+     * Arrondit à la précision décimale du pas pour éviter les imprécisions
+     * de l'arithmétique flottante (ex: 0.1 + 0.2).
+     */
+    private normalizeToStep(value: number, step: number): number {
+        const decimals = (String(step).split(".")[1] ?? "").length;
+        return decimals > 0 ? Number(value.toFixed(decimals)) : value;
+    }
+
+    /**
      *
      */
     protected togglePasswordVisibility(): void {
-        const input = this.inputElement().nativeElement;
-
-        input.type = input.type === "text" ? "password" : "text";
+        this.passwordVisible.update(visible => !visible);
     }
 
     /**

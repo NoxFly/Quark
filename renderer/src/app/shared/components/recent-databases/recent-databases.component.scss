@@ -1,0 +1,106 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+// Liste Ctrl+R, dans le style des modales de la maquette : fond de l'application,
+// ombre de modale, lignes identiques aux « Ouverts récemment » de l'accueil.
+
+.recent-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 80px;
+    background: var(--backdrop);
+}
+
+.recent-sheet {
+    display: flex;
+    flex-direction: column;
+    width: 440px;
+    max-width: 90vw;
+    max-height: 60vh;
+    overflow: hidden;
+    background: var(--bg-app);
+    border-radius: var(--radius-l);
+    box-shadow: var(--shadow-modal);
+    animation: sheet-fade-in .15s ease-out;
+}
+
+@keyframes sheet-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.recent-header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+
+    .section-title {
+        margin: 0;
+    }
+}
+
+.recent-list {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    padding: 6px;
+    overflow-y: auto;
+}
+
+.recent-empty {
+    padding: 16px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.recent-option {
+    display: block;
+    width: 100%;
+    padding: 7px 8px;
+    border: none;
+    border-radius: var(--radius-m);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+
+    &.selected {
+        background: var(--bg-hover);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: -2px;
+    }
+}

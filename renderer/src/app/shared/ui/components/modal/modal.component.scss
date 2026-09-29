@@ -1,117 +1,171 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-
-
-@use 'src/theme/mixins.scss' as *;
 @use 'src/theme/animations.scss' as *;
 
+// Modale de la maquette : voile `--backdrop` uni, boîte `--bg-app` rayon 6,
+// ombre `--shadow-modal`. Variables surchargeables : `--modal-width`,
+// `--modal-min-width`, `--modal-max-width`, `--modal-max-height`, `--modal-bg`,
+// `--modal-shadow`, `--modal-overflow`.
+
 ui-modal {
-    // backdrop
-    --modal-background: rgba(0, 0, 0, 0.5);
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: block;
+
     --modal-blur: 0;
-    --modal-backdrop-display: block;
-    --modal-backdrop-dots-display: block;
-    --modal-backdrop-dots-color: #000;
     --modal-backdrop-dots-size: 20px;
 
     &.blurry {
-        --modal-blur: 10px;
+        --modal-blur: 6px;
     }
 
-    // content
-    --modal-left: 50%;
-    --modal-top: 50%;
-
-    @media screen and (min-width: 900px) {
-        --modal-width: fit-content;
-        --modal-height: fit-content;
-    }
-
-    .modal {
-        @include absolute($top: 0, $left: 0, $tx: 0, $ty: 0);
-
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        z-index: 50;
-        transition: opacity .5s ease;
+    > .modal {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         overflow: hidden;
         isolation: isolate;
 
         > .modal-backdrop {
-            @include absolute($top: 0, $left: 0, $tx: 0, $ty: 0);
-
-            width: 100%;
-            height: 100%;
-            isolation: isolate;
-            z-index: 51;
-            background: var(--modal-background);
-            display: var(--modal-backdrop-display);
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            background: var(--backdrop);
             backdrop-filter: blur(var(--modal-blur));
         }
 
         > .modal-content {
-            @include absolute($top: var(--modal-top), $left: var(--modal-left));
-            width: clamp(var(--modal-min-width, 300px), var(--modal-width, 0px), var(--modal-max-width, 80vw));
-            height: clamp(var(--modal-min-height, 400px), var(--modal-height, 0px), var(--modal-max-height, 80dvh));
-            background: var(--modal-bg, var(--background-color));
-            border-radius: 10px;
-            z-index: 53;
-            box-shadow: var(--modal-shadow, 0 5px 10px rgba(0, 0, 0, .3));
+            position: relative;
+            z-index: 1;
+            width: var(--modal-width, auto);
+            min-width: var(--modal-min-width, 0);
+            max-width: var(--modal-max-width, 90vw);
+            max-height: var(--modal-max-height, 90vh);
+            background: var(--modal-bg, var(--bg-app));
+            border-radius: var(--radius-l);
+            box-shadow: var(--modal-shadow, var(--shadow-modal));
+            overflow-x: hidden;
             overflow-y: var(--modal-overflow, auto);
             outline: none;
         }
     }
 
-    &.disappearing {
-        animation: fadeOut .3s forwards;
-
-        .modal-content {
-            animation: modalContentDisappear .5s forwards;
-        }
-    }
-
-    .modal {
-        @starting-style {
-            opacity: 0;
-        }
+    &.animated > .modal {
+        animation: fadeIn .12s ease-out;
 
         > .modal-content {
-            @include appear-slide-up($tx: -50%, $ty: -50%, $delay: .0s);
+            animation: modalIn .15s ease-out;
         }
     }
 
-    &.show-dots {
-        .modal-backdrop {
-            &::before {
-                @include absolute($top: 0, $left: 0, $tx: 0, $ty: 0);
+    &.disappearing {
+        animation: fadeOut .12s forwards;
+    }
 
-                content: '';
-                width: 100%;
-                height: 100%;
-                z-index: 52;
-                opacity: .2;
-                background-color: transparent;
-                background-image: radial-gradient(transparent 1px, var(--modal-backdrop-dots-color) 1px);
-                background-size: var(--modal-backdrop-dots-size) var(--modal-backdrop-dots-size);
-                display: var(--modal-backdrop-dots-display);
-                pointer-events: none;
-            }
+    // Trame de points, désactivée par défaut (absente de la maquette).
+    &.show-dots .modal-backdrop::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: .08;
+        background-image: radial-gradient(transparent 1px, var(--text) 1px);
+        background-size: var(--modal-backdrop-dots-size) var(--modal-backdrop-dots-size);
+        pointer-events: none;
+    }
+
+    // Bouton ✕ (option `closeButton`), aligné sur le titre de l'en-tête.
+    .modal-close {
+        position: absolute;
+        top: 14px;
+        right: 16px;
+        z-index: 2;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: var(--radius-s);
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            background: var(--bg-panel);
+            color: var(--text);
         }
     }
 
-    @keyframes modalContentDisappear {
-        0% {
-            transform: translate(-50%, -50%);
-        }
+    // L'en-tête laisse la place au bouton ✕.
+    &.has-close-button .modal-header {
+        padding-right: 52px;
+    }
 
-        100% {
-            transform: translate(-50%, calc(-50% - 20px));
-        }
+    // Structure par défaut des contenus injectés (en-tête, corps, pied). Sous
+    // `:where()` : le style propre d'un contenu l'emporte toujours.
+    :where(.modal-header) {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    :where(.modal-header) :where(h2, h3, h4) {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    :where(.modal-body) {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 20px;
+    }
+
+    :where(.modal-actions) {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        border-top: 1px solid var(--border-muted);
+        background: var(--bg-subtle-alt);
+    }
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(.99);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
     }
 }
 

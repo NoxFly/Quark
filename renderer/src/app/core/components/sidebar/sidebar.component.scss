@@ -1,0 +1,344 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+:host {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    position: relative;
+    min-height: 0;
+    height: 100%;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    color: var(--text);
+    // Explorateur : rien n'y est sélectionnable, hormis le champ de filtre.
+    user-select: none;
+
+    &:not(.connected) {
+        display: none;
+    }
+}
+
+// --- En-tête : nom de la base + actions ---
+
+.explorer-header {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px 0 12px;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.database-name {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+// Glyphes Segoe Fluent des boutons de l'explorateur.
+.header-button ui-icon,
+.section-action ui-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.header-button ui-icon {
+    --icon-size: 14px;
+    font-size: 13px;
+}
+
+.section-action ui-icon {
+    --icon-size: 12px;
+    font-size: 11px;
+}
+
+.header-button {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    flex: none;
+
+    &:hover {
+        background: var(--bg-hover-strong);
+    }
+
+    &.close:hover {
+        color: var(--danger);
+    }
+}
+
+// --- Filtre ---
+
+.explorer-filter {
+    padding: 8px;
+    flex: none;
+}
+
+.filter-input {
+    user-select: text;
+    width: 100%;
+    height: 26px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-s);
+    padding: 0 8px;
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 12px;
+
+    &::placeholder {
+        color: var(--text-faint);
+    }
+
+    &:hover {
+        border-color: var(--border-control-hover);
+    }
+
+    &:focus {
+        outline: none;
+        border-color: var(--accent);
+    }
+}
+
+// --- Liste ---
+
+.explorer-list {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 0 0 8px;
+}
+
+.schema-loading-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+
+    .spinner {
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--border-control);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: qspin .8s linear infinite;
+    }
+}
+
+// Hauteur fixe : elle ne dépend pas du bouton « + » (masqué en lecture seule),
+// sans quoi toute la liste se décale au changement de mode.
+.section-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 2px 8px 4px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+
+    &.procedures {
+        margin-top: 8px;
+    }
+
+    // Section repliée : le libellé est estompé, le compte reste lisible.
+    &.collapsed .section-label-text {
+        opacity: .6;
+    }
+
+    &:hover .section-action:not(.unavailable) {
+        opacity: 1;
+    }
+}
+
+.section-label-text {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.section-action {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .12s;
+    flex: none;
+
+    &:hover {
+        background: var(--bg-hover-strong);
+        color: var(--text);
+    }
+
+    // Lecture seule : l'espace reste réservé, le bouton est invisible et inerte.
+    &.unavailable {
+        visibility: hidden;
+        pointer-events: none;
+    }
+}
+
+.table-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 8px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+
+    &:hover {
+        background: var(--bg-hover);
+    }
+
+    &.active {
+        background: var(--bg-hover);
+        border-left-color: var(--accent);
+    }
+}
+
+.chevron {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    color: var(--text-muted);
+    border-radius: var(--radius-s);
+    transition: transform .12s;
+
+    &:hover {
+        background: var(--border-control);
+        color: var(--text);
+    }
+
+    &.open {
+        transform: rotate(90deg);
+    }
+}
+
+.table-name {
+    font-size: 12.5px;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.table-count,
+.field-type {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-faint);
+    flex: none;
+}
+
+.procedure-icon {
+    width: 16px;
+    flex: none;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-faint);
+}
+
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 10px 0 32px;
+    font-size: 12px;
+    cursor: default;
+}
+
+.field-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &.pk {
+        color: var(--pk-text);
+    }
+
+    &.fk {
+        color: var(--fk-text);
+    }
+}
+
+.empty-hint {
+    padding: 4px 12px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+// --- Redimensionnement ---
+
+.resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 0 2px;
+        background: transparent;
+        transition: background .15s;
+    }
+
+    &:hover::after,
+    &.resizing::after {
+        background: var(--accent);
+    }
+}

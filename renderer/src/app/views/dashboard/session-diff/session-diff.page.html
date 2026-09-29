@@ -1,0 +1,344 @@
+@let snap = snapshot();
+
+<div class="session-diff">
+    <header class="diff-header">
+        <div class="diff-heading">
+            <h2 class="diff-title" [attr.title]="sinceLabel()">{{ i18n.t('sessionDiff.title') }}</h2>
+            <div class="diff-info">{{ changesInfo() }}</div>
+        </div>
+
+        <div class="diff-actions">
+            <ui-segmented
+                size="small"
+                [options]="viewModeOptions()"
+                [value]="viewMode()"
+                (valueChange)="onViewModeChange($event)"
+                [attr.aria-label]="i18n.t('sessionDiff.viewMode')" />
+
+            <input
+                class="diff-filter"
+                type="search"
+                [placeholder]="i18n.t('sessionDiff.filterPlaceholder')"
+                [value]="tableFilter()"
+                (input)="tableFilter.set($any($event.target).value)"
+            />
+
+            <button type="button" class="icon-button" (click)="refresh()" [tooltip]="i18n.t('sessionDiff.refresh')">
+                <ui-icon src="E72C" nomargin />
+            </button>
+
+            <button
+                type="button"
+                class="icon-button"
+                [disabled]="!sessionDiff.hasChanges()"
+                (click)="confirmClear()"
+                [tooltip]="i18n.t('sessionDiff.clear')">
+                <ui-icon src="icons/reset-reference.svg" nomargin />
+            </button>
+
+            @if (canRevert()) {
+                <button
+                    type="button"
+                    class="icon-button"
+                    [disabled]="revertibleCount() === 0 || revertBusy()"
+                    (click)="confirmRevertAll()"
+                    [tooltip]="i18n.t('sessionDiff.revertAll')"
+                    [attr.aria-label]="i18n.t('sessionDiff.revertAll')">
+                    <ui-icon src="E7A7" nomargin />
+                </button>
+            }
+
+            @if (canCloseTransaction()) {
+                <ui-button
+                    size="small"
+                    [disabled]="dbService.readOnly() || transactionBusy()"
+                    (click)="closeTransaction('rollback')">
+                    {{ i18n.t('sessionDiff.rollback') }}
+                </ui-button>
+
+                <ui-button
+                    color="primary"
+                    size="small"
+                    [disabled]="dbService.readOnly() || transactionBusy()"
+                    (click)="closeTransaction('commit')">
+                    {{ i18n.t('sessionDiff.commit') }}
+                </ui-button>
+            }
+        </div>
+    </header>
+
+    @if (sessionDiff.error(); as error) {
+        <div class="diff-error">{{ error }}</div>
+    }
+
+    @if (snap?.capped) {
+        <div class="diff-notice">{{ i18n.t('sessionDiff.capped') }}</div>
+    }
+
+    @if (initializing()) {
+        <p class="diff-placeholder">{{ i18n.t('sessionDiff.loading') }}</p>
+    }
+    @else if (snap && !snap.active) {
+        <p class="diff-placeholder">{{ i18n.t('sessionDiff.noConnection') }}</p>
+    }
+
+    <div class="diff-list">
+        @for (table of tables(); track table.table) {
+            <section class="table-diff">
+                <header class="table-header" (click)="toggleTable(table.table)">
+                    @if (isCollapsed(table.table)) {
+                        <span class="table-chevron segoe-icon">&#xE76C;</span>
+                    }
+                    @else {
+                        <span class="table-chevron segoe-icon">&#xE70D;</span>
+                    }
+
+                    <span class="table-name">{{ table.table }}</span>
+
+                    <span class="table-stats">
+                        @if (table.inserted > 0) {
+                            <span class="stat stat--insert">+{{ table.inserted }}</span>
+                        }
+                        @if (table.updated > 0) {
+                            <span class="stat stat--update">~{{ table.updated }}</span>
+                        }
+                        @if (table.deleted > 0) {
+                            <span class="stat stat--delete">−{{ table.deleted }}</span>
+                        }
+                    </span>
+                </header>
+
+                @if (!isCollapsed(table.table)) {
+                    @if (viewMode() === 'grid') {
+                        <div class="grid-scroll">
+                            <table class="diff-grid">
+                                <thead>
+                                    <tr>
+                                        <th class="grid-sign"></th>
+                                        <th class="grid-rowid">#</th>
+                                        <th class="grid-status"></th>
+
+                                        @if (canRevert()) {
+                                            <th class="grid-action"></th>
+                                        }
+
+                                        @for (column of table.columnNames; track column) {
+                                            <th>{{ column }}</th>
+                                        }
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    @for (row of table.rows; track row.rowid) {
+                                        @let pending = sessionDiff.isPending(row.lastChangedAt);
+                                        <!--
+                                            Une modification occupe deux lignes, avant puis après,
+                                            comme un diff git : les champs restent alignés sur les
+                                            mêmes colonnes, ce qu'une cellule « a → b » perdrait.
+                                        -->
+                                        @if (row.kind !== 'insert') {
+                                            <tr class="grid-line grid-line--before">
+                                                <td class="grid-sign">−</td>
+                                                <td class="grid-rowid">{{ row.rowid }}</td>
+                                                <td class="grid-status">
+                                                    <span class="status-pill" [class.status-pill--pending]="pending">
+                                                        {{ i18n.t(pending ? 'sessionDiff.status.pending' : 'sessionDiff.status.committed') }}
+                                                    </span>
+                                                </td>
+
+                                                @if (canRevert()) {
+                                                    <td class="grid-action">
+                                                        <ng-container [ngTemplateOutlet]="revertButton" [ngTemplateOutletContext]="{ $implicit: row, table: table.table }" />
+                                                    </td>
+                                                }
+
+                                                @for (column of row.columns; track column.column) {
+                                                    <td
+                                                        [class.removed]="row.kind === 'delete' || column.changed"
+                                                        [class.cell-absent]="column.before === null">
+                                                        @for (segment of column.before; track $index) {
+                                                            <span [class.segment-changed]="segment.changed && row.kind === 'update'">{{ segment.text }}</span>
+                                                        }
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+
+                                        @if (row.kind !== 'delete') {
+                                            <tr class="grid-line grid-line--after">
+                                                <td class="grid-sign">+</td>
+                                                <td class="grid-rowid">{{ row.rowid }}</td>
+                                                <td class="grid-status">
+                                                    @if (row.kind === 'insert') {
+                                                        <span class="status-pill" [class.status-pill--pending]="pending">
+                                                            {{ i18n.t(pending ? 'sessionDiff.status.pending' : 'sessionDiff.status.committed') }}
+                                                        </span>
+                                                    }
+                                                </td>
+
+                                                @if (canRevert()) {
+                                                    <!-- L'action n'apparaît qu'une fois par modification, sur sa première ligne. -->
+                                                    <td class="grid-action">
+                                                        @if (row.kind === 'insert') {
+                                                            <ng-container [ngTemplateOutlet]="revertButton" [ngTemplateOutletContext]="{ $implicit: row, table: table.table }" />
+                                                        }
+                                                    </td>
+                                                }
+
+                                                @for (column of row.columns; track column.column) {
+                                                    <td
+                                                        [class.added]="row.kind === 'insert' || column.changed"
+                                                        [class.cell-absent]="column.after === null">
+                                                        @for (segment of column.after; track $index) {
+                                                            <span [class.segment-changed]="segment.changed && row.kind === 'update'">{{ segment.text }}</span>
+                                                        }
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    @else {
+                        <div class="table-rows">
+                            @for (row of table.rows; track row.rowid) {
+                                @let pending = sessionDiff.isPending(row.lastChangedAt);
+
+                                <article class="change-card">
+                                    <div class="change-head">
+                                        <span class="kind-pill" [class]="'kind-pill kind-pill--' + row.kind">{{ kindLabel(row.kind) }}</span>
+                                        <span class="change-table">{{ table.table }}</span>
+                                        <span class="change-detail">{{ rowDetail(row) }}</span>
+                                        <span class="status-pill" [class.status-pill--pending]="pending">
+                                            {{ i18n.t(pending ? 'sessionDiff.status.pending' : 'sessionDiff.status.committed') }}
+                                        </span>
+                                        <span class="change-time">{{ formatTime(row.lastChangedAt) }}</span>
+
+                                        @if (canRevert()) {
+                                            <ng-container [ngTemplateOutlet]="revertButton" [ngTemplateOutletContext]="{ $implicit: row, table: table.table }" />
+                                        }
+                                    </div>
+
+                                    <div class="row-panes">
+                                        <div class="pane pane--before">
+                                            <div class="pane-title section-title">{{ i18n.t('sessionDiff.beforePane') }}</div>
+
+                                            @if (row.kind === 'insert') {
+                                                <div class="pane-absent">{{ i18n.t('sessionDiff.rowDidNotExist') }}</div>
+                                            }
+                                            @else {
+                                                @for (column of row.columns; track column.column) {
+                                                    <div class="diff-line" [class.removed]="column.changed">
+                                                        <span class="line-sign">{{ column.changed ? '−' : '' }}</span>
+                                                        <span class="line-column">{{ column.column }}</span>
+                                                        <span class="line-value">
+                                                            @for (segment of column.before; track $index) {
+                                                                <span [class.segment-changed]="segment.changed">{{ segment.text }}</span>
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+
+                                        <div class="pane pane--after">
+                                            <div class="pane-title section-title">{{ i18n.t('sessionDiff.afterPane') }}</div>
+
+                                            @if (row.kind === 'delete') {
+                                                <div class="pane-absent">{{ i18n.t('sessionDiff.rowDeleted') }}</div>
+                                            }
+                                            @else {
+                                                @for (column of row.columns; track column.column) {
+                                                    <div class="diff-line" [class.added]="column.changed">
+                                                        <span class="line-sign">{{ column.changed ? '+' : '' }}</span>
+                                                        <span class="line-column">{{ column.column }}</span>
+                                                        <span class="line-value">
+                                                            @for (segment of column.after; track $index) {
+                                                                <span [class.segment-changed]="segment.changed">{{ segment.text }}</span>
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    }
+
+                    @if (table.hidden > 0) {
+                        <button
+                            type="button"
+                            class="show-more"
+                            (click)="showMore(table.table, table.rows.length)">
+                            {{ i18n.t('sessionDiff.showMore', { count: table.hidden }) }}
+                        </button>
+                    }
+                }
+            </section>
+        }
+
+        @if (opaqueChanges().length > 0) {
+            <section class="opaque-diff">
+                <div class="opaque-heading">
+                    <span class="section-title">{{ i18n.t('sessionDiff.opaqueTitle') }} · {{ opaqueChanges().length }}</span>
+                    <span class="opaque-hint">{{ i18n.t('sessionDiff.opaqueHint') }}</span>
+                </div>
+
+                @for (change of opaqueChanges(); track change.id) {
+                    @let pending = sessionDiff.isPending(change.at);
+
+                    <article class="change-card">
+                        <div class="change-head">
+                            <span class="kind-pill" [class]="'kind-pill kind-pill--' + opaqueKind(change)">{{ opaqueKindLabel(change) }}</span>
+                            @if (change.table) {
+                                <span class="change-table">{{ change.table }}</span>
+                            }
+                            <span class="change-detail">{{ change.label }}</span>
+                            <span class="status-pill" [class.status-pill--pending]="pending">
+                                {{ i18n.t(pending ? 'sessionDiff.status.pending' : 'sessionDiff.status.committed') }}
+                            </span>
+                            <span class="change-time">{{ formatTime(change.at) }}</span>
+                        </div>
+
+                        <pre class="opaque-detail">{{ change.detail }}</pre>
+
+                        @if (change.rowsAffected !== null) {
+                            <div class="opaque-rows">
+                                {{ i18n.t('sessionDiff.rowsAffected', { count: change.rowsAffected }) }}
+                            </div>
+                        }
+                    </article>
+                }
+            </section>
+        }
+
+        @if (isEmpty()) {
+            <div class="empty-state">{{ i18n.t('sessionDiff.noChanges') }}</div>
+        }
+    </div>
+</div>
+
+<!--
+    Annulation d'une modification, à la manière du « Discard change » d'un diff
+    git. Une ligne non annulable garde l'action, désactivée, avec la raison en
+    infobulle : un bouton désactivé n'émet pas de survol, l'infobulle est donc
+    portée par son conteneur.
+-->
+<ng-template #revertButton let-row let-table="table">
+    <span
+        class="revert-slot"
+        [tooltip]="i18n.t(row.revertible ? revertTooltipKey(row.kind) : 'sessionDiff.revertUnavailable')">
+        <button
+            type="button"
+            class="row-revert"
+            [disabled]="!row.revertible || revertBusy()"
+            [attr.aria-label]="i18n.t(revertTooltipKey(row.kind))"
+            (click)="$event.stopPropagation(); revertRow(table, row)">
+            <ui-icon src="E7A7" nomargin />
+        </button>
+    </span>
+</ng-template>

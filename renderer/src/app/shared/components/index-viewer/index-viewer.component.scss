@@ -1,0 +1,212 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/app/shared/styles/tool-ui.scss" as tool;
+
+:host {
+    display: block;
+    height: 100%;
+    overflow: auto;
+    background: var(--bg-app);
+}
+
+.index-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 900px;
+    padding: 24px 28px;
+    color: var(--text);
+}
+
+.index-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.index-title {
+    @include tool.page-title;
+
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.error-notice {
+    @include tool.error-notice;
+}
+
+// --- Formulaire de création ---
+
+.create-form {
+    @include tool.bordered-box;
+
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    background: var(--bg-subtle);
+}
+
+.form-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+
+    ui-input {
+        --width: 100%;
+
+        display: block;
+        margin: 0;
+    }
+}
+
+.field-label {
+    @include tool.field-label;
+}
+
+.checkbox-label {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.column-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.column-choice {
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    background: var(--bg-app);
+    font-size: 12px;
+    cursor: pointer;
+
+    &:hover {
+        border-color: var(--accent);
+    }
+
+    &.selected {
+        background: var(--bg-selected);
+        border-color: var(--accent);
+    }
+}
+
+.column-type {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+// --- Tableau des index ---
+
+.index-table {
+    @include tool.bordered-box;
+
+    --index-columns: 1fr 1fr 100px 100px;
+
+    &--editable {
+        --index-columns: 1fr 1fr 100px 100px 90px;
+    }
+}
+
+.index-row {
+    @include tool.table-body-row;
+
+    display: grid;
+    grid-template-columns: var(--index-columns);
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+
+    > span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &--head {
+        @include tool.table-head-row;
+
+        &:hover {
+            background: var(--bg-subtle);
+        }
+    }
+}
+
+.index-name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+
+    .mono {
+        font-size: 11.5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.index-origin {
+    flex: none;
+    font-size: 10px;
+    color: var(--text-faint);
+}
+
+.index-size {
+    color: var(--text-muted);
+}
+
+.index-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.index-empty {
+    padding: 24px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-faint);
+}

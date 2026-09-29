@@ -1,24 +1,32 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import {
     ChangeDetectionStrategy,
     Component,
-    computed,
     effect,
     ElementRef,
     inject,
     input,
     model,
-    OnInit,
-    signal,
     viewChild
 } from "@angular/core";
 import { IconComponent } from "@ui/icon/icon.component";
-import { ExtendedUIColor } from "src/app/shared/ui/ui.types";
+import { ExtendedUIColor, UIButtonFill, UIButtonSize } from "src/app/shared/ui/ui.types";
 
 export type ButtonType = "button" | "submit" | "reset";
 
@@ -29,15 +37,15 @@ export type ButtonType = "button" | "submit" | "reset";
     styleUrls: ["./button.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [IconComponent],
-    host: {
-        "[class.no-text]": "!hasText()",
-    }
 })
-export class ButtonComponent implements OnInit {
+export class ButtonComponent {
     private readonly elementRef = inject(ElementRef<HTMLElement>);
 
-    public readonly type = input.required<ButtonType>();
+    public readonly type = input<ButtonType>("button");
     public readonly color = input<ExtendedUIColor>("default");
+    /** `clear` + `danger` = bouton « Supprimer » discret de la maquette. */
+    public readonly fill = input<UIButtonFill>("solid");
+    public readonly size = input<UIButtonSize>("medium");
     public readonly disabled = model<boolean>(false);
     public readonly icon = input<string | null>(null);
     public readonly iconPosition = input<"left" | "right">("left");
@@ -45,8 +53,6 @@ export class ButtonComponent implements OnInit {
 
     protected readonly buttonElement = viewChild.required<ElementRef<HTMLButtonElement>>("button");
 
-    protected readonly hasText = computed(() => this.text().trim().length > 0);
-    protected readonly text = signal<string>("");
 
     // ---
 
@@ -79,12 +85,5 @@ export class ButtonComponent implements OnInit {
      */
     public setFocus(): void {
         this.buttonElement().nativeElement.focus();
-    }
-
-    /**
-     *
-     */
-    public ngOnInit(): void {
-        this.text.set(this.elementRef.nativeElement.textContent?.trim() ?? "");
     }
 }

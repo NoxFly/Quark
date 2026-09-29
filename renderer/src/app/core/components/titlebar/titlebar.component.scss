@@ -1,67 +1,259 @@
-@use 'src/theme/mixins.scss' as *;
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+:host {
+    display: block;
+}
 
 .titlebar {
-    @include flex($dir: row-reverse, $hor: flex-start, $ver: stretch);
-
-    width: 100vw;
     height: var(--titlebar-height);
-    isolation: isolate;
-    position: sticky;
-    top: 0;
-    left: 0;
-    z-index: 1000;
-    transition: background-color .15s ease-in-out;
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 70;
     user-select: none;
-    border-bottom: 1px  solid rgba(127, 127, 127, 0.2);
+    color: var(--text);
 
     &.draggable {
         -webkit-app-region: drag;
     }
 
-    .app-name {
-        @include absolute($left: 0, $tx: 0);
-        @include flex;
-
-        margin-left: 10px;
-        font-size: .75em;
-        font-weight: 700;
-        color: rgb(127, 127, 127);
-        height: 100%;
-    }
-
-    .actions {
-        @include flex($hor: flex-end, $gap: 5px);
-    }
-
-    .action {
-        @include flex;
-
-        background: none;
-        border: none;
-        width: var(--titlebar-height);
-        height: var(--titlebar-height);
-        border-radius: 0;
-        position: relative;
-        cursor: pointer;
-        z-index: 2;
+    .no-drag {
         -webkit-app-region: no-drag;
-        pointer-events: auto;
-        color: #999;
-        text-align: center;
-        transition: background-color .1s ease-in-out, color .1s ease-in-out;
+    }
+}
 
-        svg {
-            vertical-align: middle;
+// --- Menus ---
+
+.menus {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding-left: 8px;
+    flex: none;
+}
+
+.app-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-m);
+    margin-right: 8px;
+    display: block;
+}
+
+.menu-container {
+    position: relative;
+}
+
+.menu-trigger {
+    padding: 0 8px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-s);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover,
+    &.active {
+        background: var(--bg-hover);
+    }
+}
+
+.menu-dropdown,
+.submenu {
+    background: var(--bg-app);
+    color: var(--text);
+    border: 1px solid var(--border-control);
+    box-shadow: var(--shadow-menu);
+    padding: 4px;
+    border-radius: var(--radius-m);
+}
+
+.menu-dropdown {
+    position: absolute;
+    top: 24px;
+    left: 0;
+    min-width: 270px;
+    z-index: 60;
+}
+
+.menu-item {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: var(--radius-s);
+    font-size: 12px;
+    cursor: pointer;
+
+    &:hover:not(.disabled) {
+        background: var(--accent);
+        color: var(--accent-fg);
+    }
+
+    &.disabled {
+        color: var(--text-disabled);
+        pointer-events: none;
+    }
+}
+
+.menu-item-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.menu-item-check {
+    width: 12px;
+    font-size: 10px;
+    flex: none;
+    display: flex;
+    align-items: center;
+}
+
+// Glyphes Segoe Fluent (coche, flèche de sous-menu) : couleur héritée de l'élément.
+.menu-item-check ui-icon,
+.submenu-arrow ui-icon {
+    --icon-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    line-height: 1;
+}
+
+.submenu-arrow {
+    display: flex;
+    align-items: center;
+}
+
+.menu-item-shortcut {
+    opacity: .6;
+    font-size: 11px;
+    margin-left: 24px;
+    white-space: nowrap;
+    flex: none;
+}
+
+.menu-separator {
+    height: 1px;
+    background: var(--border-muted);
+    margin: 4px 6px;
+}
+
+// --- Sous-menus : ouverts au survol, l'élément parent reste en surbrillance ---
+
+.submenu {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: -5px;
+    min-width: 190px;
+    max-width: 420px;
+    margin-left: 2px;
+
+    .menu-item {
+        justify-content: flex-start;
+        color: var(--text);
+
+        &:hover:not(.disabled) {
+            color: var(--accent-fg);
         }
 
-        &:hover {
-            background-color: rgba(127, 127, 127, 0.2);
-            border-bottom: 1px solid rgba(127, 127, 127, 0.4);
+        &.disabled {
+            color: var(--text-disabled);
         }
+    }
+}
 
-        &.close:hover {
-            background-color: rgba(255, 0, 0, 0.8);
-            color: #fff;
-        }
+.has-children:hover:not(.disabled) > .submenu {
+    display: block;
+}
+
+// --- Titre centré ---
+
+.center-title {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    padding: 0 12px;
+}
+
+// --- Paramètres et boutons de fenêtre ---
+
+.actions {
+    display: flex;
+    align-items: stretch;
+    flex: none;
+}
+
+.action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text);
+
+    &:hover {
+        background: var(--bg-hover);
+    }
+}
+
+.settings {
+    width: 36px;
+
+    &.active {
+        background: var(--bg-hover);
+    }
+
+    // Glyphe Segoe Fluent « Settings » : même couleur que les boutons de fenêtre,
+    // taille calée sur leur tracé de 10 px (le glyphe a une marge interne).
+    ui-icon {
+        --icon-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        line-height: 1;
+    }
+}
+
+.window-button {
+    width: 46px;
+
+    &.close:hover {
+        background: var(--titlebar-close-hover);
+        color: var(--accent-fg);
     }
 }

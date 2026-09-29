@@ -1,0 +1,130 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/theme/components/shell-modal.scss" as *;
+@use "src/app/shared/styles/tool-ui.scss" as tool;
+
+:host {
+    @include shell-modal(680px);
+}
+
+.dialog-footer {
+    @include tool.dialog-footer;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+
+    // `ui-input` encapsule son champ : la largeur passe par la variable qu'il expose.
+    ui-input {
+        --width: 100%;
+
+        display: block;
+        margin: 0;
+    }
+}
+
+.field-label {
+    @include tool.field-label;
+}
+
+.columns-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.columns-table {
+    @include tool.bordered-box;
+
+    // Nom | Type | PK | NN | UQ | Défaut | ✕
+    --col-grid: minmax(0, 1fr) 120px 32px 32px 32px 110px 24px;
+}
+
+.col-header,
+.col-row {
+    display: grid;
+    grid-template-columns: var(--col-grid);
+    gap: 6px;
+    align-items: center;
+    padding: 0 10px;
+}
+
+.col-header {
+    @include tool.table-head-row;
+}
+
+.col-row {
+    min-height: 40px;
+    border-bottom: 1px solid var(--border-subtle);
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    &:hover {
+        background: var(--bg-row-hover);
+    }
+
+    ui-input,
+    ui-select {
+        --width: 100%;
+
+        display: block;
+        min-width: 0;
+        margin: 0;
+    }
+
+    input[type="checkbox"] {
+        justify-self: center;
+    }
+}
+
+.centered {
+    text-align: center;
+}
+
+.remove-btn {
+    @include tool.button-icon;
+
+    font-size: 11px;
+
+    &:hover:not(:disabled) {
+        background: var(--danger-bg);
+        color: var(--danger);
+    }
+}
+
+.sql-preview {
+    margin: 0;
+    padding: 10px 12px;
+    max-height: 180px;
+    overflow: auto;
+    border: 1px solid var(--border-muted);
+    border-radius: var(--radius-m);
+    background: var(--bg-subtle);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    user-select: text;
+}

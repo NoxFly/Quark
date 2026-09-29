@@ -1,0 +1,36 @@
+<div class="startup-error__panel" role="alert">
+    <div class="startup-error__header">
+        <div class="startup-error__badge" aria-hidden="true">!</div>
+
+        <div class="startup-error__text">
+            <h1 class="startup-error__title">{{ i18n.t('ui.startupError.title') }}</h1>
+            <p class="startup-error__lead">{{ i18n.t('ui.startupError.lead') }}</p>
+        </div>
+    </div>
+
+    @if (details()) {
+        <pre class="startup-error__details">{{ details() }}</pre>
+    }
+
+    <div class="startup-error__footer">
+        <span class="startup-error__version">
+            <img class="startup-error__logo" src="images/logo-quark-icon.png" alt="" draggable="false" />
+            @if (appVersion()) {
+                Quark {{ appVersion() }}
+            }
+            @else {
+                Quark
+            }
+        </span>
+
+        <div class="startup-error__actions">
+            <button type="button" class="startup-error__button" (click)="reload.emit()">
+                {{ i18n.t('ui.startupError.reload') }}
+            </button>
+
+            <button type="button" class="startup-error__button startup-error__button--primary" (click)="retry.emit()">
+                {{ i18n.t('ui.startupError.retry') }}
+            </button>
+        </div>
+    </div>
+</div>

@@ -1,3 +1,20 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 export function readFileAsync(file: File): Promise<string> {
     const reader = new FileReader();
     reader.readAsText(file);
@@ -51,4 +68,29 @@ export function getDate(date?: Date): string {
     const dd = String(date.getDate()).padStart(2, "0");
 
     return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Rejette si l'opération n'a pas abouti dans le délai imparti.
+ *
+ * Utilisé sur le chemin d'initialisation : le pont Noxus n'expose aucune échéance
+ * sur sa poignée de main, et une attente sans fin y laisse l'application derrière
+ * son écran de chargement plein écran — un écran blanc, sans message ni recours.
+ *
+ * @param operation - Opération à borner.
+ * @param timeoutMs - Échéance en millisecondes.
+ * @param label - Libellé utilisé dans le message d'erreur.
+ * @returns Le résultat de l'opération.
+ * @throws Error si l'échéance est dépassée.
+ * @example
+ * await withTimeout(this.noxus.init(), 15000, "IPC bridge handshake");
+ */
+export function withTimeout<T>(operation: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const deadline = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+
+    return Promise.race([operation, deadline]).finally(() => clearTimeout(timer)) as Promise<T>;
 }

@@ -1,0 +1,189 @@
+<div class="stored-procedure-page" [class.results-fullscreen]="resultsFullscreen()">
+    @if (isLoading() && !procedure()) {
+        <div class="loading-hint">{{ i18n.t("storedProc.loading") }}</div>
+    }
+    @else if (!procedure()) {
+        <div class="empty-hint">{{ i18n.t("storedProc.emptyHint") }}</div>
+    }
+    @else {
+        <!-- Header -->
+        <div class="proc-header">
+            <div class="proc-identity">
+                <span class="proc-schema">{{ procedure()!.schema }}.</span>
+                <span class="proc-name">{{ procedure()!.name }}</span>
+            </div>
+            <div class="proc-actions">
+                @if(!paramsVisible()) {
+                    <button
+                        class="action-btn icon-btn toggle-params-btn"
+                        (click)="toggleParams()"
+                        [tooltip]="i18n.t('storedProc.toggleParams')">
+                        <span class="action-icon">&#xE8A0;</span>
+                    </button>
+                }
+                <ui-button
+                    size="small"
+                    icon="E74E"
+                    [disabled]="isSaving() || dbService.readOnly()"
+                    (click)="save()"
+                    [tooltip]="i18n.t('storedProc.save')">
+                    {{ i18n.t("storedProc.save") }}
+                </ui-button>
+                <ui-button
+                    color="primary"
+                    size="small"
+                    [disabled]="isExecuting()"
+                    (click)="execute()"
+                    [tooltip]="i18n.t('storedProc.execute')">
+                    ▶ {{ i18n.t("storedProc.execute") }}
+                </ui-button>
+            </div>
+        </div>
+
+        @if (isLoading()) {
+            <div class="loading-overlay">
+                <div class="loading-hint">{{ i18n.t("storedProc.loading") }}</div>
+            </div>
+        }
+
+        <!-- Éditeur et Formulaire côte à côte -->
+        <div class="editor-params-container" [class.hidden]="resultsFullscreen()">
+            <!-- Monaco Editor -->
+            <div class="editor-section">
+                <!-- <div class="section-label">{{ i18n.t("storedProc.definition") }}</div> -->
+                <div class="monaco-container" #monacoContainer></div>
+                <!-- <div class="editor-hint">{{ i18n.t("storedProc.editorHint") }}</div> -->
+            </div>
+
+            <!-- Resize handle horizontal (entre éditeur et params) -->
+            @if (paramsVisible()) {
+                <div class="resize-handle-horizontal" (mousedown)="startHorizontalResize($event)"></div>
+            }
+
+            <!-- Formulaire de paramètres -->
+            @if (paramsVisible()) {
+                <div class="params-section">
+                    <div class="section-label">
+                        <span class="section-title">{{ i18n.t("storedProc.parameters") }}</span>
+                        <button
+                            class="action-btn icon-btn toggle-params-btn"
+                            [class.active]="paramsVisible()"
+                            (click)="toggleParams()"
+                            [tooltip]="i18n.t('storedProc.toggleParams')">
+                            <span class="action-icon">&#xE8A0;</span>
+                        </button>
+                    </div>
+
+                    @if (inputParams().length > 0) {
+                        <div class="params-form">
+                            @for (param of inputParams(); track param.name) {
+                                <div class="param-field">
+                                    <label class="param-label" [attr.for]="'param-' + param.name">
+                                        <span class="param-name">&#64;{{ param.name }}</span>
+                                        <span class="param-type">{{ param.type }}</span>
+                                    </label>
+                                    <ui-input
+                                        class="param-input"
+                                        [id]="'param-' + param.name"
+                                        type="text"
+                                        [placeholder]="param.hasDefault ? 'DEFAULT' : 'NULL'"
+                                        [value]="paramValues()[param.name] ?? ''"
+                                        (input)="updateParamValue(param.name, $any($event.target).value)"
+                                    />
+                                </div>
+                            }
+                        </div>
+                    }
+                    @else {
+                        <div class="params-empty-hint">{{ i18n.t("storedProc.noInputParams") }}</div>
+                    }
+
+                    @if (outputParams().length > 0) {
+                        <div class="output-params">
+                            <div class="output-label section-title">{{ i18n.t("storedProc.outputParams") }}</div>
+                            @for (param of outputParams(); track param.name) {
+                                <div class="output-param-entry">
+                                    <span class="param-name">&#64;{{ param.name }}</span>
+                                    <span class="param-type">{{ param.type }}</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    @else {
+                        <div class="params-empty-hint output-params-hint">{{ i18n.t("storedProc.noOutputParams") }}</div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Resize handle vertical (entre éditeur et résultats) -->
+        <div class="resize-handle-vertical" [class.hidden]="resultsFullscreen()" (mousedown)="startVerticalResize($event)"></div>
+
+        <!-- Résultats -->
+        <div class="results-panel">
+            <div class="results-top-bar">
+                <div class="results-meta-bar">
+                    @if(result()) {
+                        <span class="meta-rows">
+                            {{ i18n.t("storedProc.rowsAffected", { count: result()!.rowsAffected }) }}
+                        </span>
+
+                        @if (executionTime()) {
+                            <span class="meta-timing">{{ executionTime() }}</span>
+                        }
+                    }
+                </div>
+
+                <button
+                    class="action-btn icon-btn fullscreen-btn"
+                    [class.active]="resultsFullscreen()"
+                    (click)="toggleResultsFullscreen()"
+                    [tooltip]="i18n.t('storedProc.toggleResultsFullscreen')">
+                    <span class="action-icon">&#x26F6;</span>
+                </button>
+            </div>
+
+            @if (errorMessage()) {
+                <div class="error-banner">
+                    <span class="error-icon">&#xE783;</span>
+                    <span class="error-text">{{ errorMessage() }}</span>
+                </div>
+            }
+
+            @if (result()) {
+                @if (resultColumns().length > 0) {
+                    <div class="results-table-wrapper">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    @for (col of resultColumns(); track col) {
+                                        <th>{{ col }}</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (row of resultRows(); track $index) {
+                                    <tr>
+                                        @for (cell of row; track $index) {
+                                            <td [class.null-cell]="isNull(cell)">{{ formatCell(cell) }}</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @else {
+                    <div class="success-banner">
+                        <span class="success-icon">&#xE73E;</span>
+                        <span>{{ i18n.t("storedProc.execSuccess") }}</span>
+                    </div>
+                }
+            }
+
+            @if (!result() && !errorMessage()) {
+                <div class="results-empty-hint">{{ i18n.t("storedProc.resultsHint") }}</div>
+            }
+        </div>
+    }
+</div>

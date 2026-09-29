@@ -1,5 +1,148 @@
-<nav>
-    <ul>
-        <li></li>
-    </ul>
-</nav>
+@if (state.connected()) {
+    <div class="explorer-header">
+        <div class="section-title database-name" [tooltip]="databaseName()">{{ databaseName() }}</div>
+        <button
+            type="button"
+            class="header-button"
+            (click)="refreshDatabase()"
+            [tooltip]="i18n.t('sidebar.refresh.tooltip')"
+        >
+            <ui-icon src="E72C" nomargin />
+        </button>
+        <button
+            type="button"
+            class="header-button close"
+            (click)="closeFile()"
+            [tooltip]="i18n.t(shell.isFileDatabase() ? 'sidebar.close.tooltip' : 'sidebar.disconnect.tooltip')"
+        >
+            <ui-icon src="E7E8" nomargin />
+        </button>
+    </div>
+
+    <div class="explorer-filter">
+        <input
+            type="text"
+            class="filter-input"
+            [placeholder]="i18n.t(isNoSql() ? 'sidebar.filterCollections' : 'sidebar.filterTables')"
+            [value]="tableFilter()"
+            (input)="onFilterInput($event)"
+        />
+    </div>
+
+    <nav class="explorer-list">
+        @if (state.schemaLoading() && tables().length === 0) {
+            <div class="schema-loading-indicator">
+                <span class="spinner"></span>
+                {{ i18n.t("sidebar.schemaLoading") }}
+            </div>
+        }
+
+        <!-- Section Tables / Collections -->
+        <div
+            class="section-label"
+            [class.collapsed]="tablesCollapsed()"
+            (click)="toggleTablesSection()"
+            (contextmenu)="onTablesSectionContextMenu($event)"
+        >
+            <span class="section-label-text">
+                {{ i18n.t(isNoSql() ? "sidebar.section.collections" : "sidebar.section.tables") }} ({{ tables().length }})
+            </span>
+            <!-- Toujours rendu, masqué en lecture seule : la ligne garde la même hauteur dans les deux modes. -->
+            <button
+                type="button"
+                class="section-action"
+                [class.unavailable]="dbService.readOnly()"
+                [disabled]="dbService.readOnly()"
+                [attr.aria-hidden]="dbService.readOnly()"
+                (click)="onCreateTable($event)"
+                [tooltip]="i18n.t(isNoSql() ? 'sidebar.createCollection.tooltip' : 'sidebar.createTable.tooltip')"
+            >
+                <ui-icon src="E710" nomargin />
+            </button>
+        </div>
+
+        @if (!tablesCollapsed()) {
+            @for (table of filteredTables(); track table.name) {
+                <div
+                    class="table-row"
+                    [class.active]="(dbService.tabs.activeTab()?.tableName ?? dbService.selectedTable()) === table.name"
+                    (click)="selectTable(table.name)"
+                    (contextmenu)="onTableContextMenu($event, table.name)"
+                >
+                    <span class="chevron" [class.open]="isExpanded(table.name)" (click)="toggleExpand($event, table.name)">
+                        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                            <polyline points="3.5,1.5 7,5 3.5,8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                        </svg>
+                    </span>
+                    <span class="table-name">{{ table.name }}</span>
+                    <span class="table-count" [tooltip]="i18n.t(isNoSql() ? 'sidebar.documents' : 'sidebar.rows', { count: formatCount(table.recordCount) })">
+                        {{ formatCount(table.recordCount) }}
+                    </span>
+                </div>
+
+                @if (isExpanded(table.name)) {
+                    @for (field of table.fields; track field.name) {
+                        <div class="field-row">
+                            <span class="field-name" [class.pk]="field.pk" [class.fk]="!field.pk && !!field.fk">{{ field.name }}</span>
+                            @if (field.pk) {
+                                <span class="key-badge pk">PK</span>
+                            }
+                            @if (field.fk) {
+                                <span class="key-badge fk" [tooltip]="'→ ' + field.fk.table + '.' + field.fk.column">FK</span>
+                            }
+                            <span class="field-type">{{ field.type }}</span>
+                        </div>
+                    }
+                }
+            }
+        }
+
+        <!-- Section Procédures stockées (MSSQL / Azure) -->
+        @if (hasStoredProcedures()) {
+            <div
+                class="section-label procedures"
+                [class.collapsed]="procsCollapsed()"
+                (click)="toggleProcsSection()"
+                (contextmenu)="onProcsSectionContextMenu($event)"
+            >
+                <span class="section-label-text">
+                    {{ i18n.t("sidebar.section.storedProcedures") }} ({{ storedProcService.procedures().length }})
+                </span>
+                <button
+                    type="button"
+                    class="section-action"
+                    [class.unavailable]="dbService.readOnly()"
+                    [disabled]="dbService.readOnly()"
+                    [attr.aria-hidden]="dbService.readOnly()"
+                    (click)="onCreateProcedure($event)"
+                    [tooltip]="i18n.t('sidebar.storedProcs.create.tooltip')"
+                >
+                    <ui-icon src="E710" nomargin />
+                </button>
+            </div>
+
+            @if (!procsCollapsed()) {
+                @for (proc of filteredProcedures(); track proc.schema + '.' + proc.name) {
+                    <div
+                        class="table-row procedure"
+                        [class.active]="storedProcService.selectedProcedure()?.name === proc.name && storedProcService.selectedProcedure()?.schema === proc.schema"
+                        (click)="selectProcedure(proc.name, proc.schema)"
+                        (contextmenu)="onProcContextMenu($event, proc.name, proc.schema)"
+                        [tooltip]="proc.schema + '.' + proc.name"
+                    >
+                        <span class="procedure-icon">SP</span>
+                        <span class="table-name">{{ proc.name }}</span>
+                        <span class="table-count">{{ proc.schema }}</span>
+                    </div>
+                }
+                @if (storedProcService.procedures().length === 0 && !storedProcService.loading()) {
+                    <div class="empty-hint">{{ i18n.t("sidebar.storedProcs.empty") }}</div>
+                }
+            }
+        }
+    </nav>
+
+    <div class="resize-handle" [class.resizing]="isResizing()" (mousedown)="startResize($event)"></div>
+
+    <app-context-menu></app-context-menu>
+}

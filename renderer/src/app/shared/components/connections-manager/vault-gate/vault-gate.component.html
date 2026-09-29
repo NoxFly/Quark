@@ -1,0 +1,47 @@
+@let init = mode() === 'init';
+
+<div class="card">
+    <svg class="lock" width="28" height="28" viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2" />
+        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.2" />
+    </svg>
+    <div class="cm-title">{{ (init ? 'connections.vault.initTitle' : 'connections.vault.unlockTitle') | translate }}</div>
+    <div class="cm-hint">{{ (init ? 'connections.setMasterHint' : 'connections.unlockHint') | translate }}</div>
+
+    <div class="cm-field">
+        <label for="vg-password">{{ 'connections.masterPassword' | translate }}</label>
+        <input
+            #passwordInput
+            id="vg-password"
+            class="cm-input"
+            type="password"
+            [autocomplete]="init ? 'new-password' : 'current-password'"
+            [(ngModel)]="password"
+            (keydown.enter)="submit()" />
+    </div>
+
+    @if (init) {
+        <div class="cm-field">
+            <label for="vg-confirm">{{ 'connections.confirmMasterPassword' | translate }}</label>
+            <input
+                id="vg-confirm"
+                class="cm-input"
+                type="password"
+                autocomplete="new-password"
+                [(ngModel)]="confirmation"
+                (keydown.enter)="submit()" />
+        </div>
+        <div class="cm-hint">{{ 'connections.master.minLength' | translate: { count: minLength } }}</div>
+    }
+
+    @if (errorMessage(); as message) {
+        <div class="cm-error">{{ message }}</div>
+    }
+
+    <div class="actions">
+        <button type="button" class="cm-btn" (click)="cancelled.emit()">{{ 'editor.cancel' | translate }}</button>
+        <button type="button" class="cm-btn primary" [disabled]="!canSubmit()" (click)="submit()">
+            {{ (init ? 'connections.setMaster' : 'connections.unlock') | translate }}
+        </button>
+    </div>
+</div>

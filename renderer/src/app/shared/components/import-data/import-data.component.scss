@@ -1,0 +1,231 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/theme/components/shell-modal.scss" as *;
+@use "src/app/shared/styles/tool-ui.scss" as tool;
+
+:host {
+    @include shell-modal(600px);
+}
+
+.dialog-footer {
+    @include tool.dialog-footer;
+}
+
+.shell-modal-header {
+    gap: 16px;
+}
+
+.header-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.subtitle {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.step-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-faint);
+
+    span:not(.step-sep) {
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border-control);
+        border-radius: 50%;
+        background: var(--bg-app);
+        font-weight: 600;
+
+        &.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: var(--accent-fg);
+        }
+    }
+}
+
+.error-notice {
+    @include tool.error-notice;
+
+    margin: 16px 20px 0;
+}
+
+.form-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.field-label {
+    @include tool.field-label;
+}
+
+.file-input {
+    font-size: 12px;
+    color: var(--text-secondary);
+
+    &::file-selector-button {
+        height: 28px;
+        margin-right: 10px;
+        padding: 0 12px;
+        border: 1px solid var(--border-control);
+        border-radius: var(--radius-m);
+        background: var(--bg-input);
+        color: var(--text);
+        font-family: var(--font-ui);
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            background: var(--bg-panel);
+        }
+    }
+}
+
+.data-input {
+    width: 100%;
+    min-height: 140px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    background: var(--bg-input);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+
+    &:hover {
+        border-color: var(--border-control-hover);
+    }
+
+    &:focus {
+        border-color: var(--accent);
+        outline: none;
+    }
+}
+
+// --- Aperçu ---
+
+.preview-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.parse-errors {
+    @include tool.warning-notice;
+
+    flex-direction: column;
+    gap: 4px;
+}
+
+.parse-error {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+}
+
+.preview-table-wrapper {
+    @include tool.bordered-box;
+
+    max-height: 320px;
+    overflow: auto;
+}
+
+.preview-table {
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+
+    th,
+    td {
+        height: 30px;
+        padding: 0 10px;
+        text-align: left;
+        white-space: nowrap;
+        max-width: 240px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-right: 1px solid var(--border-subtle);
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--bg-subtle);
+        border-bottom-color: var(--border);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .new-row td {
+        background: var(--success-bg);
+        color: var(--success-text);
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+    }
+
+    .sign {
+        width: 24px;
+        text-align: center;
+        font-weight: 700;
+    }
+
+    td.null-cell {
+        font-style: italic;
+        opacity: .6;
+    }
+}
+
+// --- Succès ---
+
+.success-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-m);
+    background: var(--success-bg);
+    color: var(--success-text);
+    font-size: 12.5px;
+}
+
+.success-sign {
+    font-weight: 700;
+}

@@ -1,0 +1,91 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/theme/mixins.scss" as *;
+
+.theme-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    background: var(--backdrop);
+
+    @include flex($ver: flex-start);
+    padding-top: 80px;
+}
+
+.theme-sheet {
+    min-width: 280px;
+    max-width: 360px;
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-menu);
+    overflow: hidden;
+    animation: sheetFadeIn 0.15s ease-out;
+}
+
+@keyframes sheetFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.theme-header {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-muted);
+    user-select: none;
+}
+
+.theme-list {
+    padding: 4px;
+}
+
+.theme-option {
+    @include flex($hor: space-between);
+    width: 100%;
+    padding: 5px 10px;
+    background: none;
+    border: none;
+    border-radius: var(--radius-s);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover,
+    &.selected {
+        background: var(--accent);
+        color: var(--accent-fg);
+    }
+
+    .theme-check {
+        font-size: 10px;
+    }
+}

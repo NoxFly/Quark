@@ -1,0 +1,32 @@
+@if (tabs().length > 0) {
+    <div class="tabs-bar" role="tablist" (wheel)="onWheel($event)">
+        @for (tab of tabs(); track tab.tableName; let i = $index) {
+            <div
+                class="tab"
+                role="tab"
+                draggable="true"
+                [class.active]="i === activeIndex()"
+                [class.drag-over]="i === dragOverIndex()"
+                [class.dragging]="i === dragIndex()"
+                (click)="switchTab(i, tab)"
+                (contextmenu)="onTabContextMenu($event, i)"
+                (dragstart)="onDragStart($event, i)"
+                (dragover)="onDragOver($event, i)"
+                (dragleave)="onDragLeave()"
+                (drop)="onDrop($event, i)"
+                (dragend)="onDragEnd()"
+                [tooltip]="tabLabel(tab)">
+                <span class="tab-icon">{{ tabIcon(tab) }}</span>
+                <span class="tab-label">{{ tabLabel(tab) }}</span>
+                <button
+                    type="button"
+                    class="tab-close"
+                    (click)="closeTab($event, i)"
+                    [tooltip]="i18n.t('tabs.close')">
+                    ✕
+                </button>
+            </div>
+        }
+    </div>
+    <app-context-menu></app-context-menu>
+}

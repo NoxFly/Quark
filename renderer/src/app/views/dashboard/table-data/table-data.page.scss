@@ -1,0 +1,443 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/theme/mixins.scss" as *;
+
+:host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bg-app);
+    outline: none;
+}
+
+// --- Barre d'outils ---
+
+.toolbar {
+    @include flex($hor: flex-start, $gap: 8px);
+
+    flex: none;
+    height: 44px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.search {
+    @include flex($hor: flex-start);
+
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    background: var(--bg-input);
+    overflow: hidden;
+    cursor: text;
+
+    &:hover {
+        border-color: var(--border-control-hover);
+    }
+
+    &:focus-within {
+        border-color: var(--accent);
+    }
+
+    .search-prefix {
+        @include flex;
+
+        flex: none;
+        height: 100%;
+        padding: 0 8px;
+        border-right: 1px solid var(--border-muted);
+        color: var(--text-faint);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        user-select: none;
+    }
+
+    .search-input {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        padding: 0 10px;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 12px;
+
+        &::placeholder {
+            color: var(--text-faint);
+        }
+    }
+
+    &.query .search-input {
+        font-family: var(--font-mono);
+    }
+}
+
+.segmented {
+    display: flex;
+    flex: none;
+    height: 28px;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    overflow: hidden;
+
+    .segment {
+        @include flex;
+
+        padding: 0 10px;
+        border: none;
+        background: var(--bg-input);
+        color: var(--text-secondary);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+
+        & + .segment {
+            border-left: 1px solid var(--border-control);
+        }
+
+        &:hover:not(.active) {
+            background: var(--bg-panel);
+        }
+
+        &.active {
+            background: var(--accent);
+            color: var(--accent-fg);
+        }
+    }
+}
+
+.btn-new {
+    @include flex($gap: 6px);
+
+    flex: none;
+    height: 28px;
+    padding: 0 12px;
+    border: none;
+    border-radius: var(--radius-m);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--accent-hover);
+    }
+
+    &:active {
+        background: var(--accent-active);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: 1px;
+    }
+
+    .btn-new-plus {
+        font-size: 14px;
+        line-height: 1;
+    }
+}
+
+// --- Grille ---
+
+.grid-scroll {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--bg-app);
+}
+
+.grid {
+    // La largeur minimale est posée par le composant : `max-content` varierait
+    // avec les lignes rendues par la virtualisation.
+    width: 100%;
+}
+
+.grid-header,
+.grid-row {
+    display: grid;
+    grid-template-columns: var(--grid-cols);
+}
+
+.grid-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 40px;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+}
+
+.hcell {
+    @include flex($hor: flex-start, $gap: 6px);
+
+    position: relative;
+    min-width: 0;
+    padding: 0 10px;
+    border-right: 1px solid var(--border-subtle);
+    cursor: pointer;
+
+    &:hover {
+        background: var(--bg-row-hover);
+    }
+
+    &.rownum {
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-right: 1px solid var(--border-subtle);
+        background: transparent;
+        color: var(--text-faint);
+        font: inherit;
+        font-size: 11px;
+
+        &.all-selected {
+            background: var(--bg-selected);
+            color: var(--accent);
+            font-weight: 600;
+        }
+    }
+
+    .hcell-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .hcell-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .hcell-type {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-faint);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sort-icon {
+        flex: none;
+        font-size: 9px;
+        color: var(--accent);
+    }
+
+    .ts-toggle {
+        @include flex;
+
+        flex: none;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: 1px solid var(--border-control);
+        border-radius: var(--radius-s);
+        background: var(--bg-input);
+        color: var(--text-muted);
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            border-color: var(--accent);
+        }
+
+        &.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: var(--accent-fg);
+        }
+    }
+
+    .col-resize-handle {
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 3;
+        width: 6px;
+        height: 100%;
+        transform: translateX(50%);
+        cursor: col-resize;
+
+        &::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 1px;
+            height: 100%;
+            transform: translateX(-50%);
+            background: transparent;
+            transition: background 0.1s, box-shadow 0.1s;
+        }
+
+        &:hover::after,
+        &:active::after {
+            background: var(--accent);
+            // box-shadow n'est pas rogné par l'overflow du conteneur : la ligne
+            // de redimensionnement s'étend sur toute la hauteur de la grille.
+            box-shadow: 0 9999px 0 var(--accent);
+        }
+    }
+}
+
+// Bloc d'espacement de la virtualisation : ni bordure ni fond, sinon sa hauteur
+// ne correspondrait plus exactement à celle des lignes qu'il remplace.
+.virtual-spacer {
+    border: 0;
+}
+
+.grid-row {
+    // Hauteur fixe, bordure comprise : la virtualisation suppose des lignes de
+    // hauteur égale, y compris celle qui contient le champ d'édition.
+    box-sizing: border-box;
+    height: var(--row-height, 36px);
+    border-bottom: 1px solid var(--border-subtle);
+    background: transparent;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--bg-row-hover);
+    }
+
+    &.selected {
+        background: var(--bg-selected);
+    }
+
+    &.cursor {
+        outline: 1px solid var(--accent-ring);
+        outline-offset: -1px;
+    }
+}
+
+.cell {
+    @include flex($hor: flex-start, $gap: 6px);
+
+    min-width: 0;
+    padding: 0 10px;
+    border-right: 1px solid var(--border-subtle);
+    color: var(--text);
+    font-size: 12.5px;
+    white-space: nowrap;
+    overflow: hidden;
+
+    &.rownum {
+        justify-content: center;
+        padding: 0;
+        border-left: 3px solid transparent;
+        color: var(--text-faint);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        user-select: none;
+
+        &.mark-inserted {
+            border-left-color: var(--success);
+        }
+
+        &.mark-modified {
+            border-left-color: var(--warning);
+        }
+    }
+
+    &.mono {
+        font-family: var(--font-mono);
+    }
+
+    &.pk {
+        color: var(--pk-text);
+    }
+
+    &.fk {
+        color: var(--fk-text);
+
+        .cell-value:hover {
+            text-decoration: underline;
+        }
+    }
+
+    &.null-value .cell-value {
+        color: var(--text-disabled);
+        font-style: italic;
+    }
+
+    &.editing {
+        padding: 0;
+        background: var(--bg-input);
+        box-shadow: inset 0 0 0 2px var(--accent);
+    }
+
+    .cell-value {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .blob-view-btn {
+        @include flex;
+
+        flex: none;
+        padding: 0 4px;
+        border: none;
+        border-radius: var(--radius-s);
+        background: transparent;
+        color: var(--text-faint);
+        font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            background: var(--bg-accent-soft);
+            color: var(--accent);
+        }
+    }
+
+    .cell-edit {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0 10px;
+        border: none;
+        border-radius: 0;
+        outline: none;
+        // Transparent : le cadre d'édition est l'ombre intérieure de la cellule.
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+    }
+}
+
+.loading-indicator {
+    @include flex;
+
+    padding: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+}

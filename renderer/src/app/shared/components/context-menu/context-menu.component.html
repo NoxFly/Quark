@@ -1,0 +1,43 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+@if (visible()) {
+    <div
+        class="context-menu"
+        role="menu"
+        [style.left.px]="posX()"
+        [style.top.px]="posY()"
+        (click)="$event.stopPropagation()"
+    >
+        @if (title()) {
+            <div class="context-menu-title">{{ title() }}</div>
+        }
+
+        @for (item of items(); track $index) {
+            @if (item.separator) {
+                <div class="context-menu-separator" role="separator"></div>
+            } @else {
+                <button
+                    type="button"
+                    class="context-menu-item"
+                    role="menuitem"
+                    [class.danger]="item.danger"
+                    [class.disabled]="item.disabled"
+                    [attr.aria-disabled]="item.disabled ? true : null"
+                    (click)="onItemClick(item)"
+                >
+                    @if (item.icon) {
+                        <span class="item-icon">{{ item.icon }}</span>
+                    }
+                    <span class="item-label">{{ item.label }}</span>
+                    @if (item.shortcut) {
+                        <span class="item-shortcut">{{ item.shortcut }}</span>
+                    }
+                </button>
+            }
+        }
+    </div>
+}

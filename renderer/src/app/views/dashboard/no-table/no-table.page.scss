@@ -1,0 +1,65 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+:host {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-app);
+}
+
+// État vide sobre : texte discret, centré, sans illustration.
+.no-table {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    max-width: 360px;
+    padding: 24px;
+    text-align: center;
+    color: var(--text-faint);
+    user-select: none;
+}
+
+.title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.hint {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.count {
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.spinner {
+    width: 18px;
+    height: 18px;
+    margin-bottom: 6px;
+    border: 2px solid var(--border-control);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: qspin .8s linear infinite;
+}

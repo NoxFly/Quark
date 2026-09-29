@@ -1,0 +1,186 @@
+@let d = draft();
+
+<div class="cm-pane">
+    <div class="cm-title">{{ (isEditing() ? 'connections.form.editTitle' : 'connections.form.newTitle') | translate }}</div>
+
+    <div class="cm-field">
+        <label>{{ 'connections.form.driver' | translate }}</label>
+        <div class="types">
+            @for (driver of driverTypes(); track driver.type) {
+                <button
+                    type="button"
+                    class="type-pill"
+                    [class.selected]="d.driverType === driver.type"
+                    (click)="selectType(driver.type)">
+                    <app-driver-thumb [driverType]="driver.type" variant="pill" />
+                    {{ driver.displayName }}
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="row name-row">
+        <div class="cm-field">
+            <label for="cf-name">{{ 'connections.form.name' | translate }}</label>
+            <input id="cf-name" class="cm-input" type="text" autocomplete="off"
+                [placeholder]="'connections.form.namePlaceholder' | translate"
+                [ngModel]="d.name" (ngModelChange)="patch('name', $event)" />
+        </div>
+        <div class="cm-field">
+            <label for="cf-folder">{{ 'connections.form.folder' | translate }}</label>
+            <select id="cf-folder" class="cm-input" [ngModel]="d.folderId" (ngModelChange)="patch('folderId', $event)">
+                @if (folders().length === 0) {
+                    <option value="">—</option>
+                }
+                @for (folder of folders(); track folder.id) {
+                    <option [value]="folder.id">{{ folder.name }}</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (isSqlite()) {
+        <div class="cm-field">
+            <label>{{ 'connections.form.source' | translate }}</label>
+            <div class="source">
+                <div class="segmented">
+                    <button type="button" [class.active]="d.sqliteMode === 'file'" (click)="patch('sqliteMode', 'file')">
+                        {{ 'connections.form.sourceFile' | translate }}
+                    </button>
+                    <button type="button" [class.active]="d.sqliteMode === 'url'" (click)="patch('sqliteMode', 'url')">
+                        {{ 'connections.form.sourceUrl' | translate }}
+                    </button>
+                </div>
+                @if (isSqliteFile()) {
+                    <input class="cm-input mono" type="text" autocomplete="off"
+                        [placeholder]="'connections.form.filePlaceholder' | translate"
+                        [ngModel]="d.filePath" (ngModelChange)="patch('filePath', $event)" />
+                    <button type="button" class="cm-btn" (click)="pickFile()">{{ 'connections.form.browse' | translate }}</button>
+                }
+                @else {
+                    <input class="cm-input mono" type="text" autocomplete="off"
+                        [placeholder]="'connections.form.urlPlaceholder' | translate"
+                        [ngModel]="d.url" (ngModelChange)="patch('url', $event)" />
+                }
+            </div>
+            <div class="cm-hint">
+                {{ (isSqliteFile() ? 'connections.form.fileHint' : 'connections.form.urlHint') | translate }}
+            </div>
+        </div>
+    }
+
+    @if (isMongo()) {
+        <div class="cm-field">
+            <label for="cf-uri">{{ 'connections.form.uri' | translate }}</label>
+            <input id="cf-uri" class="cm-input mono" type="text" autocomplete="off" placeholder="mongodb+srv://…"
+                [ngModel]="d.uri" (ngModelChange)="patch('uri', $event)" />
+        </div>
+    }
+
+    @if (isServer()) {
+        <div class="row host-row">
+            <div class="cm-field">
+                <label for="cf-host">{{ 'connections.form.host' | translate }}</label>
+                <input id="cf-host" class="cm-input" type="text" autocomplete="off" placeholder="localhost"
+                    [ngModel]="d.host" (ngModelChange)="patch('host', $event)" />
+            </div>
+            <div class="cm-field">
+                <label for="cf-port">{{ 'connections.form.port' | translate }}</label>
+                <input id="cf-port" class="cm-input mono" type="text" inputmode="numeric" autocomplete="off"
+                    [ngModel]="d.port || ''" (ngModelChange)="setPort($event)" />
+            </div>
+        </div>
+
+        @if (isAzure()) {
+            <div class="cm-field">
+                <label for="cf-auth">{{ 'connections.form.authMode' | translate }}</label>
+                <select id="cf-auth" class="cm-input" [ngModel]="d.authMode" (ngModelChange)="patch('authMode', $event)">
+                    <option value="sql">{{ 'connections.form.authSql' | translate }}</option>
+                    <option value="service-principal">{{ 'connections.form.authServicePrincipal' | translate }}</option>
+                </select>
+            </div>
+        }
+    }
+
+    <div class="row creds-row">
+        @if (isServicePrincipal()) {
+            <div class="cm-field">
+                <label for="cf-client">{{ 'connections.form.clientId' | translate }}</label>
+                <input id="cf-client" class="cm-input mono" type="text" autocomplete="off"
+                    [ngModel]="d.clientId" (ngModelChange)="patch('clientId', $event)" />
+            </div>
+            <div class="cm-field">
+                <label for="cf-tenant">{{ 'connections.form.tenantId' | translate }}</label>
+                <input id="cf-tenant" class="cm-input mono" type="text" autocomplete="off"
+                    [ngModel]="d.tenantId" (ngModelChange)="patch('tenantId', $event)" />
+            </div>
+        }
+        @else if (!isSqliteFile()) {
+            <div class="cm-field">
+                <label for="cf-user">{{ 'connections.form.username' | translate }}</label>
+                <input id="cf-user" class="cm-input" type="text" autocomplete="off"
+                    [ngModel]="d.username" (ngModelChange)="patch('username', $event)" />
+            </div>
+        }
+
+        <div class="cm-field">
+            <label for="cf-password">
+                @if (isServicePrincipal()) {
+                    {{ 'connections.form.clientSecret' | translate }}
+                }
+                @else if (isSqliteFile()) {
+                    {{ 'connections.form.filePassword' | translate }}
+                }
+                @else {
+                    {{ 'connections.form.password' | translate }}
+                }
+            </label>
+            <input id="cf-password" class="cm-input" type="password" autocomplete="new-password"
+                [placeholder]="passwordPlaceholder()"
+                [ngModel]="d.password" (ngModelChange)="patch('password', $event)" />
+        </div>
+
+        @if (!isSqliteFile()) {
+            <div class="cm-field">
+                <label for="cf-db">{{ 'connections.form.database' | translate }}</label>
+                <input id="cf-db" class="cm-input" type="text" autocomplete="off"
+                    [ngModel]="d.database" (ngModelChange)="patch('database', $event)" />
+            </div>
+        }
+    </div>
+
+    <div class="row tag-row">
+        <div class="cm-field">
+            <label>{{ 'connections.form.tag' | translate }}</label>
+            <div class="tags">
+                @for (tag of tags; track tag) {
+                    <button type="button" class="tag" [class.selected]="d.tag === tag" (click)="patch('tag', tag)">
+                        <span class="dot" [style.background]="tagColor(tag)"></span>{{ tagLabelKey(tag) | translate }}
+                    </button>
+                }
+            </div>
+        </div>
+        @if (!isSqlite()) {
+            <label class="ssl">
+                <input type="checkbox" [ngModel]="d.ssl" (ngModelChange)="patch('ssl', $event)" />
+                {{ 'connections.form.ssl' | translate }}
+            </label>
+        }
+    </div>
+
+    <div class="cm-field">
+        <label for="cf-notes">{{ 'connections.form.notes' | translate }}</label>
+        <textarea id="cf-notes" class="cm-input" [ngModel]="d.notes" (ngModelChange)="patch('notes', $event)"></textarea>
+    </div>
+</div>
+
+<div class="cm-footer">
+    <button type="button" class="cm-btn" [disabled]="testing()" (click)="test()">
+        {{ 'connections.test.action' | translate }}
+    </button>
+    <div class="cm-spacer"></div>
+    <button type="button" class="cm-btn" (click)="cancel.emit()">{{ 'editor.cancel' | translate }}</button>
+    <button type="button" class="cm-btn primary" [disabled]="!canSubmit() || busy()" (click)="submit()">
+        {{ (isEditing() ? 'connections.form.save' : 'connections.form.create') | translate }}
+    </button>
+</div>

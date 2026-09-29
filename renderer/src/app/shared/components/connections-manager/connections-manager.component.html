@@ -1,0 +1,122 @@
+<div class="header">
+    <div class="title">{{ 'connections.title' | translate }}</div>
+    <div class="header-actions">
+        @if (view() === 'manager' && masterEnabled()) {
+            <button type="button" class="icon-btn" [title]="'connections.lock' | translate" (click)="lockVault()">
+                <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                    <rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+                    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.4" />
+                </svg>
+            </button>
+        }
+        <button type="button" class="icon-btn" [attr.aria-label]="'connections.close' | translate" (click)="close()">✕</button>
+    </div>
+</div>
+
+@switch (view()) {
+    @case ('init') {
+        <app-vault-gate mode="init" (opened)="onVaultOpened()" (cancelled)="close()" />
+    }
+    @case ('unlock') {
+        <app-vault-gate mode="unlock" (opened)="onVaultOpened()" (cancelled)="close()" />
+    }
+    @case ('manager') {
+        <div class="body">
+            <aside class="sidebar">
+                <div class="sidebar-actions">
+                    <button type="button" class="add-btn" (click)="newProfile()">{{ 'connections.addConnection' | translate }}</button>
+                    <button type="button" class="add-btn" (click)="newFolder()">{{ 'connections.addFolder' | translate }}</button>
+                </div>
+
+                <app-connection-tree
+                    [tree]="tree()"
+                    [collapsed]="connections.collapsedFolders()"
+                    [selectedProfileId]="selectedProfileId()"
+                    [selectedFolderId]="mode() === 'folder' ? selectedFolderId() : null"
+                    (profileSelected)="selectProfile($event)"
+                    (profileOpened)="connectProfile($event)"
+                    (folderSelected)="selectFolder($event)"
+                    (folderToggled)="connections.toggleFolder($event)" />
+
+                <div class="master">
+                    <span>{{ 'connections.masterPassword' | translate }}</span>
+                    <button
+                        type="button"
+                        class="switch"
+                        role="switch"
+                        [class.on]="masterEnabled()"
+                        [attr.aria-checked]="masterEnabled()"
+                        [title]="'connections.master.description' | translate"
+                        [disabled]="busy()"
+                        (click)="toggleMasterPassword()">
+                        <span class="knob"></span>
+                    </button>
+                </div>
+            </aside>
+
+            <section class="pane">
+                @switch (mode()) {
+                    @case ('edit') {
+                        <app-connection-form
+                            [profile]="editingProfile()"
+                            [driverInfos]="driverInfos()"
+                            [folders]="sortedFolders()"
+                            [defaultFolderId]="defaultFolderId()"
+                            [session]="formSession()"
+                            [busy]="busy()"
+                            (save)="saveProfile($event)"
+                            (cancel)="cancelPane()" />
+                    }
+                    @case ('folder') {
+                        <app-connection-folder-form
+                            [folder]="selectedFolder()"
+                            [busy]="busy()"
+                            (saved)="saveFolder($event)"
+                            (deleteRequested)="confirmDeleteFolder()"
+                            (cancelled)="cancelPane()" />
+                    }
+                    @default {
+                        @if (selectedProfile(); as profile) {
+                            <app-connection-details
+                                [profile]="profile"
+                                [folderName]="selectedProfileFolder()?.name ?? ''"
+                                [typeLabel]="driverLabel(profile)"
+                                [busy]="busy()"
+                                (importRequested)="openSecretPrompt('import')"
+                                (exportRequested)="openSecretPrompt('export')"
+                                (deleteRequested)="confirmDeleteProfile()"
+                                (editRequested)="editSelected()"
+                                (connectRequested)="connectProfile(profile)" />
+                        }
+                        @else {
+                            <div class="empty">
+                                <span>{{ 'connections.emptySelection' | translate }}</span>
+                                <button type="button" class="cm-btn" (click)="openSecretPrompt('import')">
+                                    {{ 'connections.import' | translate }}
+                                </button>
+                            </div>
+                        }
+                    }
+                }
+            </section>
+        </div>
+    }
+    @default {
+        <div class="loading"></div>
+    }
+}
+
+@if (secretPrompt(); as prompt) {
+    <app-secret-prompt
+        [title]="secretText('title')"
+        [hint]="secretText('hint')"
+        [label]="secretText('label')"
+        [confirmLabel]="prompt.kind === 'enable-master' ? ('connections.confirmMasterPassword' | translate) : null"
+        [minLength]="prompt.kind === 'enable-master' ? minMasterLength : 1"
+        [isNewSecret]="prompt.kind === 'enable-master' || prompt.kind === 'export'"
+        [submitLabel]="secretText('submit')"
+        [error]="secretError()"
+        [busy]="busy()"
+        (submitted)="submitSecret($event)"
+        (cancelled)="secretPrompt.set(null)" />
+}

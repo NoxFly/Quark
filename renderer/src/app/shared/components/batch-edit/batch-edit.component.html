@@ -1,0 +1,44 @@
+<div class="batch-edit">
+    <div class="modal-header">
+        <h2>{{ i18n.t('batchEdit.title') }}</h2>
+        <p class="subtitle">{{ i18n.t('batchEdit.subtitle', { count: rowCount() }) }}</p>
+    </div>
+
+    <div class="modal-body">
+        <div class="form-group">
+            <label>{{ i18n.t('batchEdit.column') }}</label>
+            <ui-select [(ngModel)]="selectedColumn">
+                @for (field of editableFields(); track field.name) {
+                    <ui-select-option [value]="field.name">{{ field.name }} · {{ field.type }}</ui-select-option>
+                }
+            </ui-select>
+        </div>
+
+        <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="setNull" />
+            {{ i18n.t('batchEdit.setNull') }}
+        </label>
+
+        @if (!setNull()) {
+            <div class="form-group">
+                <label>{{ i18n.t('batchEdit.value') }}</label>
+                <ui-input
+                    type="text"
+                    [mono]="isMonoColumn()"
+                    [(ngModel)]="inputValue"
+                    [placeholder]="i18n.t('batchEdit.valuePlaceholder')"
+                    (keydown.enter)="confirm()" />
+            </div>
+        }
+    </div>
+
+    <div class="modal-actions">
+        <ui-button color="secondary" (click)="cancel()">{{ i18n.t('editor.cancel') }}</ui-button>
+        <ui-button
+            color="primary"
+            [disabled]="!selectedColumn()"
+            (click)="confirm()">
+            {{ i18n.t('batchEdit.apply') }}
+        </ui-button>
+    </div>
+</div>

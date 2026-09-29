@@ -1,0 +1,157 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+// Écran d'échec du démarrage, aux couleurs de la maquette : boîte de type
+// « confirmation » (pastille danger, titre 14 px, texte secondaire, pied teinté
+// avec les boutons à droite) centrée sur le fond principal.
+
+app-startup-error {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: var(--bg-panel);
+    color: var(--text);
+    user-select: text;
+
+    .startup-error__panel {
+        width: 100%;
+        max-width: 560px;
+        background: var(--bg-app);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-l);
+        box-shadow: var(--shadow-card);
+        overflow: hidden;
+    }
+
+    .startup-error__header {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        padding: 20px 20px 16px;
+    }
+
+    .startup-error__badge {
+        width: 36px;
+        height: 36px;
+        border-radius: 18px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--danger-bg);
+        color: var(--danger);
+        font-weight: 700;
+        font-size: 18px;
+        user-select: none;
+    }
+
+    .startup-error__text {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .startup-error__title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .startup-error__lead {
+        margin: 0;
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: var(--text-secondary);
+    }
+
+    .startup-error__details {
+        max-height: 200px;
+        margin: 0 20px 20px;
+        padding: 10px 12px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+        background: var(--bg-subtle);
+        color: var(--text-secondary);
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .startup-error__footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 20px;
+        background: var(--bg-subtle-alt);
+        border-top: 1px solid var(--border-muted);
+    }
+
+    .startup-error__version {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11.5px;
+        color: var(--text-faint);
+    }
+
+    .startup-error__logo {
+        display: block;
+        width: 16px;
+        height: 16px;
+        border-radius: var(--radius-s);
+    }
+
+    .startup-error__actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .startup-error__button {
+        height: 30px;
+        padding: 0 14px;
+        border: 1px solid var(--border-control);
+        border-radius: var(--radius-m);
+        background: var(--bg-input);
+        color: var(--text);
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+            background: var(--bg-panel);
+        }
+
+        &--primary {
+            padding: 0 16px;
+            border-color: transparent;
+            background: var(--accent);
+            color: var(--accent-fg);
+            font-weight: 600;
+
+            &:hover {
+                background: var(--accent-hover);
+            }
+        }
+    }
+}

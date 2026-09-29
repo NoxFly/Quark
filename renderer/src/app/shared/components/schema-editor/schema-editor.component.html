@@ -1,0 +1,113 @@
+<div class="shell-modal">
+    <div class="shell-modal-header">
+        <div class="shell-modal-title">{{ i18n.t('schemaEditor.title') }} · <span class="mono">{{ tableName() }}</span></div>
+        <button type="button" class="shell-modal-close" [attr.aria-label]="i18n.t('indexViewer.close')" (click)="cancel()">✕</button>
+    </div>
+
+    <div class="shell-modal-body">
+        @if (errorMessage(); as error) {
+            <div class="error-notice">{{ error }}</div>
+        }
+
+        <!-- Renommage de table -->
+        <label class="field">
+            <span class="field-label">{{ i18n.t(state.isNoSqlDatabase() ? 'schemaEditor.tableName.nosql' : 'schemaEditor.tableName') }}</span>
+            <ui-input
+                type="text"
+                [(ngModel)]="newTableName"
+                [placeholder]="tableName()" />
+        </label>
+
+        <!-- Colonnes -->
+        <div class="field">
+            <span class="section-title">{{ i18n.t(state.isNoSqlDatabase() ? 'schemaEditor.columns.nosql' : 'schemaEditor.columns') }}</span>
+            <div class="columns-list">
+                @for (col of editableColumns(); track col.original.name) {
+                    <div class="column-row" [class.marked-drop]="col.markedForDrop">
+                        <span class="col-badges">
+                            @if (col.original.pk) {
+                                <span class="key-badge pk">PK</span>
+                            }
+                            @if (col.original.fk) {
+                                <span class="key-badge fk">FK</span>
+                            }
+                        </span>
+                        <ui-input
+                            type="text"
+                            class="col-name-input"
+                            [(ngModel)]="col.newName"
+                            [isDisabled]="col.markedForDrop || col.original.pk" />
+                        <span class="col-type">{{ col.original.type }}</span>
+                        @if (!col.original.pk) {
+                            <button
+                                type="button"
+                                class="drop-btn"
+                                [class.drop-active]="col.markedForDrop"
+                                (click)="toggleDrop(col)"
+                                [tooltip]="col.markedForDrop ? i18n.t('schemaEditor.cancelDrop') : i18n.t('schemaEditor.dropColumn')">
+                                {{ col.markedForDrop ? '↩' : '✕' }}
+                            </button>
+                        }
+                        @else {
+                            <span class="drop-placeholder"></span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Ajouter une colonne -->
+        <div class="field">
+            <button
+                type="button"
+                class="section-toggle"
+                [attr.aria-expanded]="showAddColumn()"
+                (click)="showAddColumn.set(!showAddColumn())">
+                <span class="section-title">{{ i18n.t(state.isNoSqlDatabase() ? 'schemaEditor.addColumn.nosql' : 'schemaEditor.addColumn') }}</span>
+                <span class="toggle-chevron">{{ showAddColumn() ? '▲' : '▼' }}</span>
+            </button>
+
+            @if (showAddColumn()) {
+                <div class="add-column-form">
+                    <ui-input
+                        type="text"
+                        [(ngModel)]="newColumnName"
+                        [placeholder]="i18n.t('schemaEditor.colName')" />
+                    <ui-select [(ngModel)]="newColumnType">
+                        @for (type of columnTypes; track type) {
+                            <ui-select-option [value]="type">{{ type }}</ui-select-option>
+                        }
+                    </ui-select>
+                    <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="newColumnNotNull" />
+                        NOT NULL
+                    </label>
+                    <ui-input
+                        type="text"
+                        [(ngModel)]="newColumnDefault"
+                        [placeholder]="i18n.t('schemaEditor.defaultValue')" />
+                </div>
+            }
+        </div>
+
+        <!-- Récapitulatif des changements -->
+        @if (getPendingChanges().length > 0) {
+            <div class="changes-summary">
+                <span class="section-title">{{ i18n.t('schemaEditor.pendingChanges') }}</span>
+                @for (change of getPendingChanges(); track change) {
+                    <div class="change-item">{{ change }}</div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="dialog-footer">
+        <ui-button (click)="cancel()">{{ i18n.t('editor.cancel') }}</ui-button>
+        <ui-button
+            color="primary"
+            [disabled]="isSaving() || getPendingChanges().length === 0"
+            (click)="confirm()">
+            {{ isSaving() ? i18n.t('editor.saving') : i18n.t('schemaEditor.apply') }}
+        </ui-button>
+    </div>
+</div>

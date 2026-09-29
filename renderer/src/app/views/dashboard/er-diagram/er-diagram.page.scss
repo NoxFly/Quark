@@ -1,0 +1,248 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+// Curseurs du diagramme, au style de Figma (`renderer/public/cursors/`). Comme
+// les polices, le chemin part de la racine du projet renderer : le build copie
+// les images dans `media/` et réécrit l'URL en `./media/…`, résolue contre le
+// document (`<base href="./">`), donc aussi en `file://`. Chaque curseur se
+// replie sur son équivalent système si l'image manque.
+$cursor-arrow: url("public/cursors/arrow.svg") 6 4, default;
+$cursor-pointer: url("public/cursors/pointer.svg") 13 9, pointer;
+$cursor-grab: url("public/cursors/grab.svg") 16 16, grab;
+$cursor-grabbing: url("public/cursors/grabbing.svg") 16 16, grabbing;
+
+:host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    user-select: none;
+    cursor: $cursor-arrow;
+}
+
+.empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-faint);
+    font-size: 12.5px;
+}
+
+// Plan infini : la grille de points est un fond CSS dont le pas et le décalage
+// suivent la vue (voir la page), ce qui évite de dessiner des milliers de points.
+.er-canvas {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bg-subtle);
+    background-image: radial-gradient(var(--border-control) 1px, transparent 1px);
+    cursor: $cursor-grab;
+
+    // Pendant un glissement (fond ou boîte), la main fermée prime sur le
+    // curseur de tout élément survolé.
+    &.panning,
+    &.panning * {
+        cursor: $cursor-grabbing;
+    }
+}
+
+.er-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+}
+
+.er-links {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+
+    .fk-link {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 1.5;
+        pointer-events: stroke;
+    }
+
+    .arrow-marker {
+        fill: var(--accent);
+    }
+}
+
+// --- Boîte de table ---
+
+.table-box {
+    position: absolute;
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: 5px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    cursor: $cursor-arrow;
+}
+
+.box-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 12px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: $cursor-pointer;
+
+    &:hover {
+        background: var(--bg-hover);
+    }
+}
+
+.box-name {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.box-rows {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-faint);
+}
+
+.box-column {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    font-size: 11.5px;
+    color: var(--text);
+
+    &--pk {
+        .column-key {
+            color: var(--pk-bg);
+        }
+
+        .column-name {
+            color: var(--pk-text);
+        }
+    }
+
+    &--fk {
+        .column-key {
+            color: var(--fk-bg);
+        }
+
+        .column-name {
+            color: var(--fk-text);
+        }
+    }
+}
+
+.column-key {
+    width: 14px;
+    flex: none;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.column-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.column-type {
+    flex: none;
+    max-width: 90px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+// --- Contrôles ---
+
+.zoom-controls {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    align-items: center;
+    background: var(--bg-app);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    font-size: 12px;
+    cursor: $cursor-arrow;
+}
+
+.zoom-button,
+.zoom-reset {
+    height: 28px;
+    border: none;
+    background: none;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: $cursor-pointer;
+
+    &:hover {
+        background: var(--bg-panel);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: -2px;
+    }
+}
+
+.zoom-button {
+    width: 28px;
+    font-size: 15px;
+}
+
+.zoom-reset {
+    min-width: 52px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border-left: 1px solid var(--border-muted);
+    border-right: 1px solid var(--border-muted);
+}
+
+.er-help {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    font-size: 11px;
+    color: var(--text-faint);
+    pointer-events: none;
+}

@@ -1,0 +1,12 @@
+<div class="blob-viewer-header">
+    <span class="blob-title">{{ fieldName() }}</span>
+    <button type="button" class="close-btn" (click)="close()" [tooltip]="i18n.t('data.close')">✕</button>
+</div>
+<div class="blob-viewer-body">
+    @if (imageUrl()) {
+        <img [src]="imageUrl()" [alt]="fieldName()" class="blob-image" />
+    }
+    @else {
+        <p class="blob-error">{{ i18n.t("data.blob.unreadable") }}</p>
+    }
+</div>

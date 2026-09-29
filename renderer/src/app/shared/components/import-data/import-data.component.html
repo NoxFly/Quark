@@ -1,0 +1,139 @@
+<div class="shell-modal">
+    <div class="shell-modal-header">
+        <div class="header-title">
+            <div class="shell-modal-title">{{ i18n.t('importData.title') }}</div>
+            <div class="subtitle">{{ i18n.t(state.isNoSqlDatabase() ? 'importData.collection' : 'importData.table', { table: tableName() }) }}</div>
+        </div>
+
+        <div class="step-indicator" aria-hidden="true">
+            <span [class.active]="step() >= 1">1</span>
+            <span class="step-sep">›</span>
+            <span [class.active]="step() >= 2">2</span>
+            <span class="step-sep">›</span>
+            <span [class.active]="step() >= 3">3</span>
+        </div>
+
+        <button type="button" class="shell-modal-close" [attr.aria-label]="i18n.t('indexViewer.close')" (click)="close(step() === 3)">✕</button>
+    </div>
+
+    @if (errorMessage(); as error) {
+        <div class="error-notice">{{ error }}</div>
+    }
+
+    <!-- Étape 1 : saisie des données -->
+    @if (step() === 1) {
+        <div class="shell-modal-body">
+            <div class="form-row">
+                <div class="field">
+                    <span class="field-label">{{ i18n.t('importData.format') }}</span>
+                    <ui-segmented
+                        size="small"
+                        [options]="formatOptions"
+                        [value]="format()"
+                        (valueChange)="$event && format.set($event)" />
+                </div>
+
+                <div class="field">
+                    <span class="field-label">{{ i18n.t('importData.mode') }}</span>
+                    <ui-segmented
+                        size="small"
+                        [options]="modeOptions()"
+                        [value]="importMode()"
+                        (valueChange)="$event && importMode.set($event)" />
+                </div>
+            </div>
+
+            <label class="field">
+                <span class="field-label">{{ i18n.t('importData.file') }}</span>
+                <input class="file-input" type="file" accept=".csv,.json,.txt" (change)="loadFile($event)" />
+            </label>
+
+            <label class="field">
+                <span class="field-label">{{ i18n.t('importData.orPaste') }}</span>
+                <textarea
+                    class="data-input"
+                    [(ngModel)]="rawData"
+                    [placeholder]="i18n.t('importData.pastePlaceholder')"
+                    rows="8"
+                    spellcheck="false">
+                </textarea>
+            </label>
+        </div>
+
+        <div class="dialog-footer">
+            <ui-button (click)="close(false)">{{ i18n.t('editor.cancel') }}</ui-button>
+            <ui-button
+                color="primary"
+                [disabled]="isLoading() || !rawData().trim()"
+                (click)="preview()">
+                {{ isLoading() ? i18n.t('importData.parsing') : i18n.t('importData.preview') }}
+            </ui-button>
+        </div>
+    }
+
+    <!-- Étape 2 : aperçu -->
+    @if (step() === 2) {
+        <div class="shell-modal-body">
+            <div class="preview-meta">
+                {{ i18n.t('importData.previewMeta', { shown: previewRows().length, total: totalRows() }) }}
+            </div>
+
+            @if (parseErrors().length > 0) {
+                <div class="parse-errors">
+                    @for (err of parseErrors(); track err) {
+                        <div class="parse-error">⚠ {{ err }}</div>
+                    }
+                </div>
+            }
+
+            <div class="preview-table-wrapper">
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            <th class="sign"></th>
+                            @for (col of previewColumns(); track col) {
+                                <th>{{ col }}</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (row of previewRows(); track $index) {
+                            <tr class="new-row">
+                                <td class="sign">+</td>
+                                @for (col of previewColumns(); track col) {
+                                    <td [class.null-cell]="isNullValue(row[col])">
+                                        {{ formatPreviewCell(row[col]) }}
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="dialog-footer">
+            <ui-button (click)="backToStep1()">{{ i18n.t('importData.back') }}</ui-button>
+            <ui-button
+                color="primary"
+                [disabled]="isLoading() || parseErrors().length > 0"
+                (click)="doImport()">
+                {{ isLoading() ? i18n.t('importData.importing') : i18n.t('importData.confirm', { count: totalRows() }) }}
+            </ui-button>
+        </div>
+    }
+
+    <!-- Étape 3 : succès -->
+    @if (step() === 3) {
+        <div class="shell-modal-body">
+            <div class="success-notice">
+                <span class="success-sign">✓</span>
+                <span>{{ i18n.t('importData.success', { count: totalRows() }) }}</span>
+            </div>
+        </div>
+
+        <div class="dialog-footer">
+            <ui-button color="primary" (click)="close(true)">{{ i18n.t('importData.done') }}</ui-button>
+        </div>
+    }
+</div>

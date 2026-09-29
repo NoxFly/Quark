@@ -1,12 +1,12 @@
 {
     "private": true,
     "main": "./dist/main.js",
-    "license": "MIT",
-    "name": "sqlite-editor",
-    "productName": "SQLiteEditor",
-    "description": "A simple SQLite database editor.",
-    "productDescription": "A simple SQLite database editor.",
-    "version": "0.0.1",
+    "license": "AGPL-3.0-only",
+    "name": "quark",
+    "productName": "Quark",
+    "description": "A simple database visualization and management tool",
+    "productDescription": "A simple database visualization and management tool",
+    "version": "0.1.0",
     "author": {
         "name": "NoxFly"
     },
@@ -22,13 +22,19 @@
         "make": "electron-builder --config electron-builder.config.js",
         "package": "electron-builder --dir --config electron-builder.config.js",
         "typecheck": "tsc --noEmit",
-        "check": "biome check --write ."
+        "check": "biome check --write .",
+        "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run",
+        "lint": "biome lint .",
+        "typecheck:renderer": "tsc --noEmit -p renderer/tsconfig.json"
     },
     "devDependencies": {
         "@biomejs/biome": "2.2.7",
         "@electron/fuses": "^2.1.0",
         "@electron/rebuild": "^4.0.3",
         "@types/node": "^24.1.0",
+        "@types/oracledb": "^6.10.3",
+        "@types/pg": "^8.20.0",
+        "@types/tedious": "^4.0.14",
         "cross-env": "^10.1.0",
         "electron": "^41.0.0",
         "electron-builder": "^26.8.1",
@@ -37,7 +43,15 @@
         "vitest": "^4.1.0"
     },
     "dependencies": {
-        "@noxfly/noxus": "^3.0.0-dev.12",
-        "better-sqlite3-multiple-ciphers": "^12.8.0"
+        "@libsql/client": "^0.18.0",
+        "@noxfly/noxus": "^3.0.1",
+        "better-sqlite3-multiple-ciphers": "^12.8.0",
+        "fast-xml-parser": "^5.8.0",
+        "mongodb": "^7.1.1",
+        "mysql2": "^3.22.0",
+        "oracledb": "^6.10.0",
+        "pg": "^8.20.0",
+        "tedious": "^19.2.1",
+        "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
     }
 }

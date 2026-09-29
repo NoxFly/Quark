@@ -1,0 +1,70 @@
+@if (nodes().length === 0) {
+    <div class="empty-state">{{ i18n.t('erDiagram.noTables') }}</div>
+}
+@else {
+    <div
+        class="er-canvas"
+        #erCanvas
+        [class.panning]="panning()"
+        [style.background-size]="gridSize()"
+        [style.background-position]="gridPosition()"
+        (mousedown)="startPan($event)"
+        (wheel)="onWheel($event)">
+        <div class="er-layer" [style.transform]="layerTransform()">
+            <svg
+                class="er-links"
+                [attr.width]="canvasSize().width"
+                [attr.height]="canvasSize().height"
+                xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <marker id="er-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-marker" />
+                    </marker>
+                </defs>
+
+                @for (link of links(); track link.fromTable + '.' + link.fromColumn) {
+                    <path [attr.d]="link.path" class="fk-link" marker-end="url(#er-arrow)">
+                        <title>{{ link.fromTable }}.{{ link.fromColumn }} → {{ link.toTable }}.{{ link.toColumn }}</title>
+                    </path>
+                }
+            </svg>
+
+            @for (node of nodes(); track node.table.name; let i = $index) {
+                <div
+                    class="table-box"
+                    [style.left.px]="node.x"
+                    [style.top.px]="node.y"
+                    [style.width.px]="node.width"
+                    (mousedown)="startNodeDrag($event, i)">
+                    <div class="box-header" [style.height.px]="headerHeight" [attr.title]="node.table.name">
+                        <span class="box-name">{{ node.table.name }}</span>
+                        <span class="box-rows">{{ formatRowCount(node.table.recordCount) }}</span>
+                    </div>
+
+                    @for (field of node.table.fields; track field.name) {
+                        @let key = fieldKey(field);
+
+                        <div
+                            class="box-column"
+                            [style.height.px]="rowHeight"
+                            [class.box-column--pk]="key === 'PK'"
+                            [class.box-column--fk]="key === 'FK'">
+                            <span class="column-key">{{ key }}</span>
+                            <span class="column-name">{{ field.name }}</span>
+                            <span class="column-type">{{ field.type }}</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="zoom-controls" (mousedown)="$event.stopPropagation()">
+            <button type="button" class="zoom-button" (click)="zoomOut()" [attr.aria-label]="i18n.t('erDiagram.zoomOut')">−</button>
+            <button type="button" class="zoom-reset" (click)="resetView()" [attr.title]="i18n.t('erDiagram.resetView')">{{ zoomLabel() }}</button>
+            <button type="button" class="zoom-button" (click)="zoomIn()" [attr.aria-label]="i18n.t('erDiagram.zoomIn')">+</button>
+        </div>
+
+        <div class="er-help">{{ i18n.t('erDiagram.help') }}</div>
+    </div>
+}

@@ -1,25 +1,97 @@
-@if(true) {
-    <div class="titlebar" [class]="{ draggable: true }">
-        <div class="app-name">{{ appName() }}</div>
+<div class="titlebar draggable">
+    <div class="menus no-drag">
+        <img class="app-icon" src="images/logo-quark-icon.png" alt="Quark" />
 
-        <div class="actions">
-            <span class="action reduce" (click)="reduceApp()" >
-                <svg aria-hidden="true" role="img" width="12" height="12" viewBox="0 0 12 12">
-                    <rect fill="currentColor" width="10" height="1" x="1" y="6"></rect>
-                </svg>
-            </span>
+        @for (menu of menus(); track menu.id) {
+            <div class="menu-container">
+                <div
+                    class="menu-trigger"
+                    role="menuitem"
+                    [class.active]="openMenuId() === menu.id"
+                    (click)="toggleMenu($event, menu.id)"
+                    (mouseenter)="onMenuHover(menu.id)"
+                >
+                    {{ menu.label }}
+                </div>
 
-            <span class="action fullscreen" (click)="toggleFullscreen()">
-                <svg aria-hidden="true" role="img" width="12" height="12" viewBox="0 0 12 12">
-                    <rect width="9" height="9" x="1.5" y="1.5" rx="1" fill="none" stroke="currentColor"></rect>
-                </svg>
-            </span>
+                @if (openMenuId() === menu.id) {
+                    <div class="menu-dropdown" role="menu" (click)="$event.stopPropagation()">
+                        @for (item of menu.items; track $index) {
+                            @if (item.separator) {
+                                <div class="menu-separator"></div>
+                            }
+                            @else if (item.children) {
+                                <div class="menu-item has-children" role="menuitem" [class.disabled]="item.disabled">
+                                    <span class="menu-item-label">
+                                        <span class="menu-item-check">@if (item.checked) {<ui-icon src="E73E" nomargin />}</span>{{ item.label }}
+                                    </span>
+                                    <span class="menu-item-shortcut submenu-arrow"><ui-icon src="E76C" nomargin /></span>
 
-            <span class="action close" (click)="closeApp()">
-                <svg aria-hidden="true" role="img" width="12" height="12" viewBox="0 0 12 12">
-                    <polygon fill="currentColor" fill-rule="evenodd" points="11 1.576 6.583 6 11 10.424 10.424 11 6 6.583 1.576 11 1 10.424 5.417 6 1 1.576 1.576 1 6 5.417 10.424 1"></polygon>
-                </svg>
-            </span>
+                                    <div class="submenu" role="menu">
+                                        @for (child of item.children; track $index) {
+                                            <div
+                                                class="menu-item"
+                                                role="menuitem"
+                                                [class.disabled]="child.disabled"
+                                                (click)="executeMenuItem($event, child)"
+                                            >
+                                                <span class="menu-item-label">
+                                                    <span class="menu-item-check">@if (child.checked) {<ui-icon src="E73E" nomargin />}</span>{{ child.label }}
+                                                </span>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            @else {
+                                <div
+                                    class="menu-item"
+                                    role="menuitem"
+                                    [class.disabled]="item.disabled"
+                                    (click)="executeMenuItem($event, item)"
+                                >
+                                    <span class="menu-item-label">
+                                        <span class="menu-item-check">@if (item.checked) {<ui-icon src="E73E" nomargin />}</span>{{ item.label }}
+                                    </span>
+                                    <span class="menu-item-shortcut">{{ item.shortcut ?? "" }}</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="center-title">{{ windowTitle() }}</div>
+
+    <div class="actions no-drag">
+        <div
+            class="action settings"
+            role="button"
+            [class.active]="shell.settingsOpen()"
+            [title]="'settings.title' | translate"
+            (click)="toggleSettings($event)"
+        >
+            <ui-icon src="E713" nomargin />
+        </div>
+
+        <div class="action window-button" role="button" (click)="reduceApp()">
+            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">
+                <rect fill="currentColor" width="10" height="1" x="0" y="5"></rect>
+            </svg>
+        </div>
+
+        <div class="action window-button" role="button" (click)="toggleMaximize()">
+            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">
+                <rect width="9" height="9" x="0.5" y="0.5" fill="none" stroke="currentColor"></rect>
+            </svg>
+        </div>
+
+        <div class="action window-button close" role="button" (click)="closeApp()">
+            <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">
+                <path d="M0.5 0.5 L9.5 9.5 M9.5 0.5 L0.5 9.5" stroke="currentColor" stroke-width="1.1"></path>
+            </svg>
         </div>
     </div>
-}
+</div>

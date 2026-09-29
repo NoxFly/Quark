@@ -1,0 +1,45 @@
+@let current = selected();
+
+<app-home-sidebar />
+
+<div class="content">
+    <div>
+        <div class="heading">{{ "home.newConnection" | translate }}</div>
+        <div class="heading-hint">{{ (current ? "home.hintFill" : "home.hintPick") | translate }}</div>
+    </div>
+
+    <div class="cards" role="radiogroup">
+        @for (driver of drivers; track driver.type) {
+            <button
+                type="button"
+                role="radio"
+                class="card"
+                [class.selected]="current?.type === driver.type"
+                [attr.aria-checked]="current?.type === driver.type"
+                [style.--card-tint]="driver.tint"
+                (click)="select(driver)">
+                <span class="card-badge">
+                    @if (driver.logo; as logo) {
+                        <img [src]="logo" [alt]="driver.label" />
+                    }
+                    @else {
+                        {{ driver.monogram }}
+                    }
+                </span>
+                <span class="card-texts">
+                    <span class="card-label">{{ driver.label }}</span>
+                    <span class="card-description">{{ driver.descriptionKey | translate }}</span>
+                </span>
+                <span class="card-bar"></span>
+            </button>
+        }
+    </div>
+
+    @if (current) {
+        <app-new-connection-form [driver]="current" />
+    }
+</div>
+
+<div class="drop-overlay" aria-hidden="true">
+    <div class="drop-message">{{ "home.dropHint" | translate }}</div>
+</div>

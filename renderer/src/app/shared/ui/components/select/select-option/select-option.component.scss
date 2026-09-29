@@ -1,45 +1,42 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-
+// Option de liste : item du menu de la maquette (12.5 px, rayon 3), option
+// retenue en teinte de sélection.
 
 :host {
     display: block;
-    padding: 10px 15px;
+    padding: 6px 10px;
+    border-radius: var(--radius-s);
+    font-size: 12.5px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     cursor: pointer;
-    position: relative;
-    transition-duration: .05s;
-    font-size: .8rem;
-
-    &::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 10px;
-        width: 2px;
-        background: var(--interactive);
-        transform: translateY(-50%);
-        transition: height .2s ease-out;
-        height: 0;
-    }
 
     &:hover {
-        background: color-mix(in srgb, var(--surface-alt), var(--interactive) 10%);
+        background: var(--bg-hover);
     }
 
     &.selected {
-        padding-left: 25px;
-
-        &::before {
-            height: 15px;
-
-            @starting-style {
-                height: 0;
-            }
-        }
+        background: var(--bg-selected);
+        color: var(--accent-hover);
+        font-weight: 500;
     }
 
     &.hidden {
@@ -47,7 +44,7 @@
     }
 
     &.disabled {
-        opacity: 0.3;
+        color: var(--text-disabled);
         pointer-events: none;
         cursor: default;
     }

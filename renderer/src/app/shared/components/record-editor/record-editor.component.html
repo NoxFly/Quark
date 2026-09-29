@@ -1,0 +1,75 @@
+<!--
+    @copyright Dorian Thivolle
+    @license MIT
+    @see https://github.com/NoxFly
+-->
+
+<div class="record-editor">
+    <div class="editor-header">
+        <h2 class="editor-title">{{ getTitle() }}</h2>
+        <button type="button" class="editor-close" (click)="cancel()" [tooltip]="i18n.t('data.close')">✕</button>
+    </div>
+
+    @if (error()) {
+        <div class="editor-error">{{ error() }}</div>
+    }
+
+    <div class="editor-fields">
+        @for (field of formFields(); track field.def.name; let i = $index) {
+            <div class="field-row">
+                <label class="field-label" [for]="'field-' + field.def.name">
+                    <span class="field-name">{{ field.def.name }}</span>
+                    <span class="field-meta">
+                        <span class="field-type">{{ field.def.type }}</span>
+                        @if (field.def.pk) {
+                            <span class="key-badge pk" [tooltip]="i18n.t('data.primaryKey')">PK</span>
+                        }
+                        @if (field.def.fk) {
+                            <span class="key-badge fk" [tooltip]="'→ ' + field.def.fk.table + '.' + field.def.fk.column">FK</span>
+                        }
+                        @if (field.def.notnull) {
+                            <span class="badge-notnull">NOT NULL</span>
+                        }
+                    </span>
+                </label>
+                <div class="field-control">
+                    <ui-input
+                        [id]="'field-' + field.def.name"
+                        type="text"
+                        class="field-input"
+                        [mono]="isMono(field.def)"
+                        [ngModel]="field.value"
+                        (ngModelChange)="onFieldChange(i, $event)"
+                        [isDisabled]="field.disabled"
+                        [placeholder]="field.placeholder"
+                    />
+
+                    @if (field.autoFilled && !field.disabled) {
+                        <button
+                            type="button"
+                            class="field-regenerate"
+                            (click)="regenerateUuid(i)"
+                            [tooltip]="i18n.t('editor.regenerateUuid')">
+                            <span class="segoe-icon">&#xE72C;</span>
+                        </button>
+                    }
+                </div>
+
+                @if (field.autoFilled) {
+                    <span class="field-hint">{{ i18n.t('editor.autoFilledHint') }}</span>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="editor-actions">
+        <ui-button color="secondary" (click)="cancel()">{{ i18n.t("editor.cancel") }}</ui-button>
+        <ui-button color="primary" (click)="save()" [disabled]="saving()">
+            @if (saving()) {
+                {{ i18n.t("editor.saving") }}
+            } @else {
+                {{ i18n.t("editor.save") }}
+            }
+        </ui-button>
+    </div>
+</div>

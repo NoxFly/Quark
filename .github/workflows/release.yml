@@ -1,0 +1,280 @@
+# Quark
+# Copyright (C) 2026 NoxFly
+#
+# FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+# modifier selon les termes de la GNU Affero General Public License, version 3,
+# telle que publiée par la Free Software Foundation. Il est distribué dans
+# l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+#
+# EN : This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License, version 3, as
+# published by the Free Software Foundation. It is distributed in the hope that
+# it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Publie une release à chaque poussée sur `main` (fusion d'une pull request).
+#
+# La version est déduite des commits (Conventional Commits) depuis la dernière
+# version publiée, c'est-à-dire le dernier tag `vX.Y.Z` :
+#   - `BREAKING CHANGE` ou `type!:`  → majeure
+#   - `feat:`                        → mineure
+#   - tout le reste                  → correctif
+# Sans tag existant, la version déclarée dans `package.json` est publiée telle quelle.
+#
+# Une PR fusionnée par « squash » donne un seul commit dont le titre est celui de
+# la PR : c'est lui qui décide du niveau d'incrément. Une fusion classique garde
+# les commits de la PR, et le plus fort d'entre eux l'emporte.
+#
+# La version n'est jamais réécrite dans le dépôt : elle est injectée dans
+# `package.json` le temps du build, et portée par le tag.
+# Un commit dont le message contient `[skip release]` ne publie rien.
+#
+# Chaque plateforme publie, à côté de son installeur, un manifeste
+# `latest-<os>.json` que l'application interroge via l'URL stable
+# `releases/latest/download/latest-<os>.json`.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Deux poussées rapprochées ne doivent pas calculer la même version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.version.outputs.skip }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Checkout with tags
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git log -1 --format=%B | grep -qF '[skip release]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Seuls les tags strictement `vX.Y.Z` sont des versions publiées : les
+          # anciens tags `vX.Y.Z-build.N` ne doivent pas servir de référence.
+          last=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+
+          if [ -z "$last" ]; then
+            next=$(node -p "require('./package.json').version.replace(/[+-].*$/, '')")
+          else
+            if [ "$(git rev-list --count "$last..HEAD")" = "0" ]; then
+              echo "No commit since $last."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            IFS=. read -r major minor patch <<< "${last#v}"
+            log=$(git log --format='%s%n%b' "$last..HEAD")
+
+            if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE' <<< "$log"; then
+              major=$((major + 1)); minor=0; patch=0
+            elif grep -qE '^feat(\([^)]*\))?:' <<< "$log"; then
+              minor=$((minor + 1)); patch=0
+            else
+              patch=$((patch + 1))
+            fi
+
+            next="$major.$minor.$patch"
+          fi
+
+          if git rev-parse -q --verify "refs/tags/v$next" > /dev/null; then
+            echo "::error::Tag v$next already exists."
+            exit 1
+          fi
+
+          echo "Publishing $next (previous: ${last:-none})"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "tag=v$next" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: Checks
+    needs: version
+    if: needs.version.outputs.skip == 'false'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build (${{ matrix.os_label }})
+    needs: [version, check]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Les modules natifs sont compilés pour la machine de build : chaque
+          # plateforme se construit sur son propre runner.
+          - runner: windows-latest
+            os_label: Windows
+            artifact_glob: |
+              out/*.exe
+          - runner: ubuntu-latest
+            os_label: Linux
+            artifact_glob: |
+              out/*.deb
+              out/*.rpm
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            renderer/package-lock.json
+
+      # electron-builder délègue la génération du .rpm à `rpmbuild`, absent de
+      # l'image ubuntu par défaut.
+      - name: Install Linux packaging tools
+        if: matrix.os_label == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y rpm
+
+      # electron-builder lit la version dans `package.json` : on l'aligne avant
+      # tout build. Le fichier n'est pas commité.
+      - name: Stamp version
+        shell: bash
+        env:
+          APP_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          node -e "
+            const fs = require('node:fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = process.env.APP_VERSION;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 4) + '\n');
+          "
+          node -p "'Stamped version: ' + require('./package.json').version"
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install renderer dependencies
+        working-directory: renderer
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # Permet à un fork de servir ses propres releases sans toucher au code.
+          UPDATE_REPOSITORY: ${{ github.repository }}
+
+      - name: Package
+        run: npm run make
+        env:
+          UPDATE_REPOSITORY: ${{ github.repository }}
+
+      # Windows publie un installeur NSIS et une version portable : une release
+      # qui n'aurait que l'un des deux doit échouer plutôt que paraître complète.
+      - name: Check Windows artifacts
+        if: matrix.os_label == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls out/*Setup*.exe > /dev/null || { echo "::error::Installer missing."; exit 1; }
+          ls out/*Portable*.exe > /dev/null || { echo "::error::Portable build missing."; exit 1; }
+          ls -la out/*.exe
+
+      # Le manifeste est produit ici, où l'artefact et son empreinte sont connus.
+      - name: Generate update manifest
+        shell: bash
+        env:
+          APP_VERSION: ${{ needs.version.outputs.version }}
+          OS_LABEL: ${{ matrix.os_label }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          # L'installeur Windows est le seul artefact que l'application sait
+          # appliquer seule ; sous Linux le .deb sert de référence au manifeste.
+          if [ "$OS_LABEL" = "Windows" ]; then
+            INSTALLER=$(ls out/*Setup*.exe | head -n 1)
+          else
+            INSTALLER=$(ls out/*.deb | head -n 1)
+          fi
+
+          export FILENAME=$(basename "$INSTALLER")
+          export SHA512=$(sha512sum "$INSTALLER" | cut -d ' ' -f 1)
+          export RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          export URL="https://github.com/${REPOSITORY}/releases/download/${TAG}/${FILENAME}"
+          export MANIFEST="out/latest-${OS_LABEL}.json"
+
+          node -e "
+            const fs = require('node:fs');
+            fs.writeFileSync(process.env.MANIFEST, JSON.stringify({
+              version: process.env.APP_VERSION,
+              releaseDate: process.env.RELEASE_DATE,
+              path: process.env.FILENAME,
+              url: process.env.URL,
+              sha512: process.env.SHA512,
+            }, null, 4) + '\n');
+          "
+          cat "$MANIFEST"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.os_label }}
+          if-no-files-found: error
+          path: |
+            ${{ matrix.artifact_glob }}
+            out/latest-${{ matrix.os_label }}.json
+
+  release:
+    name: Publish release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -R artifacts
+
+      # `gh` est préinstallé sur les runners : pas d'action tierce à maintenir.
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "$TAG" artifacts/* \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --generate-notes \
+            --latest

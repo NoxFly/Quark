@@ -1,0 +1,177 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+// Grammaire visuelle commune aux outils (éditeur SQL, diagramme ER, diff de
+// session, index, modales de schéma / import / chiffrement), reprise de la maquette.
+// Les boutons d'action passent par `ui-button` ; ces mixins couvrent les contrôles
+// propres aux outils (bascule d'historique, boutons icônes, champs, tableaux).
+// Mixins seulement : rien n'est émis tant qu'un composant ne les inclut pas.
+
+// --- Boutons ---
+
+@mixin button-base($height: 28px) {
+    height: $height;
+    padding: 0 12px;
+    border-radius: var(--radius-m);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s, border-color .12s, color .12s;
+
+    &:disabled {
+        opacity: .5;
+        cursor: default;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: 1px;
+    }
+}
+
+@mixin button-icon($size: 24px) {
+    width: $size;
+    height: $size;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+
+    &:hover:not(:disabled) {
+        background: var(--bg-panel);
+        color: var(--text);
+    }
+
+    &:disabled {
+        opacity: .5;
+        cursor: default;
+    }
+}
+
+// --- Champs ---
+
+@mixin field-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+@mixin field-input($height: 32px) {
+    height: $height;
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius-m);
+    padding: 0 10px;
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 13px;
+
+    &:hover {
+        border-color: var(--border-control-hover);
+    }
+
+    &:focus {
+        border-color: var(--accent);
+        outline: none;
+    }
+}
+
+// --- Modales ---
+// La boîte (en-tête, corps) vient de `shell-modal` (src/theme/components/shell-modal.scss) ;
+// ce pied reste visible quand le corps défile.
+
+@mixin dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    flex: none;
+}
+
+// Encart d'erreur en tête d'une modale ou d'une page.
+@mixin error-notice {
+    padding: 8px 12px;
+    border: 1px solid var(--danger-border);
+    border-radius: var(--radius-m);
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    font-size: 12px;
+}
+
+// Encart d'avertissement (jaune pâle de la maquette).
+@mixin warning-notice {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border: 1px solid var(--warning-notice-border);
+    border-radius: var(--radius-m);
+    background: var(--warning-notice-bg);
+    color: var(--warning-text);
+    font-size: 12px;
+}
+
+// --- Tableaux bordés (index, colonnes, aperçu) ---
+
+@mixin bordered-box {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+@mixin table-head-row($height: 32px) {
+    height: $height;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+@mixin table-body-row($height: 36px) {
+    height: $height;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+
+    &:last-child {
+        border-bottom: none;
+    }
+
+    &:hover {
+        background: var(--bg-row-hover);
+    }
+}
+
+// Titre de page d'outil (« Modifications depuis l'ouverture », « Index · table »).
+@mixin page-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+}

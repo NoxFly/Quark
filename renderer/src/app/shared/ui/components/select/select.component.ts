@@ -1,11 +1,35 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import type { ElementRef, OnDestroy, OutputRefSubscription } from "@angular/core";
-import { ChangeDetectionStrategy, Component, computed, contentChildren, effect, forwardRef, input, output, signal, viewChild } from "@angular/core";
+import type { OnDestroy, OutputRefSubscription } from "@angular/core";
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    contentChildren,
+    effect,
+    ElementRef,
+    forwardRef,
+    inject,
+    input,
+    output,
+    signal,
+    viewChild
+} from "@angular/core";
 import type { ControlValueAccessor } from "@angular/forms";
 import { NG_VALUE_ACCESSOR } from "@angular/forms";
 import { SelectOptionComponent } from "./select-option/select-option.component";
@@ -23,9 +47,12 @@ import { SelectOptionComponent } from "./select-option/select-option.component";
         "[class.multiple]": "multiple() !== false",
         "[attr.tabindex]": "tabindex()",
         "(keydown)": "handleHostKeyDown($event)",
+        "(document:mousedown)": "onDocumentMouseDown($event)",
     }
 })
 export class SelectComponent implements ControlValueAccessor, OnDestroy {
+    private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
     public readonly placeholder = input<string>("Sélectionnez une option");
     public readonly multiple = input<boolean | "">(false);
     public readonly search = input<boolean | "">(false);
@@ -123,9 +150,30 @@ export class SelectComponent implements ControlValueAccessor, OnDestroy {
      *
      */
     protected handleHostKeyDown(event: KeyboardEvent): void {
+        if (event.key === "Escape" && this.opened()) {
+            event.stopPropagation();
+            this.opened.set(false);
+            return;
+        }
+
+        // Dans le champ de recherche, Espace est un caractère à saisir.
+        if (event.key === " " && event.target instanceof HTMLInputElement && !event.target.readOnly) {
+            return;
+        }
+
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             this.toggleOptions();
+        }
+    }
+
+    /**
+     * Referme la liste quand on clique ailleurs : sans cela elle restait ouverte
+     * jusqu'à un nouveau clic sur le champ.
+     */
+    protected onDocumentMouseDown(event: MouseEvent): void {
+        if (this.opened() && !this.host.nativeElement.contains(event.target as Node)) {
+            this.opened.set(false);
         }
     }
 

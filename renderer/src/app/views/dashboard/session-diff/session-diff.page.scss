@@ -1,0 +1,547 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/app/shared/styles/tool-ui.scss" as tool;
+
+:host {
+    display: block;
+    height: 100%;
+    overflow: auto;
+    background: var(--bg-app);
+}
+
+.session-diff {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px 28px;
+    color: var(--text);
+
+    // Deux niveaux de surbrillance, comme un diff git : le fond léger marque la
+    // ligne concernée, le fond appuyé le fragment réellement différent.
+    --diff-removed-token: color-mix(in srgb, var(--danger) 22%, transparent);
+    --diff-added-token: color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+.segoe-icon {
+    font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+}
+
+// --- En-tête ---
+
+.diff-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.diff-heading {
+    min-width: 0;
+}
+
+.diff-title {
+    @include tool.page-title;
+}
+
+.diff-info {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.diff-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.diff-filter {
+    @include tool.field-input(28px);
+
+    width: 180px;
+    min-width: 0;
+    font-size: 12px;
+}
+
+.icon-button {
+    @include tool.button-icon(28px);
+
+    font-size: 13px;
+
+    ui-icon {
+        --icon-size: 16px;
+
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+// --- Annulation d'une modification ---
+
+.revert-slot {
+    flex: none;
+    display: inline-flex;
+}
+
+.row-revert {
+    @include tool.button-icon(22px);
+
+    font-size: 12px;
+
+    ui-icon {
+        --icon-size: 14px;
+
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+// --- Bandeaux ---
+
+.diff-error {
+    @include tool.error-notice;
+}
+
+.diff-notice {
+    @include tool.warning-notice;
+}
+
+.diff-placeholder {
+    margin: 32px 0;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-faint);
+}
+
+// --- Liste ---
+
+.diff-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-faint);
+    border: 1px dashed var(--border-control);
+    border-radius: 5px;
+}
+
+// --- Groupe de table ---
+
+.table-diff {
+    @include tool.bordered-box;
+}
+
+.table-header {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: var(--bg-subtle);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+        background: var(--bg-hover);
+    }
+
+    .table-chevron {
+        font-size: 9px;
+        color: var(--text-muted);
+    }
+
+    .table-name {
+        flex: 1;
+        min-width: 0;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.table-stats {
+    display: flex;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.stat {
+    padding: 1px 6px;
+    border-radius: 9px;
+    font-weight: 600;
+
+    &--insert {
+        background: var(--success-bg);
+        color: var(--success-text);
+    }
+
+    &--update {
+        background: var(--bg-accent-soft);
+        color: var(--accent-hover);
+    }
+
+    &--delete {
+        background: var(--danger-bg);
+        color: var(--danger-text);
+    }
+}
+
+// --- Pastilles ---
+
+.kind-pill {
+    flex: none;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent-fg);
+    background: var(--accent);
+
+    &--insert {
+        background: var(--success);
+    }
+
+    &--delete {
+        background: var(--danger);
+    }
+}
+
+.status-pill {
+    flex: none;
+    padding: 2px 7px;
+    border-radius: 9px;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: var(--success-bg);
+    color: var(--success-text);
+
+    &--pending {
+        background: var(--warning-bg);
+        color: var(--warning-text);
+    }
+}
+
+// --- Fiches ---
+
+.table-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.change-card {
+    @include tool.bordered-box;
+
+    background: var(--bg-app);
+}
+
+.change-head {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+}
+
+.change-table {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.change-detail {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.change-time {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+}
+
+.row-panes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    // Sous une fenêtre étroite, deux colonnes rendraient chaque valeur illisible.
+    @media (max-width: 900px) {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pane {
+    min-width: 0;
+    padding: 6px 0;
+
+    &--before {
+        border-right: 1px solid var(--border-subtle);
+    }
+}
+
+.pane-title {
+    padding: 0 12px 4px;
+    font-size: 10px;
+}
+
+.pane-absent {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--text-faint);
+}
+
+.diff-line {
+    display: grid;
+    grid-template-columns: 10px minmax(80px, 22%) 1fr;
+    gap: 10px;
+    padding: 5px 12px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.4;
+
+    &.removed {
+        background: var(--danger-bg);
+        color: var(--danger-text);
+    }
+
+    &.added {
+        background: var(--success-bg);
+        color: var(--success-text);
+    }
+}
+
+.line-sign {
+    user-select: none;
+}
+
+.line-column {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: .7;
+}
+
+.line-value {
+    min-width: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+// Second niveau de surbrillance : le fragment réellement différent (`diffInline`).
+.removed .segment-changed {
+    background: var(--diff-removed-token);
+    border-radius: 2px;
+}
+
+.added .segment-changed {
+    background: var(--diff-added-token);
+    border-radius: 2px;
+}
+
+// --- Grille ---
+
+.grid-scroll {
+    // Une table large défile dans son propre cadre plutôt que la page entière.
+    overflow-x: auto;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.diff-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+
+    th,
+    td {
+        height: 26px;
+        padding: 0 10px;
+        text-align: left;
+        border-right: 1px solid var(--border-subtle);
+
+        &:last-child {
+            border-right: none;
+        }
+    }
+
+    thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        height: 32px;
+        background: var(--bg-subtle);
+        border-bottom: 1px solid var(--border);
+        font-family: var(--font-ui);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    td {
+        // Une valeur longue ne doit pas étirer indéfiniment sa colonne.
+        max-width: 320px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .grid-sign,
+    .grid-rowid,
+    .grid-status,
+    .grid-action {
+        width: 1%;
+        user-select: none;
+    }
+
+    .grid-action {
+        padding: 0 4px;
+        font-family: var(--font-ui);
+        text-align: center;
+    }
+
+    .grid-rowid {
+        color: var(--text-faint);
+    }
+
+    .grid-sign {
+        text-align: center;
+        font-weight: 700;
+    }
+
+    .grid-status {
+        font-family: var(--font-ui);
+    }
+
+    .grid-line td {
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    // Les deux lignes d'une même modification restent solidaires : le trait de
+    // séparation ne tombe qu'après la seconde.
+    .grid-line--before:has(+ .grid-line--after) td {
+        border-bottom: none;
+    }
+
+    .grid-line--before .grid-sign {
+        color: var(--danger-text);
+        background: var(--danger-bg);
+    }
+
+    .grid-line--after .grid-sign {
+        color: var(--success-text);
+        background: var(--success-bg);
+    }
+
+    td.removed {
+        background: var(--danger-bg);
+        color: var(--danger-text);
+    }
+
+    td.added {
+        background: var(--success-bg);
+        color: var(--success-text);
+    }
+
+    td.cell-absent {
+        background: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 4px,
+            var(--border) 4px,
+            var(--border) 5px
+        );
+        opacity: .5;
+    }
+}
+
+.show-more {
+    display: block;
+    width: 100%;
+    height: 32px;
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-subtle);
+    color: var(--accent-hover);
+    font-size: 12px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--bg-hover);
+    }
+}
+
+// --- Opérations non détaillées ---
+
+.opaque-diff {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.opaque-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.opaque-hint {
+    font-size: 11.5px;
+    color: var(--text-faint);
+}
+
+.opaque-detail {
+    margin: 0;
+    padding: 6px 12px;
+    max-height: 160px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.opaque-rows {
+    padding: 0 12px 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+}

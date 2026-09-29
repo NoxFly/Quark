@@ -1,0 +1,17 @@
+<div class="shell-modal">
+    <div class="shell-modal-header">
+        <div class="shell-modal-title">{{ "shortcuts.title" | translate }}</div>
+        <button type="button" class="shell-modal-close" [attr.aria-label]="'shortcuts.close' | translate" (click)="close()">✕</button>
+    </div>
+
+    <div class="shell-modal-body">
+        <div class="shortcut-list">
+            @for (shortcut of shortcuts; track $index) {
+                <div class="shortcut-row">
+                    <span>{{ shortcut.labelKey | translate }}</span>
+                    <span class="kbd">{{ format(shortcut.keys) }}</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>

@@ -1,35 +1,56 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-
-
-@use 'src/theme/mixins.scss' as *;
 @use 'src/theme/animations.scss' as *;
 
+// Attente bloquante (`LoadingController`) : voile de la maquette et petite boîte
+// centrée, sans flou.
+
 :host {
-    @include flex($dir: column);
-
-    --spinner-size: 30px;
-
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     z-index: 999;
-    color: var(--loading-bg, #aaa);
-    background: var(--loading-bg, rgba(0, 0, 0, 0.7));
-    backdrop-filter: blur(var(--loading-blur, 10px));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--loading-bg, var(--backdrop));
     user-select: none;
-
-    .message {
-        opacity: .8;
-    }
+    animation: fadeIn .12s ease-out;
 
     &.disappearing {
-        animation: fadeOut .3s forwards;
+        animation: fadeOut .15s forwards;
     }
+}
+
+.loading-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: min(420px, 90vw);
+    padding: 14px 18px;
+    background: var(--bg-app);
+    color: var(--text);
+    border-radius: var(--radius-l);
+    box-shadow: var(--shadow-modal);
+}
+
+.message {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.4;
 }

@@ -1,0 +1,110 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+:host {
+    display: contents;
+}
+
+.tabs-bar {
+    height: var(--tabs-height);
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex: none;
+
+    // La molette fait défiler les onglets : la barre de défilement serait redondante.
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px 0 14px;
+    min-width: 120px;
+    max-width: 220px;
+    flex: none;
+    border-right: 1px solid var(--border);
+    border-top: 2px solid transparent;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    background: transparent;
+    user-select: none;
+
+    &:hover {
+        background: var(--bg-app);
+    }
+
+    &.active {
+        background: var(--bg-app);
+        color: var(--text);
+        border-top-color: var(--accent);
+    }
+
+    &.dragging {
+        opacity: .4;
+    }
+
+    &.drag-over {
+        background: var(--bg-accent-soft);
+        border-top-color: var(--accent-ring);
+    }
+}
+
+.tab-icon {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    flex: none;
+}
+
+.tab-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab-close {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+
+    &:hover {
+        background: var(--bg-hover-strong);
+        color: var(--text);
+    }
+}

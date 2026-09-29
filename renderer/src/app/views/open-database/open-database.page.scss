@@ -1,0 +1,180 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+// Accueil de la maquette : colonne de 300 px + contenu (900 px max).
+
+:host {
+    position: relative;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: var(--bg-app);
+    color: var(--text);
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    max-width: 900px;
+    min-height: 0;
+    padding: 40px 56px;
+    overflow: auto;
+}
+
+.heading {
+    margin-bottom: 4px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.heading-hint {
+    color: var(--text-muted);
+}
+
+// ---- Cartes des types de base ----
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 26px 12px 20px;
+    border: none;
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s, background .15s;
+
+    &:hover {
+        background: var(--bg-app);
+        box-shadow: var(--shadow-card-hover);
+        transform: translateY(-3px);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--accent-ring);
+        outline-offset: 2px;
+    }
+
+    &.selected {
+        background: var(--bg-app);
+        box-shadow: 0 0 0 2px var(--accent), 0 8px 22px color-mix(in srgb, var(--accent) 22%, transparent);
+        transform: translateY(-3px);
+
+        .card-badge {
+            background: var(--bg-app);
+        }
+
+        .card-label {
+            color: var(--accent-hover);
+        }
+
+        .card-bar {
+            background: var(--accent);
+        }
+    }
+}
+
+.card-badge {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    overflow: hidden;
+    border-radius: 18px;
+    background: var(--card-tint);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: background .15s;
+
+    img {
+        display: block;
+        width: 52px;
+        height: 52px;
+        object-fit: contain;
+    }
+}
+
+.card-texts {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.card-label {
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.card-description {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.card-bar {
+    width: 22px;
+    height: 3px;
+    border-radius: 2px;
+    background: transparent;
+    transition: background .15s;
+}
+
+// ---- Glisser-déposer d'un fichier ----
+
+.drop-overlay {
+    position: absolute;
+    inset: 12px;
+    z-index: 5;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--accent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    pointer-events: none;
+}
+
+.drop-message {
+    padding: 10px 16px;
+    border-radius: var(--radius-l);
+    background: var(--bg-app);
+    box-shadow: var(--shadow-card);
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--accent-hover);
+}
+
+:host(.dragging) .drop-overlay {
+    display: flex;
+}

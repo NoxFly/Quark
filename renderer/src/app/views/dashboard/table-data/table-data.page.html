@@ -1,0 +1,164 @@
+<!-- Barre d'outils : recherche texte / requête, nouvel enregistrement -->
+<div class="toolbar">
+    <label class="search" [class.query]="sqlFilterMode()">
+        <span class="search-prefix">{{ searchPrefix() }}</span>
+        <input
+            type="text"
+            class="search-input"
+            spellcheck="false"
+            [placeholder]="sqlFilterMode() ? filterSqlPlaceholder() : i18n.t('table.searchPlaceholder')"
+            [value]="filterInput()"
+            (input)="onFilterInput($any($event.target).value)"
+        />
+    </label>
+
+    <div class="segmented" role="group" [attr.aria-label]="i18n.t('data.search.modeHint')">
+        <button
+            type="button"
+            class="segment"
+            [class.active]="!sqlFilterMode()"
+            [attr.aria-pressed]="!sqlFilterMode()"
+            (click)="setFilterMode(false)"
+            [tooltip]="i18n.t('table.switchToSearch')"
+        >{{ i18n.t("data.search.text") }}</button>
+        <button
+            type="button"
+            class="segment"
+            [class.active]="sqlFilterMode()"
+            [attr.aria-pressed]="sqlFilterMode()"
+            (click)="setFilterMode(true)"
+            [tooltip]="i18n.t(isNoSql() ? 'table.switchToNosql' : 'table.switchToSql')"
+        >{{ i18n.t(isNoSql() ? "data.search.nosql" : "data.search.sql") }}</button>
+    </div>
+
+    <button
+        type="button"
+        class="btn-new"
+        (click)="newRecord()"
+        [tooltip]="i18n.t(isNoSql() ? 'table.newRecord.nosql' : 'data.newHint')"
+    >
+        <span class="btn-new-plus">+</span>{{ i18n.t("short.new") }}
+    </button>
+</div>
+
+<!-- Grille -->
+<div class="grid-scroll" #scrollContainer (scroll)="onScroll($event)">
+    <div
+        class="grid"
+        role="grid"
+        [style.min-width.px]="gridMinWidth()"
+        [style.--grid-cols]="gridCols()"
+        [style.--row-height]="rowHeight() + 'px'"
+    >
+        <div class="grid-header" role="row">
+            <button
+                type="button"
+                class="hcell rownum"
+                [class.all-selected]="isAllSelected()"
+                (click)="toggleSelectAll()"
+                [tooltip]="i18n.t('table.selectAll')"
+            >#</button>
+
+            @for (column of columns(); track column.field.name) {
+                <div class="hcell" role="columnheader" (click)="sortBy(column.field.name)">
+                    <div class="hcell-text">
+                        <div class="hcell-name">{{ column.field.name }}</div>
+                        <div class="hcell-type">{{ column.field.type }}</div>
+                    </div>
+
+                    @if (getSortIcon(column.field.name)) {
+                        <span class="sort-icon">{{ getSortIcon(column.field.name) }}</span>
+                    }
+                    @if (column.field.pk) {
+                        <span class="key-badge pk" [tooltip]="i18n.t('data.primaryKey')">{{ primaryKeyLabel() }}</span>
+                    }
+                    @if (column.field.fk) {
+                        <span class="key-badge fk" [tooltip]="column.fkTitle">FK</span>
+                    }
+                    @if (column.timestampCandidate) {
+                        <button
+                            type="button"
+                            class="ts-toggle"
+                            [class.active]="column.showAsDate"
+                            [attr.aria-pressed]="column.showAsDate"
+                            (click)="toggleTimestampColumn(column); $event.stopPropagation()"
+                            [tooltip]="i18n.t('table.toggleTimestamp')"
+                        >▦</button>
+                    }
+
+                    <div
+                        class="col-resize-handle"
+                        (mousedown)="startColumnResize($event, column.field.name)"
+                        (click)="$event.stopPropagation()"
+                    ></div>
+                </div>
+            }
+        </div>
+
+        <!-- Bloc d'espacement : il tient la place des lignes hors écran. -->
+        <div class="virtual-spacer" aria-hidden="true" [style.height.px]="virtual.paddingTop()"></div>
+
+        @for (record of visibleRecords(); track trackRecord(virtual.range().start + $index, record)) {
+            <div
+                class="grid-row"
+                role="row"
+                [class.selected]="isRowSelected($any(record['rowid']))"
+                [class.cursor]="isCursorRow($any(record['rowid']))"
+                [attr.data-rowid]="record['rowid']"
+                (mousedown)="onRowMouseDown($event)"
+                (click)="onRowClick($event, record)"
+                (contextmenu)="onRowContextMenu($event, record)"
+            >
+                <div
+                    class="cell rownum"
+                    [class.mark-inserted]="rowMark(record) === 'inserted'"
+                    [class.mark-modified]="rowMark(record) === 'modified'"
+                >{{ virtual.range().start + $index + 1 }}</div>
+
+                @for (column of columns(); track column.field.name) {
+                    <div
+                        class="cell"
+                        role="gridcell"
+                        [class.mono]="column.mono && !column.showAsDate"
+                        [class.pk]="column.field.pk"
+                        [class.fk]="!!column.field.fk"
+                        [class.null-value]="record[column.field.name] === null || record[column.field.name] === undefined"
+                        [class.editing]="isEditing($any(record['rowid']), column.field.name)"
+                        (click)="onCellClick($event, $any(record['rowid']), column.field, record[column.field.name])"
+                        [tooltip]="column.field.fk ? i18n.t('table.ctrlClickFk', { table: column.field.fk.table, column: column.field.fk.column }) : ''"
+                    >
+                        @if (isEditing($any(record['rowid']), column.field.name)) {
+                            <input
+                                type="text"
+                                class="cell-edit"
+                                spellcheck="false"
+                                [ngModel]="editValue()"
+                                (ngModelChange)="editValue.set($event)"
+                                (blur)="commitEdit()"
+                                (keydown)="onEditKeydown($event)"
+                            />
+                        } @else {
+                            <span class="cell-value">{{ formatValue(record[column.field.name], column) }}</span>
+                            @if (isBlobValue(record[column.field.name])) {
+                                <button
+                                    type="button"
+                                    class="blob-view-btn"
+                                    (click)="viewBlobImage(record[column.field.name], column.field.name); $event.stopPropagation()"
+                                    [tooltip]="i18n.t('table.viewImage')"
+                                >&#xEB9F;</button>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="virtual-spacer" aria-hidden="true" [style.height.px]="virtual.paddingBottom()"></div>
+    </div>
+
+    @if (loading()) {
+        <div class="loading-indicator">{{ i18n.t("table.loading") }}</div>
+    }
+</div>
+
+<app-context-menu />

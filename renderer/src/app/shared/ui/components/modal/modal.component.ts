@@ -1,13 +1,25 @@
-/**
- * @copyright Dorian Thivolle
- * @license MIT
- * @see https://github.com/NoxFly
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
  */
 
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
     Component,
+    inject,
     input,
     OnDestroy,
     OnInit,
@@ -16,6 +28,7 @@ import {
     ViewContainerRef,
     ViewEncapsulation
 } from "@angular/core";
+import { I18nService } from "src/app/core/services/i18n.service";
 import { UIComponent } from "src/app/shared/ui/UIComponent.directive";
 
 @Component({
@@ -29,16 +42,21 @@ import { UIComponent } from "src/app/shared/ui/UIComponent.directive";
         "[class.show-dots]": "showDots()",
         "[class.blurry]": "blurry()",
         "[class.animated]": "animated()",
+        "[class.has-close-button]": "closeButton()",
     }
 })
 export class ModalComponent extends UIComponent implements OnInit, OnDestroy, AfterViewInit {
+    protected readonly i18n = inject(I18nService);
+
     public readonly component = input.required<Type<new () => any>>();
     public readonly componentProps = input<Record<string, any>>({});
     public readonly showBackdrop = input<boolean>(true);
-    public readonly showDots = input<boolean>(true);
+    // Maquette : voile uni, sans points ni flou. Les deux effets restent disponibles sur demande.
+    public readonly showDots = input<boolean>(false);
     public readonly backdropClose = input<boolean>(true);
     public readonly keyboardClose = input<boolean>(true);
-    public readonly blurry = input<boolean>(true);
+    public readonly blurry = input<boolean>(false);
+    public readonly closeButton = input<boolean>(false);
 
     public readonly injectedComponent = viewChild("injectedComponent", { read: ViewContainerRef });
     public readonly contentContainer = viewChild.required("content", { read: ViewContainerRef });
@@ -100,6 +118,13 @@ export class ModalComponent extends UIComponent implements OnInit, OnDestroy, Af
         ) {
             this.dismiss({ role: "cancel" });
         }
+    }
+
+    /**
+     * Bouton ✕ de l'en-tête : ferme comme un clic sur le voile.
+     */
+    protected closeClick(): void {
+        this.dismiss({ role: "cancel" });
     }
 
     /**

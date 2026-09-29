@@ -1,0 +1,12 @@
+<div class="thumb">
+    @if (logo(); as src) {
+        <img [src]="src" [alt]="entry().displayName" />
+    }
+    @else {
+        {{ monogram() }}
+    }
+</div>
+<div class="texts">
+    <div class="name" [title]="entry().displayName">{{ entry().displayName }}</div>
+    <div class="sub" [title]="subtitle()">{{ subtitle() }}</div>
+</div>

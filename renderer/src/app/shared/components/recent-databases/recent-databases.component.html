@@ -1,0 +1,25 @@
+@if (isOpen()) {
+    <div class="recent-backdrop" (click)="close()">
+        <div class="recent-sheet" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+            <div class="recent-header">
+                <span class="section-title">{{ i18n.t('recentDb.title') }}</span>
+                <span class="kbd">Ctrl+R</span>
+            </div>
+            <div class="recent-list">
+                @for (entry of entries(); track entry.lastOpened; let i = $index) {
+                    <button
+                        type="button"
+                        class="recent-option"
+                        [class.selected]="selectedIndex() === i"
+                        (mouseenter)="selectedIndex.set(i)"
+                        (click)="selectEntry($event, i)">
+                        <app-recent-database-item [entry]="entry" />
+                    </button>
+                }
+                @empty {
+                    <div class="recent-empty">{{ i18n.t('recentDb.empty') }}</div>
+                }
+            </div>
+        </div>
+    </div>
+}
