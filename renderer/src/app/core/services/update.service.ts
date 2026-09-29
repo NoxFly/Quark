@@ -216,6 +216,13 @@ export class UpdateService {
      * Sur Windows, l'application se termine d'elle-même pour laisser l'installeur
      * remplacer ses fichiers : le voile de chargement reste donc affiché jusqu'à
      * la fermeture, ce qui est le comportement attendu.
+     *
+     * Échéance désactivée côté client (`timeout: 0`) : le délai par défaut de
+     * `NoxusService` (30 s) couvre le téléchargement d'un installeur de plusieurs
+     * dizaines de Mo, sa vérification et son lancement. Sans cela, une connexion
+     * lente fait expirer la requête pendant que le téléchargement se poursuit
+     * réellement côté main — l'utilisateur voit alors une erreur alors que la
+     * mise à jour vient de s'appliquer avec succès juste après.
      */
     private async applyUpdate(): Promise<void> {
         this.applying.set(true);
@@ -225,7 +232,7 @@ export class UpdateService {
                 message: this.i18n.t("update.downloading"),
             });
 
-            await this.noxus.request<void>({ method: "POST", path: "update/apply" });
+            await this.noxus.request<void>({ method: "POST", path: "update/apply" }, { timeout: 0 });
         }
         catch (error) {
             await this.alertCtrl.create({

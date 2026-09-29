@@ -202,9 +202,10 @@ export class UpdaterService {
     /**
      * Télécharge, vérifie puis applique la mise à jour, à la demande de l'utilisateur.
      *
-     * Sur Windows, l'installeur NSIS s'exécute en silence et relance l'application
-     * une fois installé. Ailleurs, le paquet exige une élévation que l'application
-     * ne peut pas obtenir seule : il est simplement révélé dans l'explorateur.
+     * Sur Windows, l'installeur NSIS s'exécute (petite fenêtre de progression, sans
+     * clic requis) et relance l'application une fois installé. Ailleurs, le paquet
+     * exige une élévation que l'application ne peut pas obtenir seule : il est
+     * simplement révélé dans l'explorateur.
      *
      * @throws Error si aucune mise à jour n'est disponible, si le téléchargement
      *         échoue, ou si l'empreinte du fichier ne correspond pas au manifeste.
@@ -379,12 +380,25 @@ export class UpdaterService {
     }
 
     /**
-     * Lance l'installeur et ferme l'application pour qu'il remplace ses fichiers.
+     * Ferme l'application puis lance l'installeur pour qu'il remplace ses fichiers.
      *
-     * Arguments de l'installeur NSIS d'electron-builder : `/S` l'exécute sans
-     * fenêtre ni question, `--updated` le signale comme une mise à jour et
-     * `--force-run` relance l'application une fois installée, ce que le mode
-     * silencieux ne fait pas sans lui.
+     * L'installeur (NSIS « one-click », voir `electron-builder.config.js`) s'exécute
+     * sans page Suivant/Installer/Terminer, avec une petite fenêtre et une barre de
+     * progression — on ne passe volontairement pas `/S` (silencieux), pour que cette
+     * fenêtre s'affiche aussi lors d'une mise à jour automatique, pas seulement à
+     * l'installation manuelle. `--updated` le signale comme une mise à jour et
+     * `--force-run` relance l'application une fois installée.
+     *
+     * L'installeur vérifie d'abord qu'aucune instance de l'application ne tourne
+     * encore (`CHECK_APP_RUNNING`). `--updated` lui donne un bref délai de grâce puis,
+     * si besoin, une tentative de fermeture silencieuse — sans lui, une instance encore
+     * détectée déclenche une vraie boîte de dialogue « L'application est ouverte,
+     * fermer ? » par-dessus la fenêtre de progression. Spawner l'installeur avant
+     * d'appeler `app.quit()` perdait presque toujours cette course, le temps de
+     * fermeture d'Electron (fenêtres, connexions aux bases, gestionnaires
+     * `before-quit`) dépassant régulièrement le délai de grâce. Spawner seulement
+     * dans `will-quit` — après que toutes les fenêtres sont réellement fermées, juste
+     * avant la sortie du processus — élimine l'essentiel de cette course.
      *
      * @param relaunch - Relancer l'application après l'installation.
      */
@@ -401,16 +415,18 @@ export class UpdaterService {
             this.settings.set("pendingRestore", this.host?.getRestorableFiles() ?? []);
         }
 
-        const args = ["--updated", "/S", ...(relaunch ? ["--force-run"] : [])];
+        const args = ["--updated", ...(relaunch ? ["--force-run"] : [])];
 
-        Logger.info(`Launching installer: ${installerPath} ${args.join(" ")}`);
+        app.once("will-quit", () => {
+            Logger.info(`Launching installer: ${installerPath} ${args.join(" ")}`);
 
-        // Détaché et « unref » pour survivre à l'arrêt de l'application, qui doit
-        // libérer ses fichiers.
-        spawn(installerPath, args, {
-            detached: true,
-            stdio: "ignore",
-        }).unref();
+            // Détaché et « unref » pour survivre à l'arrêt de l'application, qui doit
+            // libérer ses fichiers.
+            spawn(installerPath, args, {
+                detached: true,
+                stdio: "ignore",
+            }).unref();
+        });
 
         app.quit();
     }

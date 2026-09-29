@@ -16,7 +16,7 @@ Download the latest release from the [Releases](../../releases/latest) page.
 
 Two builds are published with every release:
 
-- **`Quark-x.y.z-Setup.exe`** — regular installer. Double-click and follow the steps; you can pick the install folder. Quark then registers itself for `.db`, `.sqlite`, `.sqlite3` and `.s3db` files (double-click one of these to open it directly).
+- **`Quark-x.y.z-Setup.exe`** — one-click installer: just run it, no steps to click through. It installs for your user only (no admin rights needed) and registers Quark for `.db`, `.sqlite`, `.sqlite3` and `.s3db` files (double-click one of these to open it directly). Want to pick the install location yourself? Use the portable build instead.
 - **`Quark-x.y.z-Portable.exe`** — no installation: a single executable you can run from a USB drive or any folder of your choice. It doesn't register file associations and doesn't update itself automatically (see [Updates](#updates)).
 
 ### Linux
