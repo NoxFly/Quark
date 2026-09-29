@@ -8,7 +8,8 @@
     "productDescription": "A simple database visualization and management tool",
     "version": "0.1.0",
     "author": {
-        "name": "NoxFly"
+        "name": "NoxFly",
+        "email": "32705400+NoxFly@users.noreply.github.com"
     },
     "scripts": {
         "postinstall": "npx electron-rebuild",
