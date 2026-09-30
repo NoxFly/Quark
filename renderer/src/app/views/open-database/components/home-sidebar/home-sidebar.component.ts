@@ -32,6 +32,7 @@ import { RecentDatabaseItemComponent } from "src/app/shared/components/recent-da
 import { VaultGateComponent } from "src/app/shared/components/connections-manager/vault-gate/vault-gate.component";
 import { profileInputFromRecent } from "src/app/shared/helpers/connections.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
+import { SpinnerComponent } from "src/app/shared/ui/components/spinner/spinner.component";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 import { IconComponent } from "src/app/shared/ui/components/icon/icon.component";
 import { ModalController } from "src/app/shared/ui/components/modal/modal.controller";
@@ -54,7 +55,7 @@ const MAX_RECENTS = 8;
     templateUrl: "./home-sidebar.component.html",
     styleUrl: "./home-sidebar.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslatePipe, RecentDatabaseItemComponent, IconComponent, ContextMenuComponent],
+    imports: [TranslatePipe, RecentDatabaseItemComponent, IconComponent, ContextMenuComponent, SpinnerComponent],
 })
 export class HomeSidebarComponent implements OnInit {
     private readonly noxus = inject(NoxusService);
@@ -68,6 +69,9 @@ export class HomeSidebarComponent implements OnInit {
     protected readonly state = inject(StateService);
 
     protected readonly recents = signal<RecentDatabaseEntry[]>([]);
+
+    /** Entrée en cours d'ouverture, `null` si aucune. */
+    protected readonly openingEntry = signal<RecentDatabaseEntry | null>(null);
 
     private readonly recentMenu = viewChild.required(ContextMenuComponent);
 
@@ -85,11 +89,24 @@ export class HomeSidebarComponent implements OnInit {
      * connexion plutôt qu'un message générique.
      */
     protected async openRecent(entry: RecentDatabaseEntry): Promise<void> {
+        // Une seule ouverture à la fois : des clics répétés pendant une ouverture
+        // lente s'empilaient, et la fenêtre affichait la dernière ouverture à
+        // aboutir, pas forcément la dernière base cliquée.
+        if (this.openingEntry()) {
+            return;
+        }
+
+        this.openingEntry.set(entry);
+
         try {
             await this.dbService.openRecentDatabase(entry, this.settings.settings().connectionTimeout);
         }
         catch (err) {
+            this.openingEntry.set(null);
             await this.showOpenFailure(entry, err);
+        }
+        finally {
+            this.openingEntry.set(null);
         }
     }
 

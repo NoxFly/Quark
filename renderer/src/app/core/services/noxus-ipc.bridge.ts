@@ -140,6 +140,8 @@ export function createIpcBridge(client: NoxusRequester): IpcRendererBridge {
         onUpdateAvailable: callback => listen("update-available", callback),
         onUpdateChecking: callback => listen("update-checking", callback),
         onUpdateProgress: callback => listen("update-progress", callback),
+        onUpdateDownloaded: callback => listen("update-downloaded", callback),
+        onUpdateDownloadFailed: callback => listen("update-download-failed", callback),
         onSessionDiffChanged: callback => listen("session-diff-changed", callback),
     };
 }

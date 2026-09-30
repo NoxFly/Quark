@@ -66,7 +66,34 @@
     <div class="center-title">{{ windowTitle() }}</div>
 
     <div class="actions no-drag">
-        @if (updateAvailable(); as info) {
+        @if (updateService.progress(); as progress) {
+            <div
+                class="action update-progress"
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="progress.percent >= 0 ? progress.percent : null"
+                [title]="progress.percent >= 0
+                    ? ('update.downloadingPercent' | translate: { percent: progress.percent })
+                    : ('update.downloading' | translate)"
+            >
+                <div class="track" [class.indeterminate]="progress.percent < 0">
+                    <div class="fill" [style.width.%]="progress.percent >= 0 ? progress.percent : null"></div>
+                </div>
+            </div>
+        }
+        @else if (updateService.readyToInstall() && updateAvailable(); as info) {
+            <div class="update-install-slot">
+                <button
+                    type="button"
+                    class="update-install"
+                    [disabled]="updateService.applying()"
+                    [title]="'update.installNowTitle' | translate: { version: info.version }"
+                    (click)="onInstallUpdateClick($event)"
+                >{{ "update.installNow" | translate }}</button>
+            </div>
+        }
+        @else if (updateAvailable(); as info) {
             <div
                 class="action update-available"
                 role="button"

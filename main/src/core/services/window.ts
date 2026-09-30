@@ -662,6 +662,7 @@ export class Window {
         // de la fenêtre : `load()` peut être rappelé (Ctrl+Alt+R) et les réenregistrer
         // à chaque passage accumulerait des écouteurs sur le même émetteur.
         this.registerLifecycleHandlers(win);
+        this._database.warmUp();
 
         onCreated?.(this);
 

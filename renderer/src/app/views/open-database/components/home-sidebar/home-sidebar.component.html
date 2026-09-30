@@ -8,23 +8,29 @@
 
 <div>
     <div class="section-title">{{ "home.recent" | translate }}</div>
-    <div class="recent-list">
+    <div class="recent-list" [class.busy]="openingEntry() !== null">
         @for (entry of recents(); track entry.lastOpened) {
             <div class="recent-row-wrap">
                 <button
                     type="button"
                     class="recent-row"
+                    [attr.aria-busy]="openingEntry() === entry"
                     (click)="openRecent(entry)"
                     (contextmenu)="onRecentContextMenu($event, entry)"
                 >
                     <app-recent-database-item [entry]="entry" />
                 </button>
-                <button
-                    type="button"
-                    class="recent-remove"
-                    [title]="'home.recentRemove' | translate"
-                    (click)="removeRecent(entry, $event)"
-                >✕</button>
+                @if (openingEntry() === entry) {
+                    <span class="recent-opening"><ui-spinner /></span>
+                }
+                @else {
+                    <button
+                        type="button"
+                        class="recent-remove"
+                        [title]="'home.recentRemove' | translate"
+                        (click)="removeRecent(entry, $event)"
+                    >✕</button>
+                }
             </div>
         }
         @empty {

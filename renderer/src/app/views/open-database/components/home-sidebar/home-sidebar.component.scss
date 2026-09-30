@@ -96,6 +96,27 @@
     }
 }
 
+.recent-list.busy .recent-row {
+    cursor: progress;
+}
+
+// Occupe la place de la croix, que la ligne réserve déjà à droite.
+.recent-opening {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    pointer-events: none;
+
+    ui-spinner {
+        --spinner-size: 13px;
+    }
+}
+
 .recent-remove {
     position: absolute;
     top: 0;

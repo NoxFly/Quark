@@ -134,6 +134,10 @@ export interface IpcRendererBridge {
     onUpdateChecking(cb: (checking: boolean) => void): void;
     /** Notifié pendant le téléchargement de l'installeur. */
     onUpdateProgress(cb: (progress: import("./update").UpdateProgress) => void): void;
+    /** L'installeur est téléchargé et vérifié : la mise à jour peut être lancée. */
+    onUpdateDownloaded(cb: (info: import("./update").UpdateInfo) => void): void;
+    /** Le téléchargement a échoué ; `error` en donne la raison. */
+    onUpdateDownloadFailed(cb: (error: string) => void): void;
 
     /**
      * Notifié à chaque modification enregistrée dans le diff de session.
