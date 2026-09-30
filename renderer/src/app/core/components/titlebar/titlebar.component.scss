@@ -237,6 +237,81 @@
     color: var(--success);
 }
 
+// Téléchargement de l'installeur : une barre fine à la place de la flèche,
+// qui laisse l'interface utilisable pendant toute sa durée.
+.update-progress {
+    width: 56px;
+    padding: 0 10px;
+    cursor: default;
+
+    &:hover {
+        background: transparent;
+    }
+
+    .track {
+        position: relative;
+        width: 100%;
+        height: 4px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: var(--bg-hover-strong);
+    }
+
+    .fill {
+        height: 100%;
+        border-radius: inherit;
+        background: var(--success);
+        transition: width .2s ease-out;
+    }
+
+    // Taille inconnue (pas de `content-length`) : un segment qui défile.
+    .indeterminate .fill {
+        position: absolute;
+        width: 40%;
+        animation: updateProgressSlide 1.2s ease-in-out infinite;
+    }
+}
+
+@keyframes updateProgressSlide {
+    from {
+        left: -40%;
+    }
+
+    to {
+        left: 100%;
+    }
+}
+
+// Installeur téléchargé : un bouton vert explicite, qui ferme, installe puis
+// relance l'application.
+.update-install-slot {
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+}
+
+.update-install {
+    height: 22px;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--radius-m);
+    background: var(--success);
+    color: var(--accent-fg);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+        background: var(--success-text);
+    }
+
+    &:disabled {
+        opacity: .6;
+        cursor: progress;
+    }
+}
+
 // Recherche de mise à jour en cours (démarrage ou périodique) : discret, à la
 // couleur neutre du texte, comme les autres icônes au repos de la titlebar.
 .update-checking {

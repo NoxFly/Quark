@@ -123,6 +123,14 @@ export class RemoteDriver implements DatabaseDriver {
     }
 
     /**
+     * Démarre le process hôte sans attendre de premier appel : son lancement
+     * se fait pendant que l'utilisateur choisit sa base, et non après son clic.
+     */
+    public warmUp(): void {
+        this.ensureProcess();
+    }
+
+    /**
      * Arrête le process hôte. Utilisé à la fermeture de la fenêtre.
      */
     public async dispose(): Promise<void> {
@@ -418,7 +426,12 @@ export class RemoteDriver implements DatabaseDriver {
             this.onCrash?.(wasOpen);
         }
 
-        const error = new Error("The database driver process stopped unexpectedly. The connection was closed.");
+        // Un appel encore en attente à la fermeture de la fenêtre (ou à l'arrêt
+        // pour une mise à jour) n'a pas subi de panne : le message ne doit pas le
+        // faire passer pour tel dans les logs.
+        const error = new Error(this.stopping
+            ? "The database driver was stopped before the operation completed."
+            : "The database driver process stopped unexpectedly. The connection was closed.");
 
         for (const call of this.pending.values()) {
             call.reject(error);

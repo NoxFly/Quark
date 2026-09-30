@@ -20,11 +20,13 @@ import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ConnectionTestResult } from "@shared/connection";
+import type { DatabaseDriverType } from "@shared/driver";
 import type { R_SqlExecResponse } from "@shared/types";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SQL_FIRST_PAGE_SIZE, type DriverHostResponse } from "src/core/driver-host/driver-host.protocol";
 import { DriverHost } from "src/core/driver-host/driver-host.service";
 import { createDriver } from "src/core/drivers/driver-factory";
+import type { DatabaseDriver } from "src/core/drivers/driver.interface";
 
 describe("DriverHost", () => {
     let dir: string;
@@ -166,5 +168,31 @@ describe("DriverHost", () => {
 
         expect(response.ok).toBe(true);
         expect(response.state.isOpen).toBe(false);
+    });
+
+    it("runs a call sent right after a driver switch on the new driver", async () => {
+        // Le second `init` charge son driver plus lentement que l'appel qui le suit
+        // n'arrive : l'appel doit l'attendre plutôt que partir sur l'ancien.
+        const slowFactory = async (type: DatabaseDriverType): Promise<DatabaseDriver> => {
+            if (type === "mysql") {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+
+            return Object.assign(await createDriver("sqlite"), { whoAmI: () => type });
+        };
+
+        const switching = new DriverHost(slowFactory);
+        const init = switching.handle({ id: nextId++, kind: "init", driverType: "mysql" });
+        const who = await switching.handle({ id: nextId++, kind: "call", method: "whoAmI", args: [] });
+
+        expect((await init).ok).toBe(true);
+        expect(who.ok ? who.result : who.error).toBe("mysql");
+    });
+
+    it("keeps the previous driver when a switch fails", async () => {
+        const response = await host.handle({ id: nextId++, kind: "init", driverType: "unknown" as DatabaseDriverType });
+
+        expect(response.ok).toBe(false);
+        expect((await call("open", join(dir, "host.db"))).ok).toBe(true);
     });
 });

@@ -152,6 +152,15 @@ export class TitlebarComponent {
         }
     }
 
+    /**
+     * Installe la mise à jour déjà téléchargée, puis redémarre l'application.
+     */
+    protected onInstallUpdateClick(event: MouseEvent): void {
+        event.stopPropagation();
+        this.closeMenus();
+        void this.updateService.install();
+    }
+
     protected closeApp(): void {
         void this.noxus.ipc.close();
     }

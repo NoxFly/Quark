@@ -252,7 +252,6 @@ export class Application implements IApp {
         // La recherche de mise à jour est autonome : elle démarre ici, se répète
         // toutes les heures et notifie le renderer si une version plus récente existe.
         this.updater.startAutoCheck({
-            isBusy: () => [...this.windows.values()].some(window => window.database.isInTransaction),
             getRestorableFiles: () => [...this.windows.values()]
                 .filter(window => window.database.isOpen && window.database.driverType === "sqlite")
                 .map(window => window.database.path)

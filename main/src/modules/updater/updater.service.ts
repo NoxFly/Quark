@@ -18,7 +18,7 @@
 import { inject, Injectable, Logger, NoxSocket } from "@noxfly/noxus/main";
 import type { UpdateInfo, UpdateManifest, UpdateProgress, UpdateSettings } from "@shared/update";
 import { shell } from "electron/common";
-import { app, BrowserWindow, powerMonitor } from "electron/main";
+import { app } from "electron/main";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
@@ -34,25 +34,14 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1_000;
 /** Nouvel essai après un échec (hors ligne, GitHub indisponible). */
 const RETRY_DELAY_MS = 10 * 60 * 1_000;
 
-/** Intervalle entre deux vérifications d'inactivité, quand une installation automatique attend. */
-const IDLE_POLL_MS = 60 * 1_000;
-
-/**
- * Inactivité du système (clavier, souris) au-delà de laquelle l'application peut
- * redémarrer même si l'une de ses fenêtres est au premier plan.
- */
-const SYSTEM_IDLE_SECONDS = 5 * 60;
-
 /** Échéance de récupération du manifeste : une CI indisponible ne doit rien bloquer. */
 const MANIFEST_TIMEOUT_MS = 15_000;
 
 /**
- * Ce que l'updater doit savoir de l'application pour redémarrer au bon moment.
- * Fourni par `Application`, qui détient les fenêtres.
+ * Ce que l'updater doit savoir de l'application pour la relancer après une
+ * mise à jour. Fourni par `Application`, qui détient les fenêtres.
  */
 export interface UpdaterHost {
-    /** Vrai tant qu'un redémarrage ferait perdre du travail (transaction non validée). */
-    isBusy(): boolean;
     /** Bases à rouvrir après le redémarrage, une par fenêtre. */
     getRestorableFiles(): string[];
 }
@@ -65,12 +54,13 @@ export interface UpdaterHost {
  * Une recherche a lieu au démarrage puis toutes les heures.
  *
  * Deux modes :
- * - manuel (défaut) : la version trouvée est proposée ; l'utilisateur l'installe
- *   d'un clic, l'application redémarre d'elle-même une fois installée ;
- * - automatique (réglage `autoUpdate`) : l'installeur est téléchargé aussitôt, puis
- *   appliqué sans rien demander dès que l'application est inactive (en arrière-plan
- *   ou machine au repos) et qu'aucune transaction n'est ouverte ; à défaut, à la
- *   fermeture de l'application.
+ * - manuel (défaut) : la version trouvée est seulement signalée ; rien n'est
+ *   téléchargé avant que l'utilisateur ne demande la mise à jour, qui s'installe
+ *   alors dès son téléchargement terminé, puis relance l'application ;
+ * - automatique (réglage `autoUpdate`) : l'installeur est téléchargé aussitôt en
+ *   arrière-plan, puis installé quand l'utilisateur le demande ou, à défaut, à la
+ *   fermeture de l'application. L'application ne redémarre jamais d'elle-même :
+ *   un redémarrage non sollicité interromprait l'utilisateur en plein travail.
  *
  * L'installeur téléchargé est vérifié par empreinte SHA-512 avant d'être exécuté :
  * un binaire est lancé avec les droits de l'utilisateur, une archive tronquée ou
@@ -85,7 +75,6 @@ export class UpdaterService {
     private host: UpdaterHost | null = null;
 
     private checkTimer: ReturnType<typeof setTimeout> | null = null;
-    private idleTimer: ReturnType<typeof setInterval> | null = null;
 
     /** Installeur déjà téléchargé et vérifié, réutilisé tant que la version ne change pas. */
     private downloaded: { version: string; path: string } | null = null;
@@ -127,8 +116,6 @@ export class UpdaterService {
             clearTimeout(this.checkTimer);
             this.checkTimer = null;
         }
-
-        this.stopIdleWatch();
     }
 
     /**
@@ -159,10 +146,7 @@ export class UpdaterService {
             this.info = { ...this.info, autoInstall: this.autoInstallEnabled };
         }
 
-        if (!enabled) {
-            this.stopIdleWatch();
-        }
-        else if (this.info?.isNewer) {
+        if (enabled && this.info?.isNewer) {
             void this.prepareAutoInstall();
         }
 
@@ -191,6 +175,7 @@ export class UpdaterService {
             isNewer: latest.compareTo(current) > 0,
             canAutoInstall: this.canAutoInstall,
             autoInstall: this.autoInstallEnabled,
+            downloaded: this.downloaded?.version === manifest.version,
             notes: manifest.notes,
         };
 
@@ -296,8 +281,8 @@ export class UpdaterService {
     }
 
     /**
-     * Mode automatique : télécharge l'installeur tout de suite, puis attend un
-     * moment d'inactivité pour l'appliquer.
+     * Mode automatique : télécharge l'installeur tout de suite. Il est ensuite
+     * lancé à la demande de l'utilisateur, ou à la fermeture de l'application.
      */
     private async prepareAutoInstall(): Promise<void> {
         const manifest = this.manifest;
@@ -313,63 +298,12 @@ export class UpdaterService {
             // La mise à jour reste proposée à la main ; le téléchargement sera
             // retenté à la prochaine recherche.
             Logger.warn(`Background update download failed: ${error instanceof Error ? error.message : String(error)}`);
-            return;
-        }
-
-        this.startIdleWatch();
-    }
-
-    private startIdleWatch(): void {
-        if (this.idleTimer !== null) {
-            return;
-        }
-
-        const tryInstall = (): void => {
-            const installer = this.downloaded;
-
-            if (!this.autoInstallEnabled || !installer) {
-                this.stopIdleWatch();
-                return;
-            }
-
-            if (!this.isIdle()) {
-                return;
-            }
-
-            this.stopIdleWatch();
-            Logger.info(`Application idle: installing ${installer.version} automatically.`);
-            this.install(installer.path, true);
-        };
-
-        this.idleTimer = setInterval(tryInstall, IDLE_POLL_MS);
-        tryInstall();
-    }
-
-    private stopIdleWatch(): void {
-        if (this.idleTimer !== null) {
-            clearInterval(this.idleTimer);
-            this.idleTimer = null;
         }
     }
 
     /**
-     * L'application peut-elle redémarrer sans gêner l'utilisateur ?
-     *
-     * Jamais avec une transaction ouverte : ses modifications seraient perdues.
-     * Sinon, quand aucune fenêtre n'est au premier plan (l'utilisateur travaille
-     * ailleurs) ou quand la machine est au repos depuis quelques minutes.
-     */
-    private isIdle(): boolean {
-        if (this.host?.isBusy() ?? true) {
-            return false;
-        }
-
-        return BrowserWindow.getFocusedWindow() === null || powerMonitor.getSystemIdleTime() >= SYSTEM_IDLE_SECONDS;
-    }
-
-    /**
-     * Mode automatique, fermeture de l'application avant tout moment
-     * d'inactivité : l'installation se fait maintenant, sans relancer.
+     * Mode automatique, fermeture de l'application sans que l'utilisateur ait
+     * lancé la mise à jour : l'installation se fait maintenant, sans relancer.
      */
     private installOnQuit(): void {
         if (this.installing || !this.autoInstallEnabled || !this.downloaded) {
@@ -434,6 +368,10 @@ export class UpdaterService {
     /**
      * Télécharge l'installeur d'une version une seule fois, même si le mode
      * automatique et l'utilisateur le demandent en même temps.
+     *
+     * Les fenêtres sont prévenues de l'issue, quel que soit le demandeur : la
+     * titlebar remplace sa barre de progression par le bouton de mise à jour,
+     * ou la retire après un échec.
      */
     private async downloadOnce(manifest: UpdateManifest): Promise<string> {
         if (this.downloaded?.version === manifest.version) {
@@ -444,7 +382,16 @@ export class UpdaterService {
             this.downloading = this.download(manifest)
                 .then(path => {
                     this.downloaded = { version: manifest.version, path };
+
+                    if (this.info?.version === manifest.version) {
+                        this.info = { ...this.info, downloaded: true };
+                        this.broadcast("update-downloaded", this.info);
+                    }
+
                     return path;
+                }, (error: unknown) => {
+                    this.broadcast("update-download-failed", error instanceof Error ? error.message : String(error));
+                    throw error;
                 })
                 .finally(() => {
                     this.downloading = null;

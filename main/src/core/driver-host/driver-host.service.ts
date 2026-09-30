@@ -42,6 +42,11 @@ const DEFAULT_TEST_TIMEOUT_MS = 15_000;
  */
 type HostMethod = "execSqlPaged" | "fetchSqlRows" | "testConnection";
 
+/** Crée un driver du type demandé ; son module n'est chargé qu'à ce moment. */
+export type DriverFactory = (type: DatabaseDriverType) => Promise<DatabaseDriver>;
+
+const CLOSED_STATE: DriverHostState = { isOpen: false, isInTransaction: false, path: null };
+
 /**
  * Logique de l'hôte des drivers, indépendante du transport.
  *
@@ -50,7 +55,16 @@ type HostMethod = "execSqlPaged" | "fetchSqlRows" | "testConnection";
  * driver qui plante ou se bloque n'emporte pas l'application avec lui.
  */
 export class DriverHost {
-    private driver: DatabaseDriver;
+    /** Driver actif, `null` tant que le premier n'est pas encore chargé. */
+    private driver: DatabaseDriver | null = null;
+
+    /**
+     * Driver sur lequel exécuter le prochain appel. Un changement de driver
+     * remplace cette promesse : un appel reçu juste après un `init` attend le
+     * nouveau driver au lieu de partir sur l'ancien, même si son chargement est
+     * long.
+     */
+    private ready: Promise<DatabaseDriver>;
 
     /**
      * Résultats SQL conservés pour la lecture par pages, du plus ancien au plus
@@ -58,8 +72,8 @@ export class DriverHost {
      */
     private readonly results = new Map<string, unknown[][]>();
 
-    public constructor(private readonly createDriver: (type: DatabaseDriverType) => DatabaseDriver) {
-        this.driver = createDriver("sqlite");
+    public constructor(private readonly createDriver: DriverFactory) {
+        this.ready = this.activate(createDriver("sqlite"));
     }
 
     /**
@@ -87,14 +101,14 @@ export class DriverHost {
      * Ferme le driver actif, par exemple avant l'arrêt du process.
      */
     public async dispose(): Promise<void> {
-        this.results.clear();
-
-        if (this.driver.isOpen) {
-            await this.driver.close();
-        }
+        await this.release(await this.ready);
     }
 
     private get state(): DriverHostState {
+        if (!this.driver) {
+            return CLOSED_STATE;
+        }
+
         return {
             isOpen: this.driver.isOpen,
             isInTransaction: this.driver.isInTransaction,
@@ -104,16 +118,46 @@ export class DriverHost {
 
     /**
      * Remplace le driver actif par un driver du type demandé.
+     * Un type inconnu laisse l'ancien driver en place, fermé.
      */
     private async init(type: DatabaseDriverType): Promise<void> {
-        await this.dispose();
-        this.driver = this.createDriver(type);
+        const previous = this.ready;
+        const next = this.activate(previous.then(async driver => {
+            await this.release(driver);
+            return await this.createDriver(type);
+        }));
+
+        this.ready = next.catch(() => previous);
+        await next;
+    }
+
+    /**
+     * Fait d'un driver en cours de création le driver actif, dès qu'il existe.
+     */
+    private async activate(creating: Promise<DatabaseDriver>): Promise<DatabaseDriver> {
+        const driver = await creating;
+        this.driver = driver;
+
+        return driver;
+    }
+
+    /**
+     * Ferme un driver et oublie les résultats SQL qu'il a produits.
+     */
+    private async release(driver: DatabaseDriver): Promise<void> {
+        this.results.clear();
+
+        if (driver.isOpen) {
+            await driver.close();
+        }
     }
 
     private async call(method: string, args: unknown[]): Promise<unknown> {
+        const driver = await this.ready;
+
         switch (method as HostMethod) {
             case "execSqlPaged":
-                return await this.execSqlPaged(args[0] as string);
+                return await this.execSqlPaged(driver, args[0] as string);
 
             case "fetchSqlRows":
                 return this.fetchSqlRows(args[0] as string, args[1] as number, args[2] as number);
@@ -124,13 +168,13 @@ export class DriverHost {
 
         // Seules les méthodes publiques du driver sont appelables : ni le
         // constructeur, ni un membre qui ne serait pas une fonction.
-        const target = (this.driver as unknown as Record<string, unknown>)[method];
+        const target = (driver as unknown as Record<string, unknown>)[method];
 
         if (method === "constructor" || method.startsWith("_") || typeof target !== "function") {
             throw new Error(`Unknown driver method: ${method}`);
         }
 
-        const result = await (target as (...params: unknown[]) => unknown).apply(this.driver, args);
+        const result = await (target as (...params: unknown[]) => unknown).apply(driver, args);
 
         // Une fermeture ou un changement de base invalide les résultats en cache.
         if (method === "close" || method === "open") {
@@ -147,8 +191,8 @@ export class DriverHost {
      * traverse plus l'IPC en un seul message, et le renderer ne matérialise que
      * ce que l'utilisateur fait défiler.
      */
-    private async execSqlPaged(sql: string): Promise<R_SqlExecResponse> {
-        const result = await this.driver.execSql(sql, SQL_MAX_RESULT_ROWS);
+    private async execSqlPaged(driver: DatabaseDriver, sql: string): Promise<R_SqlExecResponse> {
+        const result = await driver.execSql(sql, SQL_MAX_RESULT_ROWS);
 
         if (!result.isSelect) {
             return { ...result, totalRows: 0, resultId: null, truncated: false };
@@ -182,7 +226,7 @@ export class DriverHost {
      * qu'elle finirait par établir est refermée dès qu'elle aboutit.
      */
     private async testConnection(target: DriverConnectionTarget): Promise<ConnectionTestResult> {
-        const driver = this.createDriver(target.driverType);
+        const driver = await this.createDriver(target.driverType);
         const timeoutMs = toTimeoutMs(target.options.timeoutSeconds) ?? DEFAULT_TEST_TIMEOUT_MS;
         const startedAt = performance.now();
         let opening: Promise<boolean> | null = null;

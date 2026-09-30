@@ -56,17 +56,20 @@ export interface UpdateInfo {
      */
     canAutoInstall: boolean;
     /**
-     * La mise à jour sera installée sans rien demander, puis l'application
-     * redémarrera (réglage « mises à jour automatiques » actif).
+     * La mise à jour est téléchargée en arrière-plan dès sa détection, puis
+     * installée à la demande de l'utilisateur ou, à défaut, à la fermeture de
+     * l'application (réglage « mises à jour automatiques » actif).
      */
     autoInstall: boolean;
+    /** L'installeur de cette version est téléchargé et vérifié : il peut être lancé aussitôt. */
+    downloaded: boolean;
     /** Notes de version. */
     notes?: string;
 }
 
 /** Réglages de mise à jour. */
 export interface UpdateSettings {
-    /** Installer automatiquement les mises à jour, puis redémarrer. */
+    /** Télécharger les mises à jour dès leur détection, et les installer au plus tard à la fermeture. */
     autoUpdate: boolean;
     /** La plateforme permet l'installation automatique (Windows uniquement). */
     supported: boolean;
