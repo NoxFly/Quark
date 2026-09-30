@@ -18,7 +18,6 @@
 import type {
     AzureAuthMode,
     ConnectionProfile,
-    ConnectionTag,
     SqliteSourceMode,
 } from "@shared/connection";
 import type { DatabaseDriverType } from "@shared/driver";
@@ -32,21 +31,16 @@ export type ConnectionsManagerView = "loading" | VaultGateMode | "manager";
 /** Taille de la vignette d'un driver : arbre (20 px), en-tête de fiche (40 px), pastille de type (20 px ronde). */
 export type DriverThumbVariant = "tree" | "large" | "pill";
 
+/** Déplacement d'un profil par glisser-déposer dans l'arbre du gestionnaire. */
+export interface ConnectionProfileMove {
+    id: string;
+    folderId: string;
+    /** Position parmi les autres profils du dossier d'arrivée. */
+    index: number;
+}
+
 /** Contenu du volet droit du gestionnaire. */
 export type ConnectionsPaneMode = "view" | "edit" | "folder";
-
-/**
- * Saisie secrète demandée dans la petite modale du gestionnaire :
- * passphrase d'export / d'import, ou bascule du mot de passe maître.
- */
-export type SecretPromptKind = "export" | "import" | "enable-master" | "disable-master";
-
-/** Demande de saisie secrète en cours. */
-export interface SecretPromptRequest {
-    kind: SecretPromptKind;
-    /** Profils concernés (export uniquement). */
-    ids: string[];
-}
 
 /** Valeur émise par la modale de saisie secrète. */
 export interface SecretPromptSubmit {
@@ -92,13 +86,20 @@ export interface ConnectionDraft {
     port: number;
     username: string;
     password: string;
+    /**
+     * Supprimer le secret déjà enregistré. Nécessaire car un mot de passe vide
+     * signifie « inchangé » en édition : sans ce drapeau, un secret ne pouvait
+     * plus être retiré d'un profil.
+     */
+    clearPassword: boolean;
     database: string;
     authMode: AzureAuthMode;
     clientId: string;
     tenantId: string;
     /** Dossier de rangement (`""` : aucun). */
     folderId: string;
-    tag: ConnectionTag;
+    /** Étiquette choisie (`""` : aucune). */
+    tag: string;
     ssl: boolean;
     notes: string;
     /** Couleur héritée des anciens profils, conservée telle quelle. */

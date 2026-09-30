@@ -21,24 +21,29 @@
             (click)="setFilterMode(false)"
             [tooltip]="i18n.t('table.switchToSearch')"
         >{{ i18n.t("data.search.text") }}</button>
-        <button
-            type="button"
-            class="segment"
-            [class.active]="sqlFilterMode()"
-            [attr.aria-pressed]="sqlFilterMode()"
-            (click)="setFilterMode(true)"
-            [tooltip]="i18n.t(isNoSql() ? 'table.switchToNosql' : 'table.switchToSql')"
-        >{{ i18n.t(isNoSql() ? "data.search.nosql" : "data.search.sql") }}</button>
+        <!-- Un filtre SQL est une clause libre : absent d'une connexion partagée. -->
+        @if (!state.isShared()) {
+            <button
+                type="button"
+                class="segment"
+                [class.active]="sqlFilterMode()"
+                [attr.aria-pressed]="sqlFilterMode()"
+                (click)="setFilterMode(true)"
+                [tooltip]="i18n.t(isNoSql() ? 'table.switchToNosql' : 'table.switchToSql')"
+            >{{ i18n.t(isNoSql() ? "data.search.nosql" : "data.search.sql") }}</button>
+        }
     </div>
 
-    <button
-        type="button"
-        class="btn-new"
-        (click)="newRecord()"
-        [tooltip]="i18n.t(isNoSql() ? 'table.newRecord.nosql' : 'data.newHint')"
-    >
-        <span class="btn-new-plus">+</span>{{ i18n.t("short.new") }}
-    </button>
+    @if (!state.isShareReadOnly()) {
+        <button
+            type="button"
+            class="btn-new"
+            (click)="newRecord()"
+            [tooltip]="i18n.t(isNoSql() ? 'table.newRecord.nosql' : 'data.newHint')"
+        >
+            <span class="btn-new-plus">+</span>{{ i18n.t("short.new") }}
+        </button>
+    }
 </div>
 
 <!-- Grille -->

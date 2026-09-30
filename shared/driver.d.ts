@@ -109,6 +109,12 @@ export interface DriverConnectionOptions {
      * l'URL ouverte : celle-ci devient le `path` du driver, affiché et historisé.
      */
     authToken?: string;
+    /**
+     * Connexion ouverte depuis un fichier de partage : l'hôte des drivers
+     * n'écrit rien dans son journal tant qu'elle dure, les messages des clients
+     * de bases citant souvent l'hôte, l'utilisateur ou la base.
+     */
+    confidential?: boolean;
     /** Authentification Azure SQL (ignorée par les autres drivers). */
     azureAuth?: {
         mode: import("./connection").AzureAuthMode;

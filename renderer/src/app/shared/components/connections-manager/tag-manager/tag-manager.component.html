@@ -1,0 +1,69 @@
+<div class="backdrop" (click)="closed.emit()"></div>
+
+<div class="dialog" role="dialog" aria-modal="true" (keydown.escape)="$event.stopPropagation(); closed.emit()">
+    <div class="head">
+        <div class="cm-title">{{ 'connections.tags.title' | translate }}</div>
+        <button type="button" class="close" [attr.aria-label]="'connections.close' | translate" (click)="closed.emit()">✕</button>
+    </div>
+
+    <div class="body">
+        <div class="list">
+            @for (tag of tags(); track tag.id) {
+                <div class="tag-row">
+                    <button type="button" class="swatch" [style.background]="tagColor(tag)"
+                        [title]="'connections.tags.color' | translate" [disabled]="busy()"
+                        (click)="togglePalette(tag.id)"></button>
+                    <input class="cm-input" type="text" autocomplete="off"
+                        [value]="tag.name ?? ''"
+                        [placeholder]="isBuiltin(tag.id) ? defaultName(tag) : ''"
+                        [disabled]="busy()"
+                        (keydown.enter)="$any($event.target).blur()"
+                        (change)="rename(tag, $any($event.target).value)" />
+                    <button type="button" class="cm-btn danger-quiet remove" [disabled]="busy()"
+                        [title]="'connections.tags.delete' | translate" (click)="remove(tag)">✕</button>
+                </div>
+
+                @if (paletteFor() === tag.id) {
+                    <div class="palette">
+                        @if (isBuiltin(tag.id)) {
+                            <button type="button" class="swatch theme" [title]="'connections.tags.themeColor' | translate"
+                                (click)="recolor(tag, '')"></button>
+                        }
+                        @for (color of palette; track color) {
+                            <button type="button" class="swatch" [style.background]="color"
+                                [class.selected]="tag.color === color" (click)="recolor(tag, color)"></button>
+                        }
+                    </div>
+                }
+            }
+            @empty {
+                <div class="cm-hint">{{ 'connections.tags.empty' | translate }}</div>
+            }
+        </div>
+
+        <div class="tag-row create">
+            <button type="button" class="swatch" [style.background]="newColor()"
+                [title]="'connections.tags.color' | translate" (click)="togglePalette('new')"></button>
+            <input class="cm-input" type="text" autocomplete="off"
+                [placeholder]="'connections.tags.newPlaceholder' | translate"
+                [ngModel]="newName()" (ngModelChange)="newName.set($event)"
+                (keydown.enter)="create()" />
+            <button type="button" class="cm-btn primary" [disabled]="!canCreate()" (click)="create()">
+                {{ 'connections.tags.add' | translate }}
+            </button>
+        </div>
+
+        @if (paletteFor() === 'new') {
+            <div class="palette">
+                @for (color of palette; track color) {
+                    <button type="button" class="swatch" [style.background]="color"
+                        [class.selected]="newColor() === color" (click)="pickNewColor(color)"></button>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="actions">
+        <button type="button" class="cm-btn" (click)="closed.emit()">{{ 'connections.close' | translate }}</button>
+    </div>
+</div>

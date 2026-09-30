@@ -51,9 +51,9 @@
             <button
                 type="button"
                 class="section-action"
-                [class.unavailable]="dbService.readOnly()"
-                [disabled]="dbService.readOnly()"
-                [attr.aria-hidden]="dbService.readOnly()"
+                [class.unavailable]="!canEditSchema()"
+                [disabled]="!canEditSchema()"
+                [attr.aria-hidden]="!canEditSchema()"
                 (click)="onCreateTable($event)"
                 [tooltip]="i18n.t(isNoSql() ? 'sidebar.createCollection.tooltip' : 'sidebar.createTable.tooltip')"
             >
@@ -111,9 +111,9 @@
                 <button
                     type="button"
                     class="section-action"
-                    [class.unavailable]="dbService.readOnly()"
-                    [disabled]="dbService.readOnly()"
-                    [attr.aria-hidden]="dbService.readOnly()"
+                    [class.unavailable]="!canEditSchema()"
+                    [disabled]="!canEditSchema()"
+                    [attr.aria-hidden]="!canEditSchema()"
                     (click)="onCreateProcedure($event)"
                     [tooltip]="i18n.t('sidebar.storedProcs.create.tooltip')"
                 >

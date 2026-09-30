@@ -48,7 +48,13 @@ export class SessionDiffController {
     public getSnapshot(request: Request): SessionDiffSnapshot {
         const window = this.application.getWindowBySenderId(request.senderId);
 
-        return window?.sessionDiff.getSnapshot() ?? EMPTY_SNAPSHOT;
+        if (!window) {
+            return EMPTY_SNAPSHOT;
+        }
+
+        // La source d'une connexion partagée est son adresse : seul son nom est montré.
+        const snapshot = window.sessionDiff.getSnapshot();
+        return window.share ? { ...snapshot, source: window.share.name } : snapshot;
     }
 
     /**

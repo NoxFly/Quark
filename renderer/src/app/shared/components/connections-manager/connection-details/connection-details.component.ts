@@ -16,15 +16,17 @@
  */
 
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from "@angular/core";
-import type { ConnectionProfile } from "@shared/connection";
+import type { ConnectionProfile, ConnectionTagDef } from "@shared/connection";
 import type { ConnectionAddress } from "src/app/core/models/connections.model";
 import { I18nService } from "src/app/core/services/i18n.service";
 import {
+    findTag,
     formatLastConnected,
+    isShareableProfile,
     profileAddress,
     profileDatabaseName,
     profileDotColor,
-    tagLabelKey,
+    tagLabel,
 } from "src/app/shared/helpers/connections.helper";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 import { IconComponent } from "@ui/icon/icon.component";
@@ -32,7 +34,7 @@ import { DriverThumbComponent } from "src/app/shared/components/connections-mana
 
 /**
  * Fiche en lecture seule d'un profil de connexion, avec les actions du pied
- * (import / export chiffré, suppression, modification, connexion).
+ * (partage, suppression, modification, connexion).
  */
 @Component({
     selector: "app-connection-details",
@@ -50,20 +52,27 @@ export class ConnectionDetailsComponent {
     public readonly folderName = input<string>("");
     /** Nom affiché du driver. */
     public readonly typeLabel = input<string>("");
+    /** Étiquettes du coffre. */
+    public readonly tags = input<ConnectionTagDef[]>([]);
     public readonly busy = input<boolean>(false);
 
-    public readonly importRequested = output<void>();
-    public readonly exportRequested = output<void>();
+    public readonly shareRequested = output<void>();
     public readonly deleteRequested = output<void>();
     public readonly editRequested = output<void>();
     public readonly connectRequested = output<void>();
 
     protected readonly address = computed<ConnectionAddress>(() => profileAddress(this.profile()));
     protected readonly databaseName = computed<string>(() => profileDatabaseName(this.profile()) || "—");
-    protected readonly dotColor = computed<string>(() => profileDotColor(this.profile()));
-    protected readonly tagKey = computed<string>(() => tagLabelKey(this.profile().tag));
+    protected readonly dotColor = computed<string>(() => profileDotColor(this.profile(), this.tags()));
+
+    /** Nom de l'étiquette du profil, `null` s'il n'en a pas (ou plus). */
+    protected readonly tagName = computed<string | null>(() => {
+        const tag = findTag(this.tags(), this.profile().tag);
+        return tag ? tagLabel(tag, key => this.i18n.t(key)) : null;
+    });
     protected readonly isServicePrincipal = computed<boolean>(() => this.profile().authMode === "service-principal");
     protected readonly notes = computed<string>(() => this.profile().notes?.trim() || "—");
+    protected readonly shareable = computed<boolean>(() => isShareableProfile(this.profile()));
 
     protected readonly lastConnected = computed<string>(() => {
         const labels = {

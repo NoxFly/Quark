@@ -18,10 +18,12 @@
 import { type IApp, inject, Injectable, NotFoundException, WindowManager } from "@noxfly/noxus/main";
 import { app, BrowserWindow, dialog, Menu } from "electron/main";
 import { normalize } from "node:path";
+import type { DatabaseDriverType } from "@shared/driver";
 import type { LoadAppResult, RecentDatabaseEntry } from "@shared/ipc-renderer";
 import { environment } from "src/core/environment";
 import { RecentDatabases } from "src/core/services/recent-databases";
 import { SettingsStore } from "src/core/services/settings-store";
+import { SHARE_FILE_EXTENSION } from "src/core/services/share-file";
 import { Window } from "src/core/services/window";
 import { UpdaterService } from "src/modules/updater/updater.service";
 
@@ -106,7 +108,9 @@ export class Application implements IApp {
         const result = await dialog.showOpenDialog(parentWin ?? BrowserWindow.getFocusedWindow()!, {
             properties: ["openFile"],
             filters: [
+                { name: "SQLite Database or Quark share", extensions: ["db", "sqlite", "sqlite3", "s3db", SHARE_FILE_EXTENSION] },
                 { name: "SQLite Database", extensions: ["db", "sqlite", "sqlite3", "s3db"] },
+                { name: "Quark share", extensions: [SHARE_FILE_EXTENSION] },
                 { name: "All Files", extensions: ["*"] },
             ],
         });
@@ -284,6 +288,14 @@ export class Application implements IApp {
      */
     public rememberRecentNetwork(entry: Parameters<RecentDatabases["addNetwork"]>[0]): void {
         this.recentDatabases.addNetwork(entry);
+    }
+
+    /**
+     * Enregistre un fichier de partage dans l'historique.
+     */
+    public rememberRecentShare(filePath: string, name: string, driverType: DatabaseDriverType): void {
+        this.recentDatabases.addShare(filePath, name, driverType);
+        app.addRecentDocument(filePath);
     }
 
     /**

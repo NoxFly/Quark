@@ -17,7 +17,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { ConnectionTestResult } from "@shared/connection";
-import type { DatabaseDriverType } from "@shared/driver";
+import type { DatabaseDriverType, DriverConnectionOptions } from "@shared/driver";
 import type { R_SqlExecResponse } from "@shared/types";
 import { describeConnectionError, toTimeoutMs, withDeadline } from "src/core/drivers/connection-target.helper";
 import type { DriverConnectionTarget } from "src/core/drivers/connection-target.types";
@@ -72,7 +72,15 @@ export class DriverHost {
      */
     private readonly results = new Map<string, unknown[][]>();
 
-    public constructor(private readonly createDriver: DriverFactory) {
+    /**
+     * @param createDriver - Fabrique des drivers.
+     * @param onConfidentialChange - Prévenu quand une connexion confidentielle
+     * (partagée) commence ou s'achève, pour suspendre le journal du process.
+     */
+    public constructor(
+        private readonly createDriver: DriverFactory,
+        private readonly onConfidentialChange?: (confidential: boolean) => void,
+    ) {
         this.ready = this.activate(createDriver("sqlite"));
     }
 
@@ -121,6 +129,10 @@ export class DriverHost {
      * Un type inconnu laisse l'ancien driver en place, fermé.
      */
     private async init(type: DatabaseDriverType): Promise<void> {
+        // Un nouveau driver sert une nouvelle connexion : confidentielle seulement
+        // si ses options le disent.
+        this.onConfidentialChange?.(false);
+
         const previous = this.ready;
         const next = this.activate(previous.then(async driver => {
             await this.release(driver);
@@ -164,6 +176,10 @@ export class DriverHost {
 
             case "testConnection":
                 return await this.testConnection(args[0] as DriverConnectionTarget);
+        }
+
+        if (method === "configureConnection") {
+            this.onConfidentialChange?.((args[0] as DriverConnectionOptions | undefined)?.confidential === true);
         }
 
         // Seules les méthodes publiques du driver sont appelables : ni le

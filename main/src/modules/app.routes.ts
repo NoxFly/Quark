@@ -42,4 +42,8 @@ export const routes = defineRoutes([
         path: "session-diff",
         load: () => import("./session-diff/session-diff.controller"),
     },
+    {
+        path: "share",
+        load: () => import("./share/share.controller"),
+    },
 ]);

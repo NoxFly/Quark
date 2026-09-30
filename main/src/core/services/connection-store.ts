@@ -26,7 +26,8 @@ import type {
     ConnectionMasterPasswordBody,
     ConnectionProfile,
     ConnectionProfileInput,
-    ConnectionTag,
+    ConnectionTagDef,
+    ConnectionTagInput,
     ConnectionVaultStatus,
     SqliteSourceMode,
 } from "@shared/connection";
@@ -41,15 +42,30 @@ const PAYLOAD_ROOT = "connections";
 
 /**
  * Version du contenu déchiffré. La 2 ajoute les dossiers et les champs de profil
- * (source SQLite, URI, SSL, étiquette, notes…) ; un coffre en version 1 se lit
- * sans perte, les champs absents prenant leur valeur par défaut.
+ * (source SQLite, URI, SSL, étiquette, notes…), la 3 les étiquettes personnalisables
+ * et l'ordre des profils. Les versions antérieures se lisent sans perte, les champs
+ * absents prenant leur valeur par défaut.
  */
-const PAYLOAD_VERSION = "2";
+const PAYLOAD_VERSION = "3";
+
+/** Première version où le coffre contient ses étiquettes. */
+const TAGS_PAYLOAD_VERSION = 3;
 
 /** Nom du dossier créé pour un coffre qui n'en a aucun (coffre antérieur aux dossiers). */
 const DEFAULT_FOLDER_NAME = "Connexions";
 
-const CONNECTION_TAGS = new Set<ConnectionTag>(["production", "client", "local", "other"]);
+/**
+ * Étiquettes créées dans un coffre neuf, ou antérieur aux étiquettes
+ * personnalisables : leur couleur suit le thème tant qu'elle n'est pas changée.
+ */
+const BUILTIN_TAGS: readonly ConnectionTagDef[] = [
+    { id: "production", order: 0 },
+    { id: "client", order: 1 },
+    { id: "local", order: 2 },
+    { id: "other", order: 3 },
+];
+
+const TAG_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
 /** Longueur de la clé aléatoire qui remplace le mot de passe maître quand il est désactivé. */
 const KEYCHAIN_SECRET_BYTES = 32;
@@ -58,7 +74,7 @@ const payloadParser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
     parseAttributeValue: false,
-    isArray: (name) => name === "connection" || name === "folder",
+    isArray: (name) => name === "connection" || name === "folder" || name === "tag",
 });
 // `suppressBooleanAttributes` écrirait `ssl="true"` en attribut nu (`ssl`), que le
 // parseur ignore : l'option serait perdue à la relecture.
@@ -72,7 +88,13 @@ const payloadBuilder = new XMLBuilder({
 /** Contenu déchiffré du coffre (ou d'un export). */
 interface VaultPayload {
     folders: ConnectionFolder[];
+    tags: ConnectionTagDef[];
     profiles: StoredConnectionProfile[];
+}
+
+/** Contenu relu, avec la version du format qui l'a écrit. */
+interface ParsedVaultPayload extends VaultPayload {
+    version: number;
 }
 
 /**
@@ -92,6 +114,7 @@ export class ConnectionStore {
     private masterPassword: string | null = null;
     private profiles: StoredConnectionProfile[] = [];
     private folders: ConnectionFolder[] = [];
+    private tags: ConnectionTagDef[] = [];
     private unlocked = false;
     private pendingSave: Promise<void> = Promise.resolve();
 
@@ -171,6 +194,7 @@ export class ConnectionStore {
         this.masterPassword = null;
         this.profiles = [];
         this.folders = [];
+        this.tags = [];
         this.unlocked = false;
     }
 
@@ -210,10 +234,12 @@ export class ConnectionStore {
         this.ensureUnlocked();
 
         const now = Date.now();
+        const normalized = this.normalizeInput(input);
         const profile: StoredConnectionProfile = {
-            ...this.normalizeInput(input),
+            ...normalized,
             id: randomUUID(),
             password: input.password ?? "",
+            order: this.nextProfileOrder(normalized.folderId),
             createdAt: now,
             updatedAt: now,
         };
@@ -232,11 +258,15 @@ export class ConnectionStore {
         this.ensureUnlocked();
 
         const existing = this.requireProfile(id);
+        const normalized = this.normalizeInput(input);
+        // Un profil changé de dossier y prend la dernière place.
+        const order = normalized.folderId === existing.folderId ? existing.order : this.nextProfileOrder(normalized.folderId);
 
         const updated: StoredConnectionProfile = {
             ...existing,
-            ...this.normalizeInput(input),
+            ...normalized,
             id: existing.id,
+            order,
             password: input.password ?? existing.password,
             createdAt: existing.createdAt,
             updatedAt: Date.now(),
@@ -275,6 +305,143 @@ export class ConnectionStore {
 
         const profile = this.requireProfile(id);
         profile.lastConnectedAt = Date.now();
+        await this.save();
+    }
+
+    /**
+     * Déplace un profil dans un dossier, à la position donnée : les profils de ce
+     * dossier sont renumérotés dans l'ordre qui en résulte.
+     * @param id - Profil déplacé.
+     * @param folderId - Dossier d'arrivée.
+     * @param index - Position d'arrivée parmi les autres profils de ce dossier
+     * (bornée à la fin du dossier).
+     * @throws Si le profil ou le dossier n'existe pas.
+     */
+    public async moveProfile(id: string, folderId: string, index: number): Promise<ConnectionProfile> {
+        this.ensureUnlocked();
+
+        const profile = this.requireProfile(id);
+
+        if (!this.folders.some(f => f.id === folderId)) {
+            throw new Error(`Connection folder not found: ${folderId}`);
+        }
+
+        const siblings = this.profilesInFolder(folderId).filter(p => p.id !== id);
+        siblings.splice(Math.max(0, Math.min(index, siblings.length)), 0, profile);
+
+        profile.folderId = folderId;
+        siblings.forEach((sibling, position) => {
+            sibling.order = position;
+        });
+
+        await this.save();
+        return this.toPublic(profile);
+    }
+
+    // --- Étiquettes ---
+
+    /**
+     * Liste les étiquettes, dans leur ordre d'affichage.
+     */
+    public listTags(): ConnectionTagDef[] {
+        this.ensureUnlocked();
+        return [...this.tags].sort((a, b) => a.order - b.order).map(tag => ({ ...tag }));
+    }
+
+    /**
+     * Crée une étiquette, placée après les autres.
+     * @throws Si le nom est vide ou la couleur invalide.
+     */
+    public async createTag(input: ConnectionTagInput): Promise<ConnectionTagDef> {
+        this.ensureUnlocked();
+
+        const name = input.name?.trim() ?? "";
+
+        if (!name) {
+            throw new Error("Tag name cannot be empty");
+        }
+
+        const tag: ConnectionTagDef = {
+            id: randomUUID(),
+            name,
+            order: this.tags.reduce((max, current) => Math.max(max, current.order), -1) + 1,
+        };
+        const color = this.requireTagColor(input.color);
+
+        if (color) {
+            tag.color = color;
+        }
+
+        this.tags.push(tag);
+        await this.save();
+        return { ...tag };
+    }
+
+    /**
+     * Renomme ou recolore une étiquette. Un champ absent reste inchangé ; un nom
+     * vide rend à une étiquette fournie son nom traduit, une couleur vide sa
+     * couleur de thème.
+     * @throws Si l'étiquette n'existe pas, si le nom d'une étiquette créée est
+     * vidé, ou si la couleur est invalide.
+     */
+    public async updateTag(id: string, input: ConnectionTagInput): Promise<ConnectionTagDef> {
+        this.ensureUnlocked();
+
+        const tag = this.tags.find(t => t.id === id);
+
+        if (!tag) {
+            throw new Error(`Connection tag not found: ${id}`);
+        }
+
+        if (input.name !== undefined) {
+            const name = input.name.trim();
+
+            if (!name && !isBuiltinTag(id)) {
+                throw new Error("Tag name cannot be empty");
+            }
+
+            if (name) {
+                tag.name = name;
+            }
+            else {
+                delete tag.name;
+            }
+        }
+
+        if (input.color !== undefined) {
+            const color = this.requireTagColor(input.color);
+
+            if (color) {
+                tag.color = color;
+            }
+            else {
+                delete tag.color;
+            }
+        }
+
+        await this.save();
+        return { ...tag };
+    }
+
+    /**
+     * Supprime une étiquette ; les profils qui la portaient n'en ont plus.
+     * @throws Si l'étiquette n'existe pas.
+     */
+    public async deleteTag(id: string): Promise<void> {
+        this.ensureUnlocked();
+
+        if (!this.tags.some(t => t.id === id)) {
+            throw new Error(`Connection tag not found: ${id}`);
+        }
+
+        this.tags = this.tags.filter(t => t.id !== id);
+
+        for (const profile of this.profiles) {
+            if (profile.tag === id) {
+                delete profile.tag;
+            }
+        }
+
         await this.save();
     }
 
@@ -357,8 +524,11 @@ export class ConnectionStore {
 
     /**
      * Exporte les profils sélectionnés dans un document XML chiffré par `passphrase`.
-     * Le chiffrement est indépendant du mot de passe maître pour permettre le partage.
      * Les dossiers des profils exportés les accompagnent.
+     *
+     * L'interface ne propose plus d'export (le partage d'une base passe par un
+     * fichier `.quarkshare`) : cette méthode reste la définition du format que
+     * lit `importProfiles`, pour les fichiers déjà produits.
      */
     public async exportProfiles(ids: string[], passphrase: string): Promise<string> {
         this.ensureUnlocked();
@@ -372,7 +542,7 @@ export class ConnectionStore {
         // `lastConnectedAt` décrit l'usage local, pas la connexion partagée.
         const exported = selected.map(({ lastConnectedAt: _lastConnectedAt, ...profile }) => profile);
 
-        return await encryptToXml(this.serializePayload({ folders, profiles: exported }), passphrase);
+        return await encryptToXml(this.serializePayload({ folders, tags: [], profiles: exported }), passphrase);
     }
 
     /**
@@ -398,6 +568,9 @@ export class ConnectionStore {
                 ...profile,
                 id: randomUUID(),
                 folderId,
+                // L'étiquette n'est gardée que si ce coffre en possède une du même identifiant.
+                tag: profile.tag && this.tags.some(t => t.id === profile.tag) ? profile.tag : undefined,
+                order: this.nextProfileOrder(folderId),
                 createdAt: now,
                 updatedAt: now,
                 lastConnectedAt: undefined,
@@ -441,6 +614,40 @@ export class ConnectionStore {
     }
 
     /**
+     * Profils d'un dossier dans leur ordre d'affichage : position fixée d'abord,
+     * puis ordre alphabétique pour ceux qui n'en ont pas.
+     */
+    private profilesInFolder(folderId: string | undefined): StoredConnectionProfile[] {
+        return this.profiles
+            .filter(p => p.folderId === folderId)
+            .sort(compareProfileOrder);
+    }
+
+    /**
+     * Position d'un profil ajouté en fin de dossier.
+     */
+    private nextProfileOrder(folderId: string | undefined): number {
+        return this.profilesInFolder(folderId).reduce((max, p) => Math.max(max, p.order ?? -1), -1) + 1;
+    }
+
+    /**
+     * Valide une couleur d'étiquette.
+     * @returns La couleur en minuscules, ou `undefined` pour une couleur vide.
+     * @throws Si la couleur n'est pas au format `#rrggbb`.
+     */
+    private requireTagColor(color: string | undefined): string | undefined {
+        if (color === undefined || color === "") {
+            return undefined;
+        }
+
+        if (!TAG_COLOR_PATTERN.test(color)) {
+            throw new Error(`Invalid tag color: ${color}`);
+        }
+
+        return color.toLowerCase();
+    }
+
+    /**
      * Associe chaque dossier importé à un dossier local : celui du même nom s'il
      * existe, sinon un nouveau dossier ajouté à la fin.
      * @returns Identifiant importé → identifiant local.
@@ -472,6 +679,7 @@ export class ConnectionStore {
         this.masterPassword = secret;
         this.profiles = [];
         this.folders = [];
+        this.tags = BUILTIN_TAGS.map(tag => ({ ...tag }));
         this.ensureDefaultFolder();
         this.unlocked = true;
     }
@@ -495,13 +703,20 @@ export class ConnectionStore {
      * @returns `false` si le secret est incorrect (ou le fichier corrompu).
      */
     private async unlockWith(secret: string): Promise<boolean> {
+        let upgraded = false;
+
         try {
             const xml = await readFile(this.filePath, "utf-8");
             const payload = this.parsePayload(await decryptFromXml(xml, secret));
 
+            // Un coffre antérieur aux étiquettes personnalisables reçoit celles de
+            // l'application ; un coffre récent sans étiquette les a toutes supprimées.
+            upgraded = payload.version < TAGS_PAYLOAD_VERSION;
+
             this.masterPassword = secret;
             this.profiles = payload.profiles;
             this.folders = payload.folders;
+            this.tags = upgraded ? BUILTIN_TAGS.map(tag => ({ ...tag })) : payload.tags;
             this.unlocked = true;
         }
         catch {
@@ -510,9 +725,9 @@ export class ConnectionStore {
             return false;
         }
 
-        // Écrit aussitôt le dossier par défaut : son identifiant doit rester stable
-        // d'une session à l'autre, les profils qu'on y range s'y référant.
-        if (this.ensureDefaultFolder()) {
+        // Écrit aussitôt le dossier par défaut et les étiquettes : leurs identifiants
+        // doivent rester stables d'une session à l'autre, les profils s'y référant.
+        if (this.ensureDefaultFolder() || upgraded) {
             await this.save();
         }
 
@@ -642,7 +857,7 @@ export class ConnectionStore {
             driverType: input.driverType,
             connectionType: input.connectionType,
             folderId: input.folderId || undefined,
-            tag: input.tag && CONNECTION_TAGS.has(input.tag) ? input.tag : undefined,
+            tag: input.tag && this.tags.some(t => t.id === input.tag) ? input.tag : undefined,
             notes: input.notes || undefined,
         };
 
@@ -684,6 +899,12 @@ export class ConnectionStore {
                     "@_name": folder.name,
                     "@_order": String(folder.order),
                 })),
+                tag: payload.tags.map(tag => ({
+                    "@_id": tag.id,
+                    ...(tag.name ? { "@_name": tag.name } : {}),
+                    ...(tag.color ? { "@_color": tag.color } : {}),
+                    "@_order": String(tag.order),
+                })),
                 connection: payload.profiles.map(p => this.profileToXmlNode(p)),
             },
         });
@@ -718,6 +939,7 @@ export class ConnectionStore {
             "@_ssl": profile.ssl,
             "@_folderId": profile.folderId,
             "@_tag": profile.tag,
+            "@_order": profile.order,
             "@_notes": profile.notes,
             "@_lastConnectedAt": profile.lastConnectedAt,
             "@_password": profile.password,
@@ -736,11 +958,13 @@ export class ConnectionStore {
      * Parse un XML clair de dossiers et de profils. Accepte les deux versions du
      * format : un attribut absent laisse le champ à sa valeur par défaut.
      */
-    private parsePayload(xml: string): VaultPayload {
+    private parsePayload(xml: string): ParsedVaultPayload {
         const parsed = payloadParser.parse(xml) as Record<string, unknown>;
         const root = parsed[PAYLOAD_ROOT] as {
+            "@_version"?: string;
             connection?: Record<string, string>[];
             folder?: Record<string, string>[];
+            tag?: Record<string, string>[];
         } | undefined;
 
         const folders = (root?.folder ?? [])
@@ -751,7 +975,32 @@ export class ConnectionStore {
                 order: Number.isFinite(Number(node["@_order"])) ? Number(node["@_order"]) : index,
             }));
 
-        return { folders, profiles: (root?.connection ?? []).map(node => this.parseProfileNode(node)) };
+        const tags = (root?.tag ?? [])
+            .filter(node => node["@_id"] !== undefined)
+            .map((node, index): ConnectionTagDef => {
+                const color = node["@_color"];
+                const tag: ConnectionTagDef = {
+                    id: String(node["@_id"]),
+                    order: Number.isFinite(Number(node["@_order"])) ? Number(node["@_order"]) : index,
+                };
+
+                if (node["@_name"]) {
+                    tag.name = String(node["@_name"]);
+                }
+
+                if (color && TAG_COLOR_PATTERN.test(color)) {
+                    tag.color = color;
+                }
+
+                return tag;
+            });
+
+        return {
+            version: Number(root?.["@_version"]) || 1,
+            folders,
+            tags,
+            profiles: (root?.connection ?? []).map(node => this.parseProfileNode(node)),
+        };
     }
 
     private parseProfileNode(node: Record<string, string>): StoredConnectionProfile {
@@ -759,7 +1008,7 @@ export class ConnectionStore {
         const portRaw = node["@_port"];
         const authMode = node["@_authMode"];
         const sqliteMode = node["@_sqliteMode"];
-        const tag = node["@_tag"] as ConnectionTag | undefined;
+        const orderRaw = node["@_order"];
         const lastConnectedAt = Number(node["@_lastConnectedAt"]);
 
         const profile: StoredConnectionProfile = {
@@ -783,7 +1032,8 @@ export class ConnectionStore {
             uri: text("@_uri"),
             ssl: parseBoolean(node["@_ssl"]),
             folderId: text("@_folderId"),
-            tag: tag && CONNECTION_TAGS.has(tag) ? tag : undefined,
+            tag: text("@_tag"),
+            order: orderRaw !== undefined && Number.isFinite(Number(orderRaw)) ? Number(orderRaw) : undefined,
             notes: text("@_notes"),
             lastConnectedAt: lastConnectedAt > 0 ? lastConnectedAt : undefined,
             password: text("@_password"),
@@ -804,7 +1054,7 @@ export class ConnectionStore {
             throw new Error("Cannot save a locked vault");
         }
 
-        const plaintext = this.serializePayload({ folders: this.folders, profiles: this.profiles });
+        const plaintext = this.serializePayload({ folders: this.folders, tags: this.tags, profiles: this.profiles });
         const masterPassword = this.masterPassword;
 
         // Les sauvegardes sont sérialisées : deux écritures concurrentes du même
@@ -833,4 +1083,28 @@ function parseBoolean(value: string | undefined): boolean | undefined {
     }
 
     return undefined;
+}
+
+function isBuiltinTag(id: string): boolean {
+    return BUILTIN_TAGS.some(tag => tag.id === id);
+}
+
+/**
+ * Ordre d'affichage de deux profils d'un même dossier : position fixée d'abord,
+ * puis alphabétique.
+ */
+function compareProfileOrder(a: StoredConnectionProfile, b: StoredConnectionProfile): number {
+    if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+    }
+
+    if (a.order !== undefined) {
+        return -1;
+    }
+
+    if (b.order !== undefined) {
+        return 1;
+    }
+
+    return a.name.localeCompare(b.name);
 }

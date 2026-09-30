@@ -39,6 +39,7 @@ import {
 } from "src/core/drivers/connection-target.helper";
 import type { DriverConnectionTarget, NetworkConnectionRequest } from "src/core/drivers/connection-target.types";
 import { RememberedPasswords } from "src/core/services/remembered-passwords";
+import { SHARE_FILE_EXTENSION } from "src/core/services/share-file";
 import type { Window } from "src/core/services/window";
 import { Application } from "src/modules/application";
 
@@ -73,6 +74,11 @@ export class DbService {
      * Ouvre un fichier SQLite dans la fenêtre, ou remonte la fenêtre qui l'a déjà ouvert.
      */
     public async openFile(window: Window, filePath: string): Promise<R_OpenFileResponse> {
+        // Un partage s'ouvre avec son mot de passe, par `share/open`.
+        if (filePath.toLowerCase().endsWith(`.${SHARE_FILE_EXTENSION}`)) {
+            throw new Error("A share file is opened with its password.");
+        }
+
         const existing = this.application.findWindowByFilePath(filePath);
 
         if (existing && existing.id !== window.id) {

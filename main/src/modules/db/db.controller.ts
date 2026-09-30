@@ -63,7 +63,7 @@ import type {
     StoredProcedureExecResult,
 } from "@shared/types";
 import { getAllDriverInfos } from "src/core/drivers/driver-registry";
-import type { Window } from "src/core/services/window";
+import type { ShareOperation, Window } from "src/core/services/window";
 import { Application } from "src/modules/application";
 import { ConnectionsService } from "src/modules/connections/connections.service";
 import { DbService } from "src/modules/db/db.service";
@@ -181,8 +181,11 @@ export class DbController {
     @Get("table-data")
     public async getTableData(request: Request): Promise<R_TableDataResponse> {
         const body = request.body as R_TableDataBody;
+        // Un filtre SQL est une clause libre : sur une connexion partagée, il
+        // contournerait l'absence d'éditeur SQL.
+        const window = body.filterMode === "sql" ? this.restricted(request, "sql") : this.window(request);
 
-        return await this.window(request).database.getTableData(
+        return await window.database.getTableData(
             body.table,
             body.offset,
             body.limit,
@@ -234,13 +237,13 @@ export class DbController {
     @Post("exec-sql")
     public async execSql(request: Request): Promise<R_SqlExecResponse> {
         const { sql } = request.body as R_SqlExecBody;
-        return await this.dbService.execSql(this.window(request), sql);
+        return await this.dbService.execSql(this.restricted(request, "sql"), sql);
     }
 
     @Get("sql-rows")
     public async getSqlRows(request: Request): Promise<R_SqlRowsResponse> {
         const body = request.body as R_SqlRowsBody;
-        return await this.window(request).database.fetchSqlRows(body.resultId, body.offset, body.limit);
+        return await this.restricted(request, "sql").database.fetchSqlRows(body.resultId, body.offset, body.limit);
     }
 
     @Get("tables-sql")
@@ -253,18 +256,18 @@ export class DbController {
     @Get("export")
     public async exportData(request: Request): Promise<R_ExportResponse> {
         const body = request.body as R_ExportBody;
-        return await this.window(request).database.exportData(body.table, body.format, body.rowids, body.filter);
+        return await this.restricted(request, "export").database.exportData(body.table, body.format, body.rowids, body.filter);
     }
 
     @Get("preview-import")
     public async previewImport(request: Request): Promise<R_ImportPreviewResponse> {
         const body = request.body as Omit<R_ImportDataBody, "mode">;
-        return await this.window(request).database.previewImport(body.table, body.format, body.data);
+        return await this.restricted(request, "schema").database.previewImport(body.table, body.format, body.data);
     }
 
     @Post("import")
     public async importData(request: Request): Promise<void> {
-        await this.dbService.importData(this.window(request), request.body as R_ImportDataBody);
+        await this.dbService.importData(this.restricted(request, "schema"), request.body as R_ImportDataBody);
     }
 
     // --- Schéma ---
@@ -277,41 +280,41 @@ export class DbController {
 
     @Post("create-index")
     public async createIndex(request: Request): Promise<void> {
-        await this.dbService.createIndex(this.window(request), request.body as R_CreateIndexBody);
+        await this.dbService.createIndex(this.restricted(request, "schema"), request.body as R_CreateIndexBody);
     }
 
     @Post("drop-index")
     public async dropIndex(request: Request): Promise<void> {
         const { name } = request.body as { name: string };
-        await this.dbService.dropIndex(this.window(request), name);
+        await this.dbService.dropIndex(this.restricted(request, "schema"), name);
     }
 
     @Post("create-table")
     public async createTable(request: Request): Promise<void> {
-        await this.dbService.createTable(this.window(request), request.body as R_CreateTableBody);
+        await this.dbService.createTable(this.restricted(request, "schema"), request.body as R_CreateTableBody);
     }
 
     @Post("alter-table")
     public async alterTable(request: Request): Promise<void> {
-        await this.dbService.alterTable(this.window(request), request.body as R_AlterTableAction);
+        await this.dbService.alterTable(this.restricted(request, "schema"), request.body as R_AlterTableAction);
     }
 
     @Post("drop-table")
     public async dropTable(request: Request): Promise<void> {
         const { table } = request.body as { table: string };
-        await this.dbService.dropTable(this.window(request), table);
+        await this.dbService.dropTable(this.restricted(request, "schema"), table);
     }
 
     @Post("truncate-table")
     public async truncateTable(request: Request): Promise<void> {
         const { table } = request.body as { table: string };
-        await this.dbService.truncateTable(this.window(request), table);
+        await this.dbService.truncateTable(this.restricted(request, "schema"), table);
     }
 
     @Post("change-password")
     public async changePassword(request: Request): Promise<void> {
         const { newPassword } = request.body as R_ChangePasswordBody;
-        await this.dbService.changePassword(this.window(request), newPassword);
+        await this.dbService.changePassword(this.restricted(request, "schema"), newPassword);
     }
 
     // --- Procédures stockées (MSSQL / Azure) ---
@@ -330,22 +333,32 @@ export class DbController {
     @Post("stored-procedure-exec")
     public async execStoredProcedure(request: Request): Promise<StoredProcedureExecResult> {
         const body = request.body as R_StoredProcExecBody;
-        return await this.window(request).database.execStoredProcedure(body.name, body.schema, body.params);
+        return await this.restricted(request, "schema").database.execStoredProcedure(body.name, body.schema, body.params);
     }
 
     @Post("stored-procedure-modify")
     public async modifyStoredProcedure(request: Request): Promise<void> {
         const body = request.body as R_StoredProcModifyBody;
-        await this.window(request).database.modifyStoredProcedure(body.name, body.schema, body.definition);
+        await this.restricted(request, "schema").database.modifyStoredProcedure(body.name, body.schema, body.definition);
     }
 
     @Post("stored-procedure-drop")
     public async dropStoredProcedure(request: Request): Promise<void> {
         const body = request.body as R_StoredProcDropBody;
-        await this.window(request).database.dropStoredProcedure(body.name, body.schema);
+        await this.restricted(request, "schema").database.dropStoredProcedure(body.name, body.schema);
     }
 
     private window(request: Request): Window {
         return this.application.requireWindow(request.senderId);
+    }
+
+    /**
+     * Fenêtre appelante, après vérification que l'opération est permise sur sa
+     * connexion (restrictions d'une connexion partagée).
+     */
+    private restricted(request: Request, operation: ShareOperation): Window {
+        const window = this.window(request);
+        window.assertShareAllows(operation);
+        return window;
     }
 }

@@ -23,6 +23,8 @@ import type {
     ConnectionMasterPasswordBody,
     ConnectionProfile,
     ConnectionProfileInput,
+    ConnectionTagDef,
+    ConnectionTagInput,
     ConnectionVaultStatus,
 } from "@shared/connection";
 import { ConnectionsService } from "src/modules/connections/connections.service";
@@ -91,6 +93,40 @@ export class ConnectionsController {
         await this.connections.store.delete(id);
     }
 
+    /**
+     * Déplace un profil (glisser-déposer dans l'arbre du gestionnaire).
+     */
+    @Post("move")
+    public async move(request: Request): Promise<ConnectionProfile> {
+        const { id, folderId, index } = request.body as { id: string; folderId: string; index: number };
+        return await this.connections.store.moveProfile(id, folderId, index);
+    }
+
+    // --- Étiquettes ---
+
+    @Get("tags")
+    public listTags(): ConnectionTagDef[] {
+        return this.connections.store.listTags();
+    }
+
+    @Post("tag-create")
+    public async createTag(request: Request): Promise<ConnectionTagDef> {
+        const { input } = request.body as { input: ConnectionTagInput };
+        return await this.connections.store.createTag(input);
+    }
+
+    @Post("tag-update")
+    public async updateTag(request: Request): Promise<ConnectionTagDef> {
+        const { id, input } = request.body as { id: string; input: ConnectionTagInput };
+        return await this.connections.store.updateTag(id, input);
+    }
+
+    @Post("tag-delete")
+    public async deleteTag(request: Request): Promise<void> {
+        const { id } = request.body as { id: string };
+        await this.connections.store.deleteTag(id);
+    }
+
     // --- Dossiers ---
 
     @Get("folders")
@@ -120,12 +156,6 @@ export class ConnectionsController {
     public async connect(request: Request): Promise<ConnectionConnectResult> {
         const { id } = request.body as { id: string };
         return await this.connections.connect(request.senderId, id);
-    }
-
-    @Post("export")
-    public async export(request: Request): Promise<boolean> {
-        const { ids, passphrase } = request.body as { ids: string[]; passphrase: string };
-        return await this.connections.exportProfiles(request.senderId, ids, passphrase);
     }
 
     @Post("import")

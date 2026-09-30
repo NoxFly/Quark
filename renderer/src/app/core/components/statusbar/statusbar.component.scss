@@ -102,6 +102,15 @@
 .edit-mode {
     color: var(--text-secondary);
 
+    // Partage en consultation seule : la bascule est inerte.
+    &.locked {
+        cursor: default;
+
+        &:hover {
+            background: transparent;
+        }
+    }
+
     .dot {
         font-size: 8px;
     }

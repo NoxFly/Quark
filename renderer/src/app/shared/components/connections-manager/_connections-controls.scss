@@ -70,6 +70,14 @@
         background: var(--bg-panel);
     }
 
+    // Icône à la taille du texte : sa boîte par défaut (24 px) la décale vers le haut.
+    ui-icon {
+        --icon-size: 14px;
+
+        font-size: 14px;
+        line-height: 14px;
+    }
+
     &:focus-visible {
         outline: 2px solid var(--accent-ring);
         outline-offset: 1px;
@@ -89,6 +97,19 @@
 
         &:hover:not(:disabled) {
             background: var(--accent-hover);
+        }
+    }
+
+    // Noir en thème clair, blanc en thème sombre : se détache des actions neutres
+    // sans prendre la couleur d'accent, réservée à la connexion.
+    &.contrast {
+        border-color: var(--text);
+        background: var(--text);
+        color: var(--bg-app);
+
+        &:hover:not(:disabled) {
+            background: var(--text);
+            opacity: .85;
         }
     }
 
@@ -151,8 +172,12 @@
     }
 }
 
-select.cm-input {
-    cursor: pointer;
+// Liste déroulante `ui-select` au gabarit des champs du gestionnaire (30 px, pleine largeur).
+.cm-select {
+    --select-width: 100%;
+    --select-height: 30px;
+
+    font-size: 12px;
 }
 
 textarea.cm-input {

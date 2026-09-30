@@ -712,6 +712,10 @@ export class TableDataPage {
      * d'abord activé : le bouton « Nouveau » reste ainsi toujours utilisable.
      */
     protected newRecord(): void {
+        if (this.state.isShareReadOnly()) {
+            return;
+        }
+
         if (this.dbService.readOnly()) {
             this.dbService.toggleReadOnly();
         }
@@ -751,6 +755,7 @@ export class TableDataPage {
         const selCount = this.dbService.selectedCount();
         const hasMultipleSelection = selCount > 1 || this.allRowsSelected();
         const isReadOnly = this.dbService.readOnly();
+        const capabilities = this.state.capabilities();
 
         const items: ContextMenuItem[] = [];
 
@@ -797,15 +802,18 @@ export class TableDataPage {
             });
         }
 
-        items.push(
-            {
-                label: this.i18n.t("contextMenu.copyJson"),
-                icon: "\uE8C8",
-                action: () => this.copySelectionAsJson(record),
-            },
-        );
+        // Presse-papiers ferm\u00E9 sur une connexion partag\u00E9e : copier vaudrait export.
+        if (!this.state.isShared()) {
+            items.push(
+                {
+                    label: this.i18n.t("contextMenu.copyJson"),
+                    icon: "\uE8C8",
+                    action: () => this.copySelectionAsJson(record),
+                },
+            );
+        }
 
-        if (!isReadOnly) {
+        if (!isReadOnly && (capabilities?.importExport ?? true)) {
             items.push(
                 {
                     label: this.i18n.t("contextMenu.importData"),
@@ -824,7 +832,7 @@ export class TableDataPage {
             },
         );
 
-        if (!isReadOnly) {
+        if (!isReadOnly && (capabilities?.schemaEditing ?? true)) {
             items.push(
                 {
                     label: this.i18n.t("contextMenu.schemaEditor"),
@@ -986,6 +994,10 @@ export class TableDataPage {
      * Copie la sélection (ou la ligne passée) au format JSON dans le presse-papier.
      */
     protected async copySelectionAsJson(fallbackRecord?: DbRecord): Promise<void> {
+        if (this.state.isShared()) {
+            return;
+        }
+
         const selected = this.dbService.getSelectedRecords();
         let data: DbRecord[];
 

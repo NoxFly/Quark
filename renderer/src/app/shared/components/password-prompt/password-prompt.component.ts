@@ -29,6 +29,7 @@ import {
 } from "@angular/core";
 import { ButtonComponent } from "@ui/button/button.component";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
+import type { ShareOpenFailure } from "@shared/share";
 import type { PasswordPromptMode } from "src/app/core/models/password-prompt.model";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { SettingsService } from "src/app/core/services/settings.service";
@@ -45,6 +46,8 @@ import { IconComponent } from "src/app/shared/ui/components/icon/icon.component"
  *   ligne de commande, profil sans secret, rafraîchissement).
  * - Reconnexion : s'ouvre sur l'événement `open-password-prompt` portant un
  *   `RecentDatabaseEntry` réseau ou distant (le secret n'est jamais conservé).
+ * - Partage : même événement, avec une entrée `share` ; le mot de passe est celui
+ *   du fichier de partage.
  *
  * Fermeture : Échap, bouton Annuler, croix ou clic sur le fond.
  */
@@ -78,7 +81,13 @@ export class PasswordPromptComponent implements OnInit, OnDestroy {
             return "encrypted-file";
         }
 
-        return this.entry() ? "credentials" : null;
+        const entry = this.entry();
+
+        if (!entry) {
+            return null;
+        }
+
+        return entry.connectionType === "share" ? "share" : "credentials";
     });
 
     /** Nom du fichier chiffré, sans son dossier. */
@@ -192,6 +201,9 @@ export class PasswordPromptComponent implements OnInit, OnDestroy {
             if (mode === "encrypted-file") {
                 await this.unlockFile();
             }
+            else if (mode === "share") {
+                await this.openShare();
+            }
             else {
                 await this.reconnect();
             }
@@ -256,9 +268,47 @@ export class PasswordPromptComponent implements OnInit, OnDestroy {
         }
     }
 
+    /**
+     * Ouvre le fichier de partage avec le mot de passe saisi. Un partage périmé ou
+     * déjà ouvert donne le même message : rien ne dit qu'il était à usage unique.
+     */
+    private async openShare(): Promise<void> {
+        const filePath = this.entry()?.filePath;
+
+        if (!filePath || !this.password()) {
+            return;
+        }
+
+        try {
+            const response = await this.dbService.openShare(filePath, this.password());
+
+            if (response.ok) {
+                this.entry.set(null);
+                this.reset();
+                return;
+            }
+
+            this.error.set(response.reason === "connection-failed" && response.detail
+                ? response.detail
+                : SHARE_FAILURE_KEYS[response.reason]);
+        }
+        catch (err) {
+            this.error.set(extractIpcErrorMessage(err));
+        }
+    }
+
     private reset(): void {
         this.password.set("");
         this.remember.set(false);
         this.error.set(null);
     }
 }
+
+/** Message affiché pour chaque refus d'ouverture d'un partage. */
+const SHARE_FAILURE_KEYS: Record<ShareOpenFailure, string> = {
+    "wrong-password": "passwordPrompt.share.wrongPassword",
+    "unavailable": "passwordPrompt.share.unavailable",
+    "clock-unavailable": "passwordPrompt.share.clockUnavailable",
+    "invalid": "passwordPrompt.share.invalid",
+    "connection-failed": "passwordPrompt.share.connectionFailed",
+};

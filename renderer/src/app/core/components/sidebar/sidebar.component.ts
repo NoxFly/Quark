@@ -146,6 +146,14 @@ export class SidebarComponent {
     }
 
     /**
+     * Le schéma peut être modifié : mode édition, et driver qui le permet. Une
+     * connexion partagée ne le permet jamais (capacité retirée).
+     */
+    protected readonly canEditSchema = computed<boolean>(() =>
+        !this.dbService.readOnly() && (this.state.capabilities()?.schemaEditing ?? true),
+    );
+
+    /**
      * Ouvre le menu contextuel pour une table.
      */
     protected onTableContextMenu(event: MouseEvent, tableName: string): void {
@@ -179,15 +187,18 @@ export class SidebarComponent {
         }
 
         // Toujours listée, mais inactive en lecture seule : l'action reste découvrable.
-        items.push({
-            label: this.i18n.t(this.isNoSql() ? "data.truncateTable.nosql" : "data.truncateTable"),
-            icon: "",
-            danger: true,
-            disabled: isReadOnly,
-            action: () => void this.dbService.truncateTable(tableName),
-        });
+        // Une connexion partagée ne la propose pas du tout.
+        if (!this.state.isShared()) {
+            items.push({
+                label: this.i18n.t(this.isNoSql() ? "data.truncateTable.nosql" : "data.truncateTable"),
+                icon: "",
+                danger: true,
+                disabled: isReadOnly,
+                action: () => void this.dbService.truncateTable(tableName),
+            });
+        }
 
-        if (!isReadOnly) {
+        if (this.canEditSchema()) {
             items.push({
                 label: this.i18n.t(this.isNoSql() ? "sidebar.table.deleteTable.nosql" : "sidebar.table.deleteTable"),
                 icon: "\uE74D",
@@ -280,7 +291,7 @@ export class SidebarComponent {
      */
     protected onTablesSectionContextMenu(event: MouseEvent): void {
         event.preventDefault();
-        if (this.dbService.readOnly()) {
+        if (!this.canEditSchema()) {
             return;
         }
 
@@ -300,7 +311,7 @@ export class SidebarComponent {
      */
     protected onProcsSectionContextMenu(event: MouseEvent): void {
         event.preventDefault();
-        if (this.dbService.readOnly()) {
+        if (!this.canEditSchema()) {
             return;
         }
 
@@ -346,7 +357,6 @@ export class SidebarComponent {
      */
     protected onProcContextMenu(event: MouseEvent, name: string, schema: string): void {
         event.preventDefault();
-        const isReadOnly = this.dbService.readOnly();
         const items: { label: string; icon?: string; action: () => void; separator?: boolean; danger?: boolean }[] = [];
 
         items.push({
@@ -355,7 +365,7 @@ export class SidebarComponent {
             action: () => this.selectProcedure(name, schema),
         });
 
-        if (!isReadOnly) {
+        if (this.canEditSchema()) {
             items.push({ label: "", action: () => {}, separator: true });
             items.push({
                 label: this.i18n.t("sidebar.storedProcs.delete"),

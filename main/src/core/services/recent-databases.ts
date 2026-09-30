@@ -136,6 +136,27 @@ export class RecentDatabases {
     }
 
     /**
+     * Ajoute ou met à jour un fichier de partage dans l'historique. Seuls son nom
+     * et son chemin sont conservés : rien de la base à laquelle il donne accès.
+     * @param filePath - Chemin du fichier `.quarkshare`.
+     * @param name - Nom donné au partage par son auteur.
+     * @param driverType - Driver de la base partagée (logo de l'entrée).
+     */
+    public addShare(filePath: string, name: string, driverType: DatabaseDriverType): void {
+        const parts = filePath.replace(/\\/g, "/").split("/");
+
+        this.upsert({
+            connectionType: "share",
+            driverType,
+            displayName: name,
+            displaySubtitle: parts.slice(0, -1).join("/"),
+            lastOpened: Date.now(),
+            requiresPassword: true,
+            filePath,
+        });
+    }
+
+    /**
      * Retire une entrée de l'historique (menu contextuel « Supprimer »).
      * Même critère de correspondance que `upsert` : chemin de fichier, URL distante,
      * ou triplet hôte/port/base/utilisateur pour une connexion réseau.
@@ -173,7 +194,7 @@ export class RecentDatabases {
             return false;
         }
 
-        if (a.connectionType === "file") {
+        if (a.connectionType === "file" || a.connectionType === "share") {
             return a.filePath === b.filePath;
         }
 

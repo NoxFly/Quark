@@ -1,0 +1,84 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/app/shared/components/connections-manager/_connections-controls.scss";
+@use "src/app/shared/components/connections-manager/_connections-dialog.scss";
+
+.dialog {
+    width: 440px;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow: auto;
+}
+
+.tag-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .cm-input {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .remove {
+        width: 28px;
+        padding: 0;
+    }
+
+    &.create {
+        padding-top: 10px;
+        border-top: 1px solid var(--border-muted);
+    }
+}
+
+.palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0 4px 30px;
+}
+
+.swatch {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 15%);
+    cursor: pointer;
+
+    &.selected {
+        border-color: var(--text);
+    }
+
+    &:disabled {
+        opacity: .5;
+        cursor: default;
+    }
+
+    // Retour à la couleur du thème : les quatre couleurs des étiquettes fournies.
+    &.theme {
+        background: linear-gradient(135deg, var(--danger) 0 25%, var(--warning) 25% 50%, var(--success) 50% 75%, var(--accent) 75%);
+    }
+}

@@ -18,6 +18,7 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from "@angular/core";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
+import { StateService } from "src/app/core/services/state.service";
 import { ButtonComponent } from "@ui/button/button.component";
 import type { TableSchemaSql } from "src/app/core/models/database-schema.model";
 
@@ -36,6 +37,7 @@ import type { TableSchemaSql } from "src/app/core/models/database-schema.model";
 export class DatabaseSchemaComponent implements OnInit {
     private readonly noxus = inject(NoxusService);
     protected readonly i18n = inject(I18nService);
+    protected readonly state = inject(StateService);
 
     /** Callback de fermeture. */
     public dismiss?: () => void;

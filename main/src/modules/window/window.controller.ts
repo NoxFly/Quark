@@ -55,8 +55,10 @@ export class WindowController {
         const db = window.database;
         // Cette requête est sur le chemin de démarrage : elle ne doit jamais
         // pouvoir retenir le renderer indéfiniment.
+        // Schéma et chemin passent par la fenêtre : ceux d'une connexion partagée
+        // sont masqués.
         const schema = db.isOpen
-            ? await withTimeout(db.getSchema(), SCHEMA_LOAD_TIMEOUT_MS, null, "window/state getSchema")
+            ? await withTimeout(window.getDatabaseSchema(), SCHEMA_LOAD_TIMEOUT_MS, null, "window/state getSchema")
             : null;
 
         return {
@@ -64,7 +66,7 @@ export class WindowController {
             // La table sélectionnée est un état du renderer uniquement.
             selectedTable: null,
             database: schema,
-            filePath: db.path,
+            filePath: window.displayPath,
             driverType: db.driverType,
             driverInfo: db.info,
         };

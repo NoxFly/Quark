@@ -31,6 +31,7 @@ import type {
     ConnectionFolder,
     ConnectionProfile,
     ConnectionProfileInput,
+    ConnectionTagDef,
     ConnectionTestResult,
 } from "@shared/connection";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
@@ -42,7 +43,6 @@ import { SettingsService } from "src/app/core/services/settings.service";
 import {
     buildProfileInput,
     buildTestBody,
-    CONNECTION_TAGS,
     canSubmitDraft,
     DEFAULT_DRAFT_DRIVER,
     defaultPortFor,
@@ -50,11 +50,13 @@ import {
     fileBaseName,
     isServicePrincipalDraft,
     tagColor,
-    tagLabelKey,
+    tagLabel,
 } from "src/app/shared/helpers/connections.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 import { DriverThumbComponent } from "src/app/shared/components/connections-manager/driver-thumb/driver-thumb.component";
+import { SelectOptionComponent } from "@ui/select/select-option/select-option.component";
+import { SelectComponent } from "@ui/select/select.component";
 import { ToastController } from "@ui/toast/toast.controller";
 
 /**
@@ -70,7 +72,7 @@ import { ToastController } from "@ui/toast/toast.controller";
     templateUrl: "./connection-form.component.html",
     styleUrl: "./connection-form.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, TranslatePipe, DriverThumbComponent],
+    imports: [FormsModule, TranslatePipe, DriverThumbComponent, SelectComponent, SelectOptionComponent],
 })
 export class ConnectionFormComponent {
     private readonly noxus = inject(NoxusService);
@@ -85,6 +87,8 @@ export class ConnectionFormComponent {
     public readonly driverInfos = input<DriverInfo[]>([]);
     /** Dossiers proposés, déjà triés. */
     public readonly folders = input<ConnectionFolder[]>([]);
+    /** Étiquettes proposées, dans leur ordre d'affichage. */
+    public readonly tags = input<ConnectionTagDef[]>([]);
     /** Dossier présélectionné pour une création. */
     public readonly defaultFolderId = input<string>("");
     /** Incrémenté par le parent à chaque ouverture, pour réinitialiser le brouillon. */
@@ -93,10 +97,10 @@ export class ConnectionFormComponent {
 
     public readonly save = output<ConnectionProfileInput>();
     public readonly cancel = output<void>();
+    /** Ouverture de la gestion des étiquettes. */
+    public readonly manageTags = output<void>();
 
-    protected readonly tags = CONNECTION_TAGS;
     protected readonly tagColor = tagColor;
-    protected readonly tagLabelKey = tagLabelKey;
 
     protected readonly draft = linkedSignal<{ profile: ConnectionProfile | null; session: number }, ConnectionDraft>({
         source: () => ({ profile: this.profile(), session: this.session() }),
@@ -117,7 +121,13 @@ export class ConnectionFormComponent {
     );
 
     protected readonly isEditing = computed<boolean>(() => this.profile() !== null);
-    protected readonly hasStoredPassword = computed<boolean>(() => this.profile()?.hasPassword ?? false);
+    /** Le profil édité a un secret enregistré, que l'utilisateur n'a pas demandé à retirer. */
+    protected readonly hasStoredPassword = computed<boolean>(() =>
+        (this.profile()?.hasPassword ?? false) && !this.draft().clearPassword,
+    );
+
+    /** Le secret enregistré peut être retiré (édition d'un profil qui en possède un). */
+    protected readonly canClearPassword = computed<boolean>(() => this.profile()?.hasPassword ?? false);
     protected readonly isSqlite = computed<boolean>(() => this.draft().driverType === "sqlite");
     protected readonly isSqliteFile = computed<boolean>(() => this.isSqlite() && this.draft().sqliteMode === "file");
     protected readonly isMongo = computed<boolean>(() => this.draft().driverType === "mongodb");
@@ -131,8 +141,31 @@ export class ConnectionFormComponent {
             return this.i18n.t("connections.form.passwordUnchanged");
         }
 
+        if (this.draft().clearPassword) {
+            return this.i18n.t("connections.form.passwordCleared");
+        }
+
         return this.isSqliteFile() ? this.i18n.t("connections.form.passwordOptional") : "";
     });
+
+    /**
+     * Retire le secret enregistré, ou annule ce retrait.
+     */
+    protected toggleClearPassword(): void {
+        this.draft.update(draft => ({ ...draft, clearPassword: !draft.clearPassword, password: "" }));
+    }
+
+    /**
+     * Étiquette choisie ; une étiquette supprimée entre-temps ne l'est plus.
+     */
+    protected readonly selectedTag = computed<string>(() => {
+        const tag = this.draft().tag;
+        return this.tags().some(t => t.id === tag) ? tag : "";
+    });
+
+    protected tagName(tag: ConnectionTagDef): string {
+        return tagLabel(tag, key => this.i18n.t(key));
+    }
 
     /**
      * Modifie un champ du brouillon.
@@ -183,7 +216,9 @@ export class ConnectionFormComponent {
 
         // En édition, un mot de passe laissé vide signifie « inchangé » : le main
         // complète alors le test avec le secret stocké du profil.
-        const body = buildTestBody(this.draft(), this.settings.settings().connectionTimeout, this.profile()?.id);
+        // Un secret retiré ne doit pas être complété par celui du profil.
+        const profileId = this.draft().clearPassword ? undefined : this.profile()?.id;
+        const body = buildTestBody(this.draft(), this.settings.settings().connectionTimeout, profileId);
         const pending = await this.toastCtrl.create({ message: this.i18n.t("connections.test.running"), busy: true });
         let result: ConnectionTestResult;
 
@@ -209,7 +244,7 @@ export class ConnectionFormComponent {
             return;
         }
 
-        this.save.emit(buildProfileInput(this.draft(), this.isEditing()));
+        this.save.emit(buildProfileInput({ ...this.draft(), tag: this.selectedTag() }, this.isEditing()));
     }
 
     private async showTestResult(result: ConnectionTestResult): Promise<void> {

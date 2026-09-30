@@ -7,9 +7,11 @@
             <div class="cm-title">{{ p.name }}</div>
             <div class="subtitle">{{ 'connections.view.subtitle' | translate: { type: typeLabel(), folder: folderName() } }}</div>
         </div>
-        <div class="tag">
-            <span class="dot" [style.background]="dotColor()"></span>{{ tagKey() | translate }}
-        </div>
+        @if (tagName(); as name) {
+            <div class="tag">
+                <span class="dot" [style.background]="dotColor()"></span>{{ name }}
+            </div>
+        }
     </div>
 
     <div class="grid">
@@ -68,12 +70,10 @@
 </div>
 
 <div class="cm-footer">
-    <button type="button" class="cm-btn" [disabled]="busy()" (click)="importRequested.emit()">
-        {{ 'connections.import' | translate }}
-    </button>
-    <button type="button" class="cm-btn" [disabled]="busy()" [title]="'connections.exportTitle' | translate"
-        (click)="exportRequested.emit()">
-        {{ 'connections.export' | translate }}
+    <button type="button" class="cm-btn contrast" [disabled]="busy() || !shareable()"
+        [title]="(shareable() ? 'connections.shareTitle' : 'connections.shareUnavailable') | translate"
+        (click)="shareRequested.emit()">
+        <ui-icon src="E71B" nomargin /> {{ 'connections.share' | translate }}
     </button>
     <div class="cm-spacer"></div>
     <button type="button" class="cm-btn danger-quiet" [disabled]="busy()" (click)="deleteRequested.emit()">

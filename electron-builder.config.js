@@ -64,6 +64,14 @@ module.exports = {
             icon: windowsIconPath,
             role: "Editor",
         },
+        {
+            ext: ["quarkshare"],
+            name: "Quark share",
+            description: "Shared Quark database connection",
+            mimeType: "application/x-quark-share",
+            icon: windowsIconPath,
+            role: "Viewer",
+        },
     ],
     afterPack: applyElectronFuses,
     win: {
