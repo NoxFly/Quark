@@ -28,15 +28,17 @@ import {
     driverLogo,
     driverMonogram,
     fileBaseName,
+    findTag,
     formatLastConnected,
     groupProfilesByFolder,
     isRemoteSqlite,
     profileAddress,
     profileDatabaseName,
     profileDotColor,
+    reorderProfiles,
     sortFolders,
     tagColor,
-    tagLabelKey,
+    tagLabel,
     UNFILED_FOLDER_ID,
 } from "src/app/shared/helpers/connections.helper";
 
@@ -119,6 +121,27 @@ describe("groupProfilesByFolder", () => {
     });
 });
 
+describe("reorderProfiles", () => {
+    const base = (id: string, folderId: string, order?: number) => ({ id, name: id, folderId, order }) as ConnectionProfile;
+
+    it("insère le profil à la position visée et renumérote son dossier d'arrivée", () => {
+        const profiles = [base("a", "f1", 0), base("b", "f1", 1), base("c", "f2", 0)];
+        const moved = reorderProfiles(profiles, "c", "f1", 1);
+        const f1 = moved.filter(p => p.folderId === "f1").sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+
+        expect(f1.map(p => p.id)).toEqual(["a", "c", "b"]);
+        expect(profiles[2]?.folderId).toBe("f2");
+    });
+
+    it("place en premier les profils ordonnés, puis les autres par nom", () => {
+        const profiles = [base("zeta", "f1"), base("alpha", "f1"), base("moved", "f2", 0)];
+        const moved = reorderProfiles(profiles, "moved", "f1", 99);
+        const f1 = moved.filter(p => p.folderId === "f1").sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+
+        expect(f1.map(p => p.id)).toEqual(["alpha", "zeta", "moved"]);
+    });
+});
+
 describe("formatLastConnected", () => {
     const now = new Date(2026, 8, 29, 15, 0);
 
@@ -155,17 +178,31 @@ describe("formatLastConnected", () => {
 });
 
 describe("étiquettes et drivers", () => {
-    it("associe chaque étiquette à un token", () => {
-        expect(tagColor("production")).toBe("var(--danger)");
-        expect(tagColor("client")).toBe("var(--warning)");
-        expect(tagColor("local")).toBe("var(--success)");
-        expect(tagColor("other")).toBe("var(--accent)");
-        expect(tagColor(undefined)).toBe("var(--accent)");
-        expect(tagLabelKey("client")).toBe("connections.tag.client");
-        expect(tagLabelKey(undefined)).toBe("connections.tag.other");
-        expect(profileDotColor({ tag: "local", color: "#123456" })).toBe("var(--success)");
-        expect(profileDotColor({ color: "#123456" })).toBe("#123456");
-        expect(profileDotColor({})).toBe("var(--accent)");
+    const TAGS = [
+        { id: "production", order: 0 },
+        { id: "local", order: 1, color: "#46a758" },
+        { id: "custom", order: 2, name: "Recette", color: "#8e4ec6" },
+    ];
+
+    it("colore une étiquette fournie selon le thème tant qu'elle n'est pas personnalisée", () => {
+        expect(tagColor(findTag(TAGS, "production"))).toBe("var(--danger)");
+        expect(tagColor(findTag(TAGS, "local"))).toBe("#46a758");
+        expect(tagColor(findTag(TAGS, "custom"))).toBe("#8e4ec6");
+        expect(tagColor(null)).toBe("var(--text-faint)");
+    });
+
+    it("traduit le nom d'une étiquette fournie, garde celui d'une étiquette créée", () => {
+        const translate = (key: string): string => `<${key}>`;
+
+        expect(tagLabel(TAGS[0]!, translate)).toBe("<connections.tag.production>");
+        expect(tagLabel(TAGS[2]!, translate)).toBe("Recette");
+    });
+
+    it("colore la pastille d'un profil selon son étiquette, même supprimée", () => {
+        expect(profileDotColor({ tag: "local", color: "#123456" }, TAGS)).toBe("#46a758");
+        expect(profileDotColor({ color: "#123456" }, TAGS)).toBe("#123456");
+        expect(profileDotColor({ tag: "deleted" }, TAGS)).toBe("var(--text-faint)");
+        expect(profileDotColor({}, TAGS)).toBe("var(--text-faint)");
     });
 
     it("fournit logos et monogrammes", () => {
@@ -235,7 +272,7 @@ describe("draftFromProfile", () => {
         expect(d.password).toBe("");
         expect(d.color).toBe("#123456");
         expect(d.ssl).toBe(false);
-        expect(d.tag).toBe("other");
+        expect(d.tag).toBe("");
     });
 });
 
@@ -289,6 +326,10 @@ describe("buildProfileInput", () => {
     it("garde le mot de passe inchangé en édition quand le champ est vide", () => {
         expect(buildProfileInput(draft({ host: "h", database: "d" }), true).password).toBeUndefined();
         expect(buildProfileInput(draft({ host: "h", database: "d" }), false).password).toBe("");
+    });
+
+    it("retire le mot de passe enregistré quand l'utilisateur le demande", () => {
+        expect(buildProfileInput(draft({ host: "h", database: "d", clearPassword: true }), true).password).toBe("");
     });
 
     it("construit un profil MongoDB par URI", () => {

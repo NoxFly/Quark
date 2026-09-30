@@ -31,6 +31,7 @@ import { MonacoPreloadService } from "src/app/core/services/monaco-preload.servi
 import { SqlCompletionService } from "src/app/core/services/sql-completion.service";
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import { DatabaseService } from "src/app/core/services/database.service";
+import { StateService } from "src/app/core/services/state.service";
 import { ThemeService } from "src/app/core/services/theme.service";
 import type { StoredProcedureDetail, StoredProcedureExecResult, StoredProcedureParam } from "@shared/types";
 import { TooltipDirective } from "src/app/shared/ui/components/tooltip/tooltip.directive";
@@ -58,6 +59,7 @@ export class StoredProcedurePage {
     protected readonly i18n = inject(I18nService);
     protected readonly storedProcService = inject(StoredProceduresService);
     protected readonly dbService = inject(DatabaseService);
+    protected readonly state = inject(StateService);
     private readonly monacoPreload = inject(MonacoPreloadService);
     private readonly sqlCompletion = inject(SqlCompletionService);
     private readonly themeService = inject(ThemeService);

@@ -15,30 +15,33 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject, type OnInit, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, type OnInit, signal, viewChild } from "@angular/core";
 import type { ConnectionFolder, ConnectionProfile, ConnectionProfileInput } from "@shared/connection";
 import type { DriverInfo } from "@shared/driver";
 import type {
     ConnectionFolderNode,
+    ConnectionProfileMove,
     ConnectionsManagerView,
     ConnectionsPaneMode,
-    SecretPromptRequest,
 } from "src/app/core/models/connections.model";
 import { ConnectionsService } from "src/app/core/services/connections.service";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
-import {
-    groupProfilesByFolder,
-    MIN_MASTER_PASSWORD_LENGTH,
-    sortFolders,
-} from "src/app/shared/helpers/connections.helper";
+import { groupProfilesByFolder, isShareableProfile, sortFolders } from "src/app/shared/helpers/connections.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 import { ConnectionFormComponent } from "src/app/shared/components/connection-form/connection-form.component";
 import { ConnectionDetailsComponent } from "src/app/shared/components/connections-manager/connection-details/connection-details.component";
-import { ConnectionTreeComponent } from "src/app/shared/components/connections-manager/connection-tree/connection-tree.component";
+import {
+    ConnectionTreeComponent,
+    type ProfileContextMenuEvent,
+} from "src/app/shared/components/connections-manager/connection-tree/connection-tree.component";
 import { ConnectionFolderFormComponent } from "src/app/shared/components/connections-manager/folder-form/folder-form.component";
 import { SecretPromptComponent } from "src/app/shared/components/connections-manager/secret-prompt/secret-prompt.component";
+import { ShareDialogComponent } from "src/app/shared/components/connections-manager/share-dialog/share-dialog.component";
+import { TagManagerComponent } from "src/app/shared/components/connections-manager/tag-manager/tag-manager.component";
+import { ContextMenuComponent } from "src/app/shared/components/context-menu/context-menu.component";
+import type { ContextMenuItem } from "src/app/shared/components/context-menu/context-menu.types";
 import { VaultGateComponent } from "src/app/shared/components/connections-manager/vault-gate/vault-gate.component";
 import { AlertController } from "@ui/alert/alert.controller";
 import { ToastController } from "@ui/toast/toast.controller";
@@ -48,8 +51,8 @@ import type { UIColor } from "src/app/shared/ui/ui.types";
  * Gestionnaire de connexions sauvegardées (Fichier > Connexions).
  *
  * Orchestre les états du coffre chiffré (création du mot de passe maître, déverrouillage),
- * l'arbre dossiers / profils, le volet de droite (fiche, formulaire, dossier) et les saisies
- * secrètes (passphrase d'export / d'import, bascule du mot de passe maître).
+ * l'arbre dossiers / profils, le volet de droite (fiche, formulaire, dossier) et la saisie
+ * de la passphrase d'import. Le mot de passe maître se règle dans les Paramètres.
  */
 @Component({
     selector: "app-connections-manager",
@@ -64,6 +67,9 @@ import type { UIColor } from "src/app/shared/ui/ui.types";
         ConnectionTreeComponent,
         ConnectionFolderFormComponent,
         SecretPromptComponent,
+        TagManagerComponent,
+        ShareDialogComponent,
+        ContextMenuComponent,
         VaultGateComponent,
     ],
 })
@@ -77,8 +83,6 @@ export class ConnectionsManagerComponent implements OnInit {
     /** Callback de fermeture, fourni par l'ouvreur du modal. */
     public dismiss?: () => void;
 
-    protected readonly minMasterLength = MIN_MASTER_PASSWORD_LENGTH;
-
     protected readonly view = signal<ConnectionsManagerView>("loading");
     protected readonly mode = signal<ConnectionsPaneMode>("view");
     protected readonly driverInfos = signal<DriverInfo[]>([]);
@@ -88,8 +92,17 @@ export class ConnectionsManagerComponent implements OnInit {
     protected readonly formSession = signal<number>(0);
     protected readonly busy = signal<boolean>(false);
 
-    protected readonly secretPrompt = signal<SecretPromptRequest | null>(null);
-    protected readonly secretError = signal<string | null>(null);
+    /** La saisie de la passphrase d'import est ouverte. */
+    protected readonly importPrompt = signal<boolean>(false);
+    protected readonly importError = signal<string | null>(null);
+
+    /** Profil dont on crée un fichier de partage. */
+    protected readonly sharingProfile = signal<ConnectionProfile | null>(null);
+
+    /** La gestion des étiquettes est ouverte. */
+    protected readonly tagManagerOpen = signal<boolean>(false);
+
+    private readonly profileMenu = viewChild(ContextMenuComponent);
 
     protected readonly tree = computed<ConnectionFolderNode[]>(() => groupProfilesByFolder(
         this.connections.folders(),
@@ -352,46 +365,78 @@ export class ConnectionsManagerComponent implements OnInit {
     }
 
     /**
-     * Ouvre une saisie secrète : passphrase d'export / d'import, ou bascule du mot de passe maître.
+     * Applique un glisser-déposer de l'arbre.
      */
-    protected openSecretPrompt(kind: SecretPromptRequest["kind"]): void {
-        const profile = this.selectedProfile();
-        const ids = kind === "export" && profile ? [profile.id] : [];
-
-        this.secretError.set(null);
-        this.secretPrompt.set({ kind, ids });
+    protected async moveProfile(move: ConnectionProfileMove): Promise<void> {
+        await this.runBusy(() => this.connections.moveProfile(move.id, move.folderId, move.index));
     }
 
     /**
-     * Bascule l'interrupteur « Mot de passe maître ».
+     * Menu contextuel d'un profil de l'arbre : le profil est sélectionné, pour que
+     * les actions portent sur la fiche affichée.
      */
-    protected toggleMasterPassword(): void {
-        this.openSecretPrompt(this.masterEnabled() ? "disable-master" : "enable-master");
+    protected openProfileMenu({ event, profile }: ProfileContextMenuEvent): void {
+        this.selectProfile(profile);
+
+        const items: ContextMenuItem[] = [
+            { label: this.i18n.t("connections.connect"), action: () => void this.connectProfile(profile) },
+            { label: this.i18n.t("connections.edit"), action: () => this.editSelected() },
+        ];
+
+        if (isShareableProfile(profile)) {
+            items.push({ label: this.i18n.t("connections.share"), action: () => this.openShare(profile) });
+        }
+
+        items.push(
+            { label: "", action: () => {}, separator: true },
+            { label: this.i18n.t("connections.delete"), danger: true, action: () => void this.confirmDeleteProfile() },
+        );
+
+        this.profileMenu()?.open(event, items, profile.name);
     }
 
     /**
-     * Exécute l'action de la saisie secrète validée.
+     * Ouvre la création d'un fichier de partage pour un profil distant.
      */
-    protected async submitSecret(secret: string): Promise<void> {
-        const prompt = this.secretPrompt();
+    protected openShare(profile: ConnectionProfile): void {
+        if (!isShareableProfile(profile)) {
+            return;
+        }
 
-        if (!prompt || this.busy()) {
+        this.sharingProfile.set(profile);
+    }
+
+    /**
+     * Ouvre la saisie de la passphrase d'un fichier de profils à importer.
+     */
+    protected openImportPrompt(): void {
+        this.importError.set(null);
+        this.importPrompt.set(true);
+    }
+
+    /**
+     * Importe le fichier choisi avec la passphrase saisie.
+     */
+    protected async submitImport(passphrase: string): Promise<void> {
+        if (this.busy()) {
             return;
         }
 
         this.busy.set(true);
-        this.secretError.set(null);
+        this.importError.set(null);
 
         try {
-            const message = await this.runSecretAction(prompt, secret);
-            this.secretPrompt.set(null);
+            const count = await this.connections.importProfiles(passphrase);
+            this.importPrompt.set(false);
 
-            if (message) {
-                await this.toast(message);
+            // 0 : l'utilisateur a fermé le sélecteur de fichier sans rien choisir.
+            if (count > 0) {
+                this.selectFirst();
+                await this.toast(this.i18n.t("connections.importDone", { count }));
             }
         }
-        catch (err) {
-            this.secretError.set(this.secretErrorMessage(prompt, err));
+        catch {
+            this.importError.set(this.i18n.t("connections.wrongPassphrase"));
         }
         finally {
             this.busy.set(false);
@@ -403,46 +448,6 @@ export class ConnectionsManagerComponent implements OnInit {
      */
     protected driverLabel(profile: ConnectionProfile): string {
         return this.driverInfos().find(driver => driver.type === profile.driverType)?.displayName ?? profile.driverType;
-    }
-
-    /**
-     * Libellé d'une clé i18n propre au type de saisie secrète (`title`, `hint`, `label`, `submit`).
-     */
-    protected secretText(field: string): string {
-        const kind = this.secretPrompt()?.kind ?? "import";
-        return this.i18n.t(`connections.secret.${kind}.${field}`);
-    }
-
-    private async runSecretAction(prompt: SecretPromptRequest, secret: string): Promise<string | null> {
-        switch (prompt.kind) {
-            case "export": {
-                const written = await this.connections.exportProfiles(prompt.ids, secret);
-                return written ? this.i18n.t("connections.exportDone") : null;
-            }
-            case "import": {
-                const count = await this.connections.importProfiles(secret);
-                this.selectFirst();
-                return this.i18n.t("connections.importDone", { count });
-            }
-            case "enable-master":
-                await this.connections.setMasterPassword(true, secret);
-                return this.i18n.t("connections.master.enabled");
-            case "disable-master":
-                await this.connections.setMasterPassword(false, secret);
-                return this.i18n.t("connections.master.disabled");
-        }
-    }
-
-    private secretErrorMessage(prompt: SecretPromptRequest, err: unknown): string {
-        if (prompt.kind === "export" || prompt.kind === "import") {
-            return this.i18n.t("connections.wrongPassphrase");
-        }
-
-        if (prompt.kind === "disable-master") {
-            return this.i18n.t("connections.wrongPassword");
-        }
-
-        return extractIpcErrorMessage(err);
     }
 
     private async tryUnlock(masterPassword: string): Promise<boolean> {

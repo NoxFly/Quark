@@ -20,8 +20,10 @@ import type { IResponse, RendererEventRegistry, RequestOptions } from "@noxfly/n
 import { IBatchRequestItem, IBatchResponsePayload, IRequest, NoxRendererClient } from "@noxfly/noxus/renderer";
 import type { ErrorDialogPayload, IpcRendererBridge } from "@shared/ipc-renderer";
 import { AlertController } from "@ui/alert/alert.controller";
+import type { UIAction } from "src/app/shared/ui/ui.types";
 import { BehaviorSubject, from, Observable } from "rxjs";
 import { createIpcBridge } from "src/app/core/services/noxus-ipc.bridge";
+import { StateService } from "src/app/core/services/state.service";
 import { jsonParseSafe } from "src/app/shared/helpers/global.helper";
 
 /** Échéance par défaut d'une requête ; les opérations longues la désactivent. */
@@ -49,6 +51,7 @@ export class NoxusService extends NoxRendererClient {
     public declare batch: NoxRendererClient["batch"];
 
     private readonly alertCtrl = inject(AlertController);
+    private readonly state = inject(StateService);
 
     public readonly bridgeReady = new BehaviorSubject<boolean>(false);
 
@@ -107,31 +110,37 @@ export class NoxusService extends NoxRendererClient {
      *
      */
     private onErrorDialog(error: ErrorDialogPayload): void {
+        const actions: UIAction[] = [
+            {
+                text: "OK",
+                role: "cancel",
+            },
+        ];
+
+        // Presse-papiers fermé sur une connexion partagée.
+        if (!this.state.isShared()) {
+            actions.push({
+                text: "Copy",
+                role: "none",
+                icon: "e8c8",
+                color: "danger-gradient",
+                handler: (self, action) => {
+                    const err = structuredClone(error);
+                    err.details = jsonParseSafe(err.details);
+
+                    navigator.clipboard.writeText(JSON.stringify(err, null, 4));
+
+                    action.text = "Copié !";
+                    action.icon = "e73e";
+                },
+            });
+        }
+
         this.alertCtrl.create({
             title: error.title ?? "An error occurred",
             message: error.message,
             color: "danger",
-            actions: [
-                {
-                    text: "OK",
-                    role: "cancel",
-                },
-                {
-                    text: "Copy",
-                    role: "none",
-                    icon: "e8c8",
-                    color: "danger-gradient",
-                    handler: (self, action) => {
-                        const err = structuredClone(error);
-                        err.details = jsonParseSafe(err.details);
-
-                        navigator.clipboard.writeText(JSON.stringify(err, null, 4));
-
-                        action.text = "Copié !";
-                        action.icon = "e73e";
-                    },
-                },
-            ],
+            actions,
             details: error.details,
         });
     }

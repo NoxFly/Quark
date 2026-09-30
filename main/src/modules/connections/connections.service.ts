@@ -19,7 +19,7 @@ import { inject, Injectable, NotFoundException } from "@noxfly/noxus/main";
 import type { ConnectionConnectResult } from "@shared/connection";
 import type { R_TestConnectionBody } from "@shared/types";
 import { BrowserWindow, dialog } from "electron/main";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { ConnectionStore } from "src/core/services/connection-store";
 import type { StoredConnectionProfile } from "src/core/services/connection-store.types";
 import type { Window } from "src/core/services/window";
@@ -132,26 +132,6 @@ export class ConnectionsService {
         }
 
         return body.password ? body : { ...body, password: secret };
-    }
-
-    /**
-     * Exporte des profils dans un fichier chiffré choisi par l'utilisateur.
-     * @returns `false` si l'utilisateur a annulé.
-     */
-    public async exportProfiles(senderId: number, ids: string[], passphrase: string): Promise<boolean> {
-        const result = await dialog.showSaveDialog(this.parentWindow(senderId), {
-            title: "Export connections",
-            defaultPath: "connections.xml",
-            filters: [PROFILE_FILE_FILTER],
-        });
-
-        if (result.canceled || !result.filePath) {
-            return false;
-        }
-
-        await writeFile(result.filePath, await this.store.exportProfiles(ids, passphrase), "utf-8");
-
-        return true;
     }
 
     /**

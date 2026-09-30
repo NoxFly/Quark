@@ -42,6 +42,7 @@
                 class="item clickable edit-mode"
                 role="button"
                 [class.editing]="!readOnly()"
+                [class.locked]="state.isShareReadOnly()"
                 (click)="toggleReadOnly()"
                 [tooltip]="readOnly() ? i18n.t('table.switchToEdit') : i18n.t('table.switchToReadOnly')"
             >

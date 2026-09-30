@@ -199,12 +199,16 @@ export class HomeSidebarComponent implements OnInit {
             { label: this.i18n.t("home.recentMenu.open"), action: () => void this.openRecent(entry) },
         ];
 
-        if (entry.connectionType === "file" && entry.filePath) {
+        if ((entry.connectionType === "file" || entry.connectionType === "share") && entry.filePath) {
             items.push({ label: this.i18n.t("home.recentMenu.reveal"), action: () => void this.revealRecent(entry) });
         }
 
+        // Un partage ne livre pas ses informations de connexion : rien à enregistrer.
+        if (entry.connectionType !== "share") {
+            items.push({ label: this.i18n.t("home.recentMenu.saveToManager"), action: () => void this.saveRecentToManager(entry) });
+        }
+
         items.push(
-            { label: this.i18n.t("home.recentMenu.saveToManager"), action: () => void this.saveRecentToManager(entry) },
             { label: "", action: () => {}, separator: true },
             { label: this.i18n.t("home.recentMenu.remove"), danger: true, action: () => void this.removeRecent(entry) },
         );

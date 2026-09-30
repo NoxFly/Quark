@@ -24,6 +24,7 @@ import { RemoteDriver } from "src/core/driver-host/remote-driver";
 import type { DatabaseDriverType } from "@shared/driver";
 import type { ErrorDialogPayload } from "@shared/ipc-renderer";
 import type { SessionOpaqueCategory, SessionRevertResult, SessionRowRef } from "@shared/session-diff";
+import type { ShareSessionState } from "@shared/share";
 import type { DatabaseSchema, DbRecord, R_TransactionAction } from "@shared/types";
 import { AppEnv } from "src/core/env.dto";
 import { SessionDiff } from "src/core/services/session-diff";
@@ -68,6 +69,25 @@ const READY_TO_SHOW_FALLBACK_MS = 8_000;
  */
 const BULK_DETAIL_LIMIT = 500;
 
+/** Délai avant l'échéance d'un partage auquel l'utilisateur est prévenu. */
+const SHARE_EXPIRY_WARNING_MS = 5 * 60 * 1_000;
+
+/** Message d'une action refusée sur une connexion partagée. */
+const SHARE_FORBIDDEN_MESSAGE = "This action is not available on a shared connection.";
+
+/**
+ * Familles d'opérations limitées sur une connexion partagée : SQL libre, export,
+ * modification du schéma (toujours refusées), et modification des valeurs
+ * (refusée en consultation seule).
+ */
+export type ShareOperation = "sql" | "export" | "schema" | "write";
+
+/** Connexion ouverte depuis un fichier de partage. */
+export interface ShareSession extends ShareSessionState {
+    /** Écart entre l'heure vérifiée en ligne et l'horloge du poste, en millisecondes. */
+    clockOffsetMs: number;
+}
+
 /**
  * 1 instance par fenêtre (renderer).
  * Chaque fenêtre gère une seule connexion DB via un driver interchangeable.
@@ -82,6 +102,10 @@ export class Window {
     private readonly socket = inject(NoxSocket);
     private readonly _sessionDiff = new SessionDiff();
     private showFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /** Connexion partagée en cours, `null` pour une connexion ordinaire. */
+    private _share: ShareSession | null = null;
+    private shareTimers: ReturnType<typeof setTimeout>[] = [];
 
     /**
      * Identifiants mémorisés à la création : ils doivent rester lisibles après la
@@ -111,9 +135,54 @@ export class Window {
      * Ferme le driver actuel si une connexion est ouverte.
      */
     public async setDriverType(type: DatabaseDriverType): Promise<void> {
+        // Toute nouvelle connexion met fin à la connexion partagée éventuelle.
+        this.endShareSession();
+
         // L'hôte ferme lui-même la connexion en cours avant de changer de driver.
         await this._database.switchTo(type);
         this._sessionDiff.reset();
+    }
+
+    /**
+     * Connexion partagée en cours, `null` pour une connexion ordinaire.
+     */
+    public get share(): ShareSession | null {
+        return this._share;
+    }
+
+    /**
+     * Chemin ou adresse à montrer à l'utilisateur : le nom du partage pour une
+     * connexion partagée, dont l'adresse ne doit pas être révélée.
+     */
+    public get displayPath(): string | null {
+        return this._share?.name ?? this.database.path;
+    }
+
+    /**
+     * Fait de la connexion ouverte une connexion partagée : titre, restrictions et
+     * déconnexion à l'échéance.
+     */
+    public beginShareSession(session: ShareSession): void {
+        this.endShareSession();
+        this._share = session;
+        this.updateTitle();
+        this.scheduleShareExpiry(session);
+    }
+
+    /**
+     * Refuse une opération interdite sur la connexion partagée en cours. Les
+     * restrictions sont vérifiées ici, dans le main, et pas seulement masquées dans
+     * l'interface.
+     * @throws Si l'opération n'est pas permise.
+     */
+    public assertShareAllows(operation: ShareOperation): void {
+        const share = this._share;
+
+        if (!share || (operation === "write" && !share.readOnly)) {
+            return;
+        }
+
+        throw new Error(SHARE_FORBIDDEN_MESSAGE);
     }
 
     /**
@@ -206,6 +275,7 @@ export class Window {
      * Ferme la base de données.
      */
     public async closeDatabase(): Promise<void> {
+        this.endShareSession();
         await this.database.close();
         this._sessionDiff.reset();
         this.notifySessionDiffChanged();
@@ -265,6 +335,7 @@ export class Window {
      * de session décrivait une connexion qui n'existe plus.
      */
     private onDriverCrash(wasOpen: boolean): void {
+        this.endShareSession();
         this._sessionDiff.reset();
         this.notifySessionDiffChanged();
         this.updateTitle();
@@ -296,6 +367,8 @@ export class Window {
      * @param action - `begin`, `commit` ou `rollback`.
      */
     public async transactionAction(action: R_TransactionAction): Promise<void> {
+        this.assertShareAllows("write");
+
         switch (action) {
             case "begin":
                 await this.database.beginTransaction();
@@ -352,6 +425,8 @@ export class Window {
      * Modifie une cellule et enregistre l'effet dans le diff de session.
      */
     public async updateCell(table: string, rowid: number, column: string, value: unknown): Promise<void> {
+        this.assertShareAllows("write");
+
         const before = await this.captureRow(table, rowid);
         await this.database.updateCell(table, rowid, column, value);
         const after = await this.captureRow(table, rowid);
@@ -364,6 +439,8 @@ export class Window {
      * Applique la même valeur à plusieurs lignes et enregistre l'effet dans le diff.
      */
     public async batchUpdate(table: string, rowids: number[], column: string, value: unknown): Promise<void> {
+        this.assertShareAllows("write");
+
         const before = await this.captureRows(table, rowids);
 
         await this.database.batchUpdate(table, rowids, column, value);
@@ -398,6 +475,8 @@ export class Window {
      * Supprime des lignes et enregistre l'effet dans le diff de session.
      */
     public async deleteRows(table: string, rowids: number[]): Promise<void> {
+        this.assertShareAllows("write");
+
         const before = await this.captureRows(table, rowids);
 
         await this.database.deleteRows(table, rowids);
@@ -433,6 +512,8 @@ export class Window {
      * @returns Le nombre de lignes supprimées.
      */
     public async truncateTable(table: string): Promise<number> {
+        this.assertShareAllows("schema");
+
         const images = await this.captureTable(table);
         const deleted = await this.database.truncateTable(table);
 
@@ -500,6 +581,8 @@ export class Window {
      * @returns Le rowid créé et l'image de la ligne insérée.
      */
     public async insertRow(table: string, values: Record<string, unknown>): Promise<{ rowid: number; record: DbRecord | null }> {
+        this.assertShareAllows("write");
+
         const rowid = await this.database.insertRow(table, values);
         const record = await this.captureRow(table, rowid);
 
@@ -517,6 +600,8 @@ export class Window {
      * @param ref - Ligne à annuler.
      */
     public async revertSessionRow(ref: SessionRowRef): Promise<SessionRevertResult> {
+        this.assertShareAllows("write");
+
         const result = await new SessionReverter(this.database, this._sessionDiff).revertRow(ref);
 
         this.notifySessionDiffChanged();
@@ -531,6 +616,8 @@ export class Window {
      * @param tables - Tables dont toutes les lignes sont à annuler.
      */
     public async revertSessionRows(rows?: SessionRowRef[], tables?: string[]): Promise<SessionRevertResult> {
+        this.assertShareAllows("write");
+
         const result = await new SessionReverter(this.database, this._sessionDiff).revertAll(rows, tables);
 
         this.notifySessionDiffChanged();
@@ -560,7 +647,11 @@ export class Window {
         if (!this.database.isOpen) {
             return null;
         }
-        return await this.database.getSchema();
+
+        const schema = await this.database.getSchema();
+
+        // Le nom et le chemin d'une base partagée désignent son serveur.
+        return this._share ? { ...schema, name: this._share.name, path: this._share.name } : schema;
     }
 
     /**
@@ -576,9 +667,72 @@ export class Window {
         }
 
         const dbPath = this.database.path;
-        const title = dbPath ? basename(dbPath) : environment.product.displayName;
+        const title = this._share?.name ?? (dbPath ? basename(dbPath) : environment.product.displayName);
         this.win.setTitle(title);
         this.sendToRenderer("title-changed", dbPath ? title : "");
+    }
+
+    /**
+     * Programme l'avertissement puis la déconnexion d'un partage à échéance. Les
+     * délais se comptent sur l'heure vérifiée en ligne à l'ouverture, pas sur
+     * l'horloge du poste.
+     */
+    private scheduleShareExpiry(session: ShareSession): void {
+        if (session.expiresAt === null) {
+            return;
+        }
+
+        const remaining = session.expiresAt - (Date.now() + session.clockOffsetMs);
+        const warning = () => this.sendToRenderer("share-expiring", {
+            minutes: Math.max(1, Math.round(Math.min(remaining, SHARE_EXPIRY_WARNING_MS) / 60_000)),
+        });
+
+        this.shareTimers.push(
+            setTimeout(warning, Math.max(0, remaining - SHARE_EXPIRY_WARNING_MS)),
+            setTimeout(() => void this.expireShareSession(), Math.max(0, remaining)),
+        );
+    }
+
+    /**
+     * Déconnecte un partage arrivé à échéance. Une transaction en cours est
+     * annulée d'abord, pour laisser la base dans un état propre.
+     */
+    private async expireShareSession(): Promise<void> {
+        if (!this._share) {
+            return;
+        }
+
+        try {
+            if (this.database.isInTransaction) {
+                await this.database.rollback();
+            }
+        }
+        catch (error) {
+            Logger.warn(`Rollback before share expiry failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+
+        try {
+            await this.closeDatabase();
+        }
+        finally {
+            this.sendToRenderer("share-expired");
+        }
+    }
+
+    /**
+     * Met fin à la connexion partagée : minuteurs annulés, restrictions levées.
+     */
+    private endShareSession(): void {
+        for (const timer of this.shareTimers) {
+            clearTimeout(timer);
+        }
+
+        this.shareTimers = [];
+
+        if (this._share) {
+            this._share = null;
+            this._database.setRedactions([]);
+        }
     }
 
     /**

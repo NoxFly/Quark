@@ -3,7 +3,9 @@
     <div
         class="folder"
         [class.selected]="selectedFolderId() === folder.id && !selectedProfileId()"
-        (click)="folderSelected.emit(folder)">
+        (click)="folderSelected.emit(folder)"
+        (dragover)="onFolderDragOver($event, folder, open)"
+        (drop)="onDrop($event)">
         <span class="chevron" [class.open]="open" (click)="toggle($event, folder)">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
                 <polyline points="3.5,1.5 7,5 3.5,8.5" fill="none" stroke="currentColor" stroke-width="1.4"
@@ -19,16 +21,30 @@
 
     @if (open) {
         @for (profile of folder.profiles; track profile.id) {
+            @if (isLineBefore(folder, profile)) {
+                <div class="drop-line"></div>
+            }
             <div
                 class="profile"
+                draggable="true"
                 [class.selected]="selectedProfileId() === profile.id"
+                [class.dragging]="draggedId() === profile.id"
                 [title]="profile.name"
                 (click)="profileSelected.emit(profile)"
-                (dblclick)="profileOpened.emit(profile)">
+                (dblclick)="profileOpened.emit(profile)"
+                (contextmenu)="onContextMenu($event, profile)"
+                (dragstart)="onDragStart($event, profile)"
+                (dragover)="onProfileDragOver($event, folder, profile)"
+                (drop)="onDrop($event)"
+                (dragend)="onDragEnd()">
                 <app-driver-thumb [driverType]="profile.driverType" />
                 <span class="name">{{ profile.name }}</span>
                 <span class="dot" [style.background]="dotColor(profile)"></span>
             </div>
         }
+    }
+
+    @if (isLineAtEnd(folder)) {
+        <div class="drop-line"></div>
     }
 }

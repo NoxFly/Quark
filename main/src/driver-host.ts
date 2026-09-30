@@ -31,7 +31,15 @@ if (logFile) {
     Logger.enableFileLogging(logFile);
 }
 
-const host = new DriverHost(createDriver);
+// Une connexion partagée ne laisse aucune trace de son adresse dans le journal.
+const host = new DriverHost(createDriver, confidential => {
+    if (confidential) {
+        Logger.disableFileLogging();
+    }
+    else if (logFile) {
+        Logger.enableFileLogging(logFile);
+    }
+});
 const port = process.parentPort;
 
 port.on("message", event => {

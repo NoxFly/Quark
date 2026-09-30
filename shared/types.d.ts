@@ -23,6 +23,8 @@ export type AppState = {
     filePath: string | null;
     driverType: DatabaseDriverType | null;
     driverInfo: DriverInfo | null;
+    /** Connexion ouverte depuis un fichier de partage, `null` sinon. */
+    share: import("./share").ShareSessionState | null;
 };
 
 export type DatabaseSchema = {

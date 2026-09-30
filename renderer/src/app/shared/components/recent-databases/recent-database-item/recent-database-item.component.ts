@@ -20,10 +20,13 @@ import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import { I18nService } from "src/app/core/services/i18n.service";
 import { DRIVER_LOGOS, DRIVER_MONOGRAMS } from "src/app/shared/helpers/driver-presentation.helper";
 import { formatRelativeTime } from "src/app/shared/helpers/relative-time.helper";
+import { TranslatePipe } from "src/app/shared/pipes/translate.pipe";
 
 /**
  * Ligne d'une base récente : vignette 26 px (logo du driver ou monogramme),
- * nom et sous-titre « dossier ou serveur · ancienneté ».
+ * nom et sous-titre « dossier ou serveur · ancienneté ». Un pictogramme gris en
+ * coin de vignette signale un fichier de partage, ou une base qui demande un mot
+ * de passe (sous-entendu pour un partage, qui n'en porte donc pas).
  * Partagée entre la page d'accueil et la liste Ctrl+R ; le parent porte le clic.
  */
 @Component({
@@ -32,6 +35,7 @@ import { formatRelativeTime } from "src/app/shared/helpers/relative-time.helper"
     templateUrl: "./recent-database-item.component.html",
     styleUrl: "./recent-database-item.component.scss",
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [TranslatePipe],
 })
 export class RecentDatabaseItemComponent {
     private readonly i18n = inject(I18nService);
@@ -40,6 +44,16 @@ export class RecentDatabaseItemComponent {
 
     protected readonly logo = computed<string | null>(() => DRIVER_LOGOS[this.entry().driverType] ?? null);
     protected readonly monogram = computed<string>(() => DRIVER_MONOGRAMS[this.entry().driverType] ?? "DB");
+
+    protected readonly badge = computed<"share" | "lock" | null>(() => {
+        const entry = this.entry();
+
+        if (entry.connectionType === "share") {
+            return "share";
+        }
+
+        return entry.requiresPassword ? "lock" : null;
+    });
 
     protected readonly subtitle = computed<string>(() => {
         const entry = this.entry();

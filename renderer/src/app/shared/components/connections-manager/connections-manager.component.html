@@ -26,6 +26,9 @@
                 <div class="sidebar-actions">
                     <button type="button" class="add-btn" (click)="newProfile()">{{ 'connections.addConnection' | translate }}</button>
                     <button type="button" class="add-btn" (click)="newFolder()">{{ 'connections.addFolder' | translate }}</button>
+                    <button type="button" class="add-btn" [title]="'connections.importTitle' | translate" (click)="openImportPrompt()">
+                        {{ 'connections.import' | translate }}
+                    </button>
                 </div>
 
                 <app-connection-tree
@@ -33,25 +36,13 @@
                     [collapsed]="connections.collapsedFolders()"
                     [selectedProfileId]="selectedProfileId()"
                     [selectedFolderId]="mode() === 'folder' ? selectedFolderId() : null"
+                    [tags]="connections.tags()"
                     (profileSelected)="selectProfile($event)"
+                    (profileMoved)="moveProfile($event)"
+                    (profileContextMenu)="openProfileMenu($event)"
                     (profileOpened)="connectProfile($event)"
                     (folderSelected)="selectFolder($event)"
                     (folderToggled)="connections.toggleFolder($event)" />
-
-                <div class="master">
-                    <span>{{ 'connections.masterPassword' | translate }}</span>
-                    <button
-                        type="button"
-                        class="switch"
-                        role="switch"
-                        [class.on]="masterEnabled()"
-                        [attr.aria-checked]="masterEnabled()"
-                        [title]="'connections.master.description' | translate"
-                        [disabled]="busy()"
-                        (click)="toggleMasterPassword()">
-                        <span class="knob"></span>
-                    </button>
-                </div>
             </aside>
 
             <section class="pane">
@@ -61,11 +52,13 @@
                             [profile]="editingProfile()"
                             [driverInfos]="driverInfos()"
                             [folders]="sortedFolders()"
+                            [tags]="connections.tags()"
                             [defaultFolderId]="defaultFolderId()"
                             [session]="formSession()"
                             [busy]="busy()"
                             (save)="saveProfile($event)"
-                            (cancel)="cancelPane()" />
+                            (cancel)="cancelPane()"
+                            (manageTags)="tagManagerOpen.set(true)" />
                     }
                     @case ('folder') {
                         <app-connection-folder-form
@@ -81,9 +74,9 @@
                                 [profile]="profile"
                                 [folderName]="selectedProfileFolder()?.name ?? ''"
                                 [typeLabel]="driverLabel(profile)"
+                                [tags]="connections.tags()"
                                 [busy]="busy()"
-                                (importRequested)="openSecretPrompt('import')"
-                                (exportRequested)="openSecretPrompt('export')"
+                                (shareRequested)="openShare(profile)"
                                 (deleteRequested)="confirmDeleteProfile()"
                                 (editRequested)="editSelected()"
                                 (connectRequested)="connectProfile(profile)" />
@@ -91,7 +84,7 @@
                         @else {
                             <div class="empty">
                                 <span>{{ 'connections.emptySelection' | translate }}</span>
-                                <button type="button" class="cm-btn" (click)="openSecretPrompt('import')">
+                                <button type="button" class="cm-btn" (click)="openImportPrompt()">
                                     {{ 'connections.import' | translate }}
                                 </button>
                             </div>
@@ -106,17 +99,24 @@
     }
 }
 
-@if (secretPrompt(); as prompt) {
+@if (importPrompt()) {
     <app-secret-prompt
-        [title]="secretText('title')"
-        [hint]="secretText('hint')"
-        [label]="secretText('label')"
-        [confirmLabel]="prompt.kind === 'enable-master' ? ('connections.confirmMasterPassword' | translate) : null"
-        [minLength]="prompt.kind === 'enable-master' ? minMasterLength : 1"
-        [isNewSecret]="prompt.kind === 'enable-master' || prompt.kind === 'export'"
-        [submitLabel]="secretText('submit')"
-        [error]="secretError()"
+        [title]="'connections.secret.import.title' | translate"
+        [hint]="'connections.secret.import.hint' | translate"
+        [label]="'connections.secret.import.label' | translate"
+        [submitLabel]="'connections.secret.import.submit' | translate"
+        [error]="importError()"
         [busy]="busy()"
-        (submitted)="submitSecret($event)"
-        (cancelled)="secretPrompt.set(null)" />
+        (submitted)="submitImport($event)"
+        (cancelled)="importPrompt.set(false)" />
 }
+
+@if (sharingProfile(); as profile) {
+    <app-share-dialog [profile]="profile" (closed)="sharingProfile.set(null)" />
+}
+
+@if (tagManagerOpen()) {
+    <app-tag-manager (closed)="tagManagerOpen.set(false)" />
+}
+
+<app-context-menu />

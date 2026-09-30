@@ -1,0 +1,69 @@
+/*
+ * Quark
+ * Copyright (C) 2026 NoxFly
+ *
+ * FR : Ce programme est un logiciel libre ; vous pouvez le redistribuer ou le
+ * modifier selon les termes de la GNU Affero General Public License, version 3,
+ * telle que publiée par la Free Software Foundation. Il est distribué dans
+ * l'espoir d'être utile, mais SANS AUCUNE GARANTIE. Voir le fichier LICENSE.
+ *
+ * EN : This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License, version 3, as
+ * published by the Free Software Foundation. It is distributed in the hope that
+ * it will be useful, but WITHOUT ANY WARRANTY. See the LICENSE file.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+@use "src/app/shared/components/connections-manager/_connections-controls.scss";
+@use "src/app/shared/components/connections-manager/_connections-dialog.scss";
+
+// Large plutôt que haute : tout le formulaire tient sans défiler.
+.dialog {
+    width: 680px;
+}
+
+// En-tête et pied d'une seule pièce avec le contenu : ni bordure, ni fond propre.
+.head {
+    padding-bottom: 4px;
+    border-bottom: none;
+    background: inherit;
+}
+
+.actions {
+    padding-top: 4px;
+    border-top: none;
+}
+
+// Conséquences du partage : les identifiants voyagent dans le fichier.
+.warning {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    border: 1px solid var(--warning);
+    border-radius: var(--radius-m);
+    background: var(--warning-bg);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text);
+
+    strong {
+        font-weight: 600;
+    }
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+
+    .full {
+        grid-column: 1 / -1;
+    }
+}
+
+.options {
+    display: flex;
+    gap: 24px;
+}

@@ -47,6 +47,7 @@ export class AppService {
                 filePath: null,
                 driverType: null,
                 driverInfo: null,
+                share: null,
             };
         }
 
@@ -55,12 +56,15 @@ export class AppService {
             ? await withTimeout(window.getDatabaseSchema(), SCHEMA_LOAD_TIMEOUT_MS, null, "app/state getSchema")
             : null;
 
+        const share = window.share;
+
         return {
             connected: isOpen,
             database: schema,
-            filePath: window.database.path,
+            filePath: window.displayPath,
             driverType: window.database.driverType,
             driverInfo: window.database.info,
+            share: share ? { name: share.name, readOnly: share.readOnly, expiresAt: share.expiresAt } : null,
         };
     }
 }

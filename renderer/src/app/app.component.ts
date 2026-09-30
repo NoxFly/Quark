@@ -38,6 +38,8 @@ import { EntitySearchComponent } from "./shared/components/entity-search/entity-
 import { StoredProceduresService } from "src/app/core/services/stored-procedures.service";
 import { SessionDiffService } from "src/app/core/services/session-diff.service";
 import { UpdateService } from "src/app/core/services/update.service";
+import { I18nService } from "src/app/core/services/i18n.service";
+import { ToastController } from "@ui/toast/toast.controller";
 import { SettingsPage } from "src/app/views/settings/settings.page";
 import { withTimeout } from "src/app/shared/helpers/global.helper";
 import { isTextEntryTarget } from "src/app/shared/helpers/shortcut.helper";
@@ -85,6 +87,8 @@ const CHORD_TIMEOUT_MS = 1000;
         "(mouseleave)": "isHovered.set(false)",
         "(dragover)": "onGlobalDragOver($event)",
         "(drop)": "onGlobalDrop($event)",
+        "(document:copy)": "blockClipboardWhenShared($event)",
+        "(document:cut)": "blockClipboardWhenShared($event)",
         "[class.app-blurred]": "hasFocus() === false",
         "[class.hovered]": "isHovered() === true",
     },
@@ -125,6 +129,8 @@ export class AppComponent {
     private readonly updateService = inject(UpdateService);
     private readonly sessionDiffService = inject(SessionDiffService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly toastCtrl = inject(ToastController);
+    private readonly i18n = inject(I18nService);
 
     /**
      *
@@ -150,6 +156,29 @@ export class AppComponent {
         // Écouter les événements d'ouverture de fichier depuis le main process
         this.noxus.ipc.onFileOpened((filePath: string) => {
             this.dbService.openFile(filePath);
+        });
+
+        // Connexion partagée à échéance : prévenue quelques minutes avant, puis
+        // fermée par le main (transaction annulée d'abord).
+        this.noxus.ipc.onShareExpiring(({ minutes }) => {
+            void this.toastCtrl.create({
+                message: this.i18n.t("share.expiring", { minutes }),
+                color: "dark",
+                position: "bottom-center",
+                duration: 15_000,
+                closable: true,
+            });
+        });
+
+        this.noxus.ipc.onShareExpired(() => {
+            this.dbService.onShareExpired();
+            void this.toastCtrl.create({
+                message: this.i18n.t("share.expired"),
+                color: "dark",
+                position: "bottom-center",
+                duration: 8_000,
+                closable: true,
+            });
         });
 
         // Écouter les changements de titre depuis le main process
@@ -267,6 +296,7 @@ export class AppComponent {
         }
 
         this.state.connected.set(true);
+        this.state.share.set(appState.share);
         this.state.database.set(appState.database);
         this.state.filePath.set(appState.filePath);
         this.state.driverType.set(appState.driverType);
@@ -278,6 +308,16 @@ export class AppComponent {
         // Recharger les procédures stockées si le driver les supporte (ex: après Ctrl+Alt+R)
         if (appState.driverInfo?.capabilities?.storedProcedures) {
             void this.storedProcService.loadProcedures();
+        }
+    }
+
+    /**
+     * Sur une connexion partagée, le presse-papiers est fermé : copier les données
+     * reviendrait à les exporter.
+     */
+    protected blockClipboardWhenShared(event: ClipboardEvent): void {
+        if (this.state.isShared()) {
+            event.preventDefault();
         }
     }
 

@@ -79,6 +79,9 @@ export class RemoteDriver implements DatabaseDriver {
     /** Le process a été arrêté volontairement : sa sortie n'est pas un incident. */
     private stopping = false;
 
+    /** Informations de connexion à retirer des messages d'erreur (connexion partagée). */
+    private redactions: string[] = [];
+
     /**
      * @param onCrash - Appelé quand le process hôte s'arrête sans qu'on le lui ait
      * demandé : la connexion est perdue et l'interface doit le savoir.
@@ -120,6 +123,17 @@ export class RemoteDriver implements DatabaseDriver {
     public async switchTo(type: DatabaseDriverType): Promise<void> {
         await this.send({ kind: "init", driverType: type });
         this.type = type;
+    }
+
+    /**
+     * Retire des messages d'erreur les informations de connexion données (hôte,
+     * utilisateur, base, secrets) : ceux d'une connexion partagée ne doivent pas
+     * les révéler, ni à l'écran ni dans les journaux. Une liste vide lève le masquage.
+     */
+    public setRedactions(values: readonly string[]): void {
+        // Les valeurs les plus longues d'abord : une adresse complète avant l'hôte
+        // qu'elle contient. Trop courtes, elles défigureraient les messages.
+        this.redactions = [...new Set(values)].filter(value => value.length >= 3).sort((a, b) => b.length - a.length);
     }
 
     /**
@@ -394,6 +408,10 @@ export class RemoteDriver implements DatabaseDriver {
         return child;
     }
 
+    private redact(message: string): string {
+        return this.redactions.reduce((text, value) => text.split(value).join(REDACTED), message);
+    }
+
     private onResponse(response: DriverHostResponse): void {
         this.state = response.state;
 
@@ -409,7 +427,7 @@ export class RemoteDriver implements DatabaseDriver {
             call.resolve(response.result);
         }
         else {
-            call.reject(new Error(response.error));
+            call.reject(new Error(this.redact(response.error)));
         }
     }
 
@@ -440,6 +458,9 @@ export class RemoteDriver implements DatabaseDriver {
         this.pending.clear();
     }
 }
+
+/** Marque remplaçant une information de connexion masquée. */
+const REDACTED = "•••";
 
 function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);

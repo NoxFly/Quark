@@ -253,7 +253,8 @@ export class TitlebarComponent {
                 shortcut: this.key("Ctrl+E"),
                 checked: connected && !isReadOnly,
                 action: () => this.dbService.toggleReadOnly(),
-                disabled: !connected,
+                // Un partage en consultation seule ne passe pas en édition.
+                disabled: !connected || this.state.isShareReadOnly(),
             },
         ];
 

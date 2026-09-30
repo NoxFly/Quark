@@ -20,12 +20,15 @@ import type {
     ConnectionFolder,
     ConnectionProfile,
     ConnectionProfileInput,
+    ConnectionTagDef,
+    ConnectionTagInput,
     ConnectionTestResult,
     ConnectionVaultStatus,
 } from "@shared/connection";
 import type { R_TestConnectionBody } from "@shared/types";
 import { DatabaseService } from "src/app/core/services/database.service";
 import { NoxusService } from "src/app/core/services/noxus.service";
+import { reorderProfiles } from "src/app/shared/helpers/connections.helper";
 
 const COLLAPSED_FOLDERS_STORAGE_KEY = "quark.connections.collapsedFolders";
 
@@ -49,6 +52,8 @@ export class ConnectionsService {
 
     public readonly profiles = signal<ConnectionProfile[]>([]);
     public readonly folders = signal<ConnectionFolder[]>([]);
+    /** Étiquettes du coffre, dans leur ordre d'affichage. */
+    public readonly tags = signal<ConnectionTagDef[]>([]);
     /** Dossiers repliés dans l'arbre du gestionnaire (persistés entre les sessions). */
     public readonly collapsedFolders = signal<ReadonlySet<string>>(this.readCollapsedFolders());
 
@@ -95,6 +100,7 @@ export class ConnectionsService {
         await this.noxus.ipc.connLock();
         this.profiles.set([]);
         this.folders.set([]);
+        this.tags.set([]);
         await this.refreshStatus();
     }
 
@@ -110,10 +116,61 @@ export class ConnectionsService {
     }
 
     /**
-     * @description Charge profils et dossiers (coffre déverrouillé requis).
+     * @description Charge profils, dossiers et étiquettes (coffre déverrouillé requis).
      */
     public async loadAll(): Promise<void> {
-        await Promise.all([this.loadProfiles(), this.loadFolders()]);
+        await Promise.all([this.loadProfiles(), this.loadFolders(), this.loadTags()]);
+    }
+
+    /**
+     * @description Charge la liste des étiquettes (coffre déverrouillé requis).
+     */
+    public async loadTags(): Promise<void> {
+        this.tags.set(await this.noxus.ipc.connTags());
+    }
+
+    /**
+     * @description Crée une étiquette puis recharge la liste.
+     * @param input Nom et couleur.
+     * @returns L'étiquette créée.
+     */
+    public async createTag(input: ConnectionTagInput): Promise<ConnectionTagDef> {
+        const tag = await this.noxus.ipc.connTagCreate(input);
+        await this.loadTags();
+        return tag;
+    }
+
+    /**
+     * @description Renomme ou recolore une étiquette puis recharge la liste.
+     * @param id Étiquette modifiée.
+     * @param input Champs modifiés (un champ absent reste inchangé).
+     */
+    public async updateTag(id: string, input: ConnectionTagInput): Promise<void> {
+        await this.noxus.ipc.connTagUpdate(id, input);
+        await this.loadTags();
+    }
+
+    /**
+     * @description Supprime une étiquette ; les profils qui la portaient sont rechargés sans elle.
+     * @param id Étiquette supprimée.
+     */
+    public async deleteTag(id: string): Promise<void> {
+        await this.noxus.ipc.connTagDelete(id);
+        await Promise.all([this.loadTags(), this.loadProfiles()]);
+    }
+
+    /**
+     * @description Déplace un profil dans un dossier, à la position donnée, puis recharge
+     * la liste. La liste locale est réordonnée aussitôt pour que l'arbre ne revienne pas
+     * brièvement à l'ancien ordre pendant l'aller-retour IPC.
+     * @param id Profil déplacé.
+     * @param folderId Dossier d'arrivée.
+     * @param index Position parmi les autres profils de ce dossier.
+     */
+    public async moveProfile(id: string, folderId: string, index: number): Promise<void> {
+        this.profiles.update(profiles => reorderProfiles(profiles, id, folderId, index));
+        await this.noxus.ipc.connMove(id, folderId, index);
+        await this.loadProfiles();
     }
 
     /**
@@ -238,16 +295,6 @@ export class ConnectionsService {
      */
     public async connect(profile: ConnectionProfile): Promise<void> {
         await this.dbService.connectFromProfile(profile);
-    }
-
-    /**
-     * @description Exporte des profils vers un fichier XML chiffré par une passphrase.
-     * @param ids Profils à exporter.
-     * @param passphrase Passphrase du fichier.
-     * @returns `true` si l'export a été écrit, `false` si l'utilisateur a annulé.
-     */
-    public async exportProfiles(ids: string[], passphrase: string): Promise<boolean> {
-        return this.noxus.ipc.connExport(ids, passphrase);
     }
 
     /**

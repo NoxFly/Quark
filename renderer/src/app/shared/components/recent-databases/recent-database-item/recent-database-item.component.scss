@@ -23,6 +23,27 @@
     text-align: left;
 }
 
+// Porte le pictogramme de coin, que le rognage de la vignette couperait.
+.thumb-wrap {
+    position: relative;
+    flex: none;
+}
+
+.badge {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg-app);
+    box-shadow: 0 0 0 1px var(--border);
+    color: var(--text-muted);
+}
+
 .thumb {
     display: flex;
     flex: none;

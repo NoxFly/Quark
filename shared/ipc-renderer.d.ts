@@ -113,9 +113,25 @@ export interface IpcRendererBridge {
     connUpdate(id: string, input: import("./connection").ConnectionProfileInput): Promise<import("./connection").ConnectionProfile>;
     connDelete(id: string): Promise<void>;
     connConnect(id: string): Promise<import("./connection").ConnectionConnectResult>;
-    connExport(ids: string[], passphrase: string): Promise<boolean>;
     connImport(passphrase: string): Promise<number>;
+    /** Déplace un profil dans un dossier, à la position donnée. */
+    connMove(id: string, folderId: string, index: number): Promise<import("./connection").ConnectionProfile>;
+    connTags(): Promise<import("./connection").ConnectionTagDef[]>;
+    connTagCreate(input: import("./connection").ConnectionTagInput): Promise<import("./connection").ConnectionTagDef>;
+    connTagUpdate(id: string, input: import("./connection").ConnectionTagInput): Promise<import("./connection").ConnectionTagDef>;
+    /** Supprime une étiquette ; les profils qui la portaient n'en ont plus. */
+    connTagDelete(id: string): Promise<void>;
     connFolders(): Promise<import("./connection").ConnectionFolder[]>;
+    /** Crée un fichier de partage ; `false` si l'utilisateur a annulé l'enregistrement. */
+    shareCreate(body: import("./share").R_ShareCreateBody): Promise<boolean>;
+    /** Secret enregistré d'un profil partageable, pour préremplir le dialogue de partage. */
+    shareProfileSecret(profileId: string): Promise<string>;
+    /** Ouvre un fichier de partage dans la fenêtre. */
+    shareOpen(filePath: string, password: string): Promise<import("./share").R_ShareOpenResponse>;
+    /** La connexion partagée arrive à échéance dans quelques minutes. */
+    onShareExpiring(cb: (payload: { minutes: number }) => void): void;
+    /** La connexion partagée est arrivée à échéance et a été fermée. */
+    onShareExpired(cb: () => void): void;
     connFolderCreate(input: import("./connection").ConnectionFolderInput): Promise<import("./connection").ConnectionFolder>;
     connFolderUpdate(id: string, input: import("./connection").ConnectionFolderInput): Promise<import("./connection").ConnectionFolder>;
     /** Supprime un dossier ; ses profils sont déplacés dans le premier dossier restant. */
@@ -153,8 +169,11 @@ export interface ErrorDialogPayload {
 }
 
 export interface RecentDatabaseEntry {
-    /** Type de connexion : fichier local, connexion réseau ou base SQLite distante. */
-    connectionType: "file" | "network" | "remote";
+    /**
+     * Type de connexion : fichier local, connexion réseau, base SQLite distante, ou
+     * fichier de partage (`filePath` ; son mot de passe est toujours demandé).
+     */
+    connectionType: "file" | "network" | "remote" | "share";
     /** Driver utilisé pour cette connexion. */
     driverType: import("./driver").DatabaseDriverType;
     /** Nom affiché dans la liste (nom de fichier ou nom de base de données). */

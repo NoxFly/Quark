@@ -18,9 +18,12 @@
 
     <div class="dialog-footer">
         <ui-button (click)="close()">{{ i18n.t('schemaViewer.close') }}</ui-button>
-        <ui-button icon="e8c8" (click)="copyAll()">
-            {{ copied() ? i18n.t('schemaViewer.copied') : i18n.t('schemaViewer.copyAll') }}
-        </ui-button>
-        <ui-button color="primary" icon="e74e" (click)="exportSql()">{{ i18n.t('schemaViewer.export') }}</ui-button>
+        <!-- Ni copie ni export sur une connexion partagée. -->
+        @if (!state.isShared()) {
+            <ui-button icon="e8c8" (click)="copyAll()">
+                {{ copied() ? i18n.t('schemaViewer.copied') : i18n.t('schemaViewer.copyAll') }}
+            </ui-button>
+            <ui-button color="primary" icon="e74e" (click)="exportSql()">{{ i18n.t('schemaViewer.export') }}</ui-button>
+        }
     </div>
 </div>

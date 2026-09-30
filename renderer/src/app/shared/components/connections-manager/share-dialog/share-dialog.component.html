@@ -1,0 +1,70 @@
+<div class="backdrop" (click)="closed.emit()"></div>
+
+<div class="dialog" role="dialog" aria-modal="true" (keydown.escape)="$event.stopPropagation(); closed.emit()">
+    <div class="head">
+        <div class="cm-title">{{ 'share.create.title' | translate: { name: profile().name } }}</div>
+        <button type="button" class="close" [attr.aria-label]="'connections.close' | translate" (click)="closed.emit()">✕</button>
+    </div>
+
+    <div class="body">
+        <div class="warning" role="note">
+            <strong>{{ 'share.create.warningTitle' | translate }}</strong>
+            <span>{{ 'share.create.warning' | translate }}</span>
+        </div>
+
+        <div class="grid">
+            <div class="cm-field full">
+                <label for="share-name">{{ 'share.create.name' | translate }}</label>
+                <input id="share-name" class="cm-input" type="text" autocomplete="off"
+                    [ngModel]="name()" (ngModelChange)="name.set($event)" />
+                <div class="cm-hint">{{ 'share.create.nameHint' | translate }}</div>
+            </div>
+
+            @if (hasUsername()) {
+                <div class="cm-field">
+                    <label for="share-user">{{ 'connections.form.username' | translate }}</label>
+                    <input id="share-user" class="cm-input" type="text" autocomplete="off"
+                        [ngModel]="username()" (ngModelChange)="username.set($event)" />
+                </div>
+            }
+            <div class="cm-field" [class.full]="!hasUsername()">
+                <label for="share-secret">{{ secretLabelKey() | translate }}</label>
+                <input id="share-secret" class="cm-input" type="password" autocomplete="new-password"
+                    [placeholder]="'share.create.secretPlaceholder' | translate"
+                    [ngModel]="secret()" (ngModelChange)="secret.set($event)" />
+            </div>
+
+            <div class="cm-field">
+                <label for="share-password">{{ 'share.create.password' | translate }}</label>
+                <input id="share-password" class="cm-input" type="password" autocomplete="new-password"
+                    [placeholder]="'share.create.passwordPlaceholder' | translate: { min: minPasswordLength }"
+                    [ngModel]="password()" (ngModelChange)="password.set($event)"
+                    (keydown.enter)="submit()" />
+            </div>
+            <div class="cm-field">
+                <label for="share-expiry">{{ 'share.create.expiry' | translate }}</label>
+                <ui-select id="share-expiry" class="cm-select" [ngModel]="expiry()" (ngModelChange)="expiry.set($event)">
+                    @for (hours of expiryChoices; track hours) {
+                        <ui-select-option [value]="hours">{{ expiryLabel(hours) }}</ui-select-option>
+                    }
+                </ui-select>
+            </div>
+        </div>
+
+        <div class="options">
+            <ui-switch [label]="'share.create.readOnly' | translate" [(value)]="readOnly" />
+            <ui-switch [label]="'share.create.singleUse' | translate" [(value)]="singleUse" />
+        </div>
+
+        @if (error(); as message) {
+            <div class="cm-error">{{ message }}</div>
+        }
+    </div>
+
+    <div class="actions">
+        <button type="button" class="cm-btn" (click)="closed.emit()">{{ 'editor.cancel' | translate }}</button>
+        <button type="button" class="cm-btn contrast" [disabled]="!canSubmit()" (click)="submit()">
+            {{ 'share.create.submit' | translate }}
+        </button>
+    </div>
+</div>

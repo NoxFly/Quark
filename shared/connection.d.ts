@@ -39,11 +39,35 @@ export type ConnectionType = "file" | "network";
 export type AzureAuthMode = "sql" | "service-principal";
 
 /**
- * Étiquette d'un profil, affichée en pastille de couleur dans le gestionnaire.
- * La couleur est choisie par l'interface : production (rouge), client (ambre),
- * local (vert), other (accent).
+ * Identifiants des étiquettes fournies par l'application. Elles sont créées dans
+ * chaque coffre, puis modifiables et supprimables comme les autres ; tant que leur
+ * nom n'est pas personnalisé, l'interface l'affiche traduit.
  */
-export type ConnectionTag = "production" | "client" | "local" | "other";
+export type BuiltinConnectionTagId = "production" | "client" | "local" | "other";
+
+/**
+ * Étiquette du gestionnaire, affichée en pastille de couleur. Rangée dans le
+ * coffre, avec les dossiers.
+ */
+export interface ConnectionTagDef {
+    /** Identifiant : celui d'une étiquette fournie, ou un UUID. */
+    id: string;
+    /** Nom affiché ; absent pour une étiquette fournie dont le nom n'a pas changé. */
+    name?: string;
+    /**
+     * Couleur `#rrggbb` ; absente pour une étiquette fournie non personnalisée,
+     * qui suit alors la couleur du thème (danger, avertissement, succès, accent).
+     */
+    color?: string;
+    /** Ordre d'affichage (croissant). */
+    order: number;
+}
+
+/** Données fournies pour créer ou modifier une étiquette. */
+export interface ConnectionTagInput {
+    name?: string;
+    color?: string;
+}
 
 /**
  * Source d'une base SQLite : fichier local, ou base servie à distance (libSQL / Turso,
@@ -123,8 +147,13 @@ export interface ConnectionProfile {
     ssl?: boolean;
     /** Dossier de rangement. */
     folderId?: string;
-    /** Étiquette (pastille de couleur). */
-    tag?: ConnectionTag;
+    /** Étiquette (identifiant d'une `ConnectionTagDef`). */
+    tag?: string;
+    /**
+     * Position dans son dossier (croissante), fixée par un glisser-déposer. Absente,
+     * le profil suit ceux qui en ont une, par ordre alphabétique.
+     */
+    order?: number;
     /** Notes libres. */
     notes?: string;
     /** Indique qu'un mot de passe est stocké pour ce profil (jamais sa valeur). */
@@ -160,7 +189,7 @@ export interface ConnectionProfileInput {
     uri?: string;
     ssl?: boolean;
     folderId?: string;
-    tag?: ConnectionTag;
+    tag?: string;
     notes?: string;
     /** Secret à enregistrer. `undefined` = inchangé (en update) ; "" = aucun mot de passe. */
     password?: string;

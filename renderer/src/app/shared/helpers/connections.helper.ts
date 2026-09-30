@@ -16,10 +16,11 @@
  */
 
 import type {
+    BuiltinConnectionTagId,
     ConnectionFolder,
     ConnectionProfile,
     ConnectionProfileInput,
-    ConnectionTag,
+    ConnectionTagDef,
 } from "@shared/connection";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
@@ -35,8 +36,14 @@ import type {
 /** Identifiant du dossier de repli affiché quand aucun dossier n'existe. */
 export const UNFILED_FOLDER_ID = "__unfiled__";
 
-/** Étiquettes proposées, dans l'ordre d'affichage. */
-export const CONNECTION_TAGS: readonly ConnectionTag[] = ["production", "client", "local", "other"];
+/**
+ * Couleurs proposées pour une étiquette. Fixes (non thémées) : une couleur choisie
+ * doit rester la même d'un thème à l'autre, et lisible sur fond clair comme sombre.
+ */
+export const TAG_PALETTE: readonly string[] = [
+    "#e5484d", "#f76b15", "#f5a524", "#46a758", "#12a594", "#0091ff",
+    "#3e63dd", "#8e4ec6", "#d6409f", "#8d8d86", "#6e56cf", "#a18072",
+];
 
 /** Longueur minimale d'un mot de passe maître. */
 export const MIN_MASTER_PASSWORD_LENGTH = 4;
@@ -44,12 +51,16 @@ export const MIN_MASTER_PASSWORD_LENGTH = 4;
 /** Type proposé par défaut pour une nouvelle connexion. */
 export const DEFAULT_DRAFT_DRIVER: DatabaseDriverType = "postgresql";
 
-const TAG_COLORS: Record<ConnectionTag, string> = {
+/** Couleur de thème d'une étiquette fournie, tant qu'elle n'est pas personnalisée. */
+const BUILTIN_TAG_COLORS: Record<BuiltinConnectionTagId, string> = {
     production: "var(--danger)",
     client: "var(--warning)",
     local: "var(--success)",
     other: "var(--accent)",
 };
+
+/** Pastille d'un profil sans étiquette. */
+const NO_TAG_COLOR = "var(--text-faint)";
 
 const DRIVER_LOGOS: Record<DatabaseDriverType, string> = {
     sqlite: "images/logo-sqlite.png",
@@ -124,7 +135,7 @@ export function groupProfilesByFolder(
     }
 
     for (const node of nodes) {
-        node.profiles.sort((a, b) => a.name.localeCompare(b.name));
+        node.profiles.sort(compareProfiles);
     }
 
     return nodes;
@@ -170,35 +181,116 @@ export function formatLastConnected(
 }
 
 /**
- * @description Couleur (token CSS) de la pastille d'une étiquette.
- * @param tag Étiquette du profil (absente : « Autre »).
- * @returns Une expression `var(--…)`.
+ * @description Indique si un identifiant est celui d'une étiquette fournie par l'application.
+ * @param id Identifiant d'étiquette.
  */
-export function tagColor(tag: ConnectionTag | undefined): string {
-    return TAG_COLORS[tag ?? "other"];
+export function isBuiltinTagId(id: string): id is BuiltinConnectionTagId {
+    return Object.hasOwn(BUILTIN_TAG_COLORS, id);
+}
+
+/**
+ * @description Retrouve l'étiquette d'un profil.
+ * @param tags Étiquettes du coffre.
+ * @param id Identifiant porté par le profil.
+ * @returns L'étiquette, ou `null` si le profil n'en a pas (ou plus).
+ */
+export function findTag(tags: readonly ConnectionTagDef[], id: string | undefined): ConnectionTagDef | null {
+    return id ? tags.find(tag => tag.id === id) ?? null : null;
+}
+
+/**
+ * @description Couleur de la pastille d'une étiquette : sa couleur personnalisée, ou le
+ * token de thème d'une étiquette fournie.
+ * @param tag Étiquette (absente : pastille neutre).
+ * @returns Une couleur CSS.
+ */
+export function tagColor(tag: ConnectionTagDef | null): string {
+    if (!tag) {
+        return NO_TAG_COLOR;
+    }
+
+    return tag.color ?? (isBuiltinTagId(tag.id) ? BUILTIN_TAG_COLORS[tag.id] : NO_TAG_COLOR);
+}
+
+/**
+ * @description Libellé d'une étiquette : son nom, ou le nom traduit d'une étiquette fournie.
+ * @param tag Étiquette.
+ * @param translate Traduction d'une clé i18n.
+ */
+export function tagLabel(tag: ConnectionTagDef, translate: (key: string) => string): string {
+    return tag.name ?? (isBuiltinTagId(tag.id) ? translate(`connections.tag.${tag.id}`) : tag.id);
 }
 
 /**
  * @description Couleur de la pastille d'un profil : celle de son étiquette, ou la couleur
  * libre d'un ancien profil sans étiquette (champ `color` remplacé par l'étiquette).
  * @param profile Profil sauvegardé.
+ * @param tags Étiquettes du coffre.
  * @returns Une couleur CSS.
  */
-export function profileDotColor(profile: Pick<ConnectionProfile, "tag" | "color">): string {
-    if (!profile.tag && profile.color) {
+export function profileDotColor(profile: Pick<ConnectionProfile, "tag" | "color">, tags: readonly ConnectionTagDef[]): string {
+    const tag = findTag(tags, profile.tag);
+
+    if (!tag && profile.color) {
         return profile.color;
     }
 
-    return tagColor(profile.tag);
+    return tagColor(tag);
 }
 
 /**
- * @description Clé i18n du libellé d'une étiquette.
- * @param tag Étiquette du profil (absente : « Autre »).
- * @returns La clé de traduction.
+ * @description Ordre d'affichage de deux profils d'un même dossier : position fixée par un
+ * glisser-déposer d'abord, puis ordre alphabétique pour ceux qui n'en ont pas.
  */
-export function tagLabelKey(tag: ConnectionTag | undefined): string {
-    return `connections.tag.${tag ?? "other"}`;
+export function compareProfiles(a: ConnectionProfile, b: ConnectionProfile): number {
+    if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+    }
+
+    if (a.order !== undefined) {
+        return -1;
+    }
+
+    if (b.order !== undefined) {
+        return 1;
+    }
+
+    return a.name.localeCompare(b.name);
+}
+
+/**
+ * @description Applique localement un déplacement de profil, comme le fait le main : le
+ * profil rejoint le dossier à la position donnée, et ce dossier est renuméroté.
+ * @param profiles Profils du coffre.
+ * @param id Profil déplacé.
+ * @param folderId Dossier d'arrivée.
+ * @param index Position parmi les autres profils de ce dossier (bornée).
+ * @returns Une nouvelle liste ; l'entrée n'est pas modifiée.
+ */
+export function reorderProfiles(
+    profiles: readonly ConnectionProfile[],
+    id: string,
+    folderId: string,
+    index: number,
+): ConnectionProfile[] {
+    const moved = profiles.find(profile => profile.id === id);
+
+    if (!moved) {
+        return [...profiles];
+    }
+
+    const siblings = profiles
+        .filter(profile => profile.folderId === folderId && profile.id !== id)
+        .sort(compareProfiles);
+
+    siblings.splice(Math.max(0, Math.min(index, siblings.length)), 0, { ...moved, folderId });
+
+    const positions = new Map(siblings.map((profile, position) => [profile.id, position]));
+
+    return profiles.map(profile => {
+        const order = positions.get(profile.id);
+        return order === undefined ? profile : { ...profile, folderId, order };
+    });
 }
 
 /**
@@ -311,6 +403,7 @@ export function draftFromProfile(profile: ConnectionProfile | null, defaults: Co
             port: defaults.port,
             username: "",
             password: "",
+            clearPassword: false,
             database: "",
             authMode: "sql",
             clientId: "",
@@ -341,12 +434,13 @@ export function draftFromProfile(profile: ConnectionProfile | null, defaults: Co
         port: profile.port ?? defaults.port,
         username: profile.username ?? "",
         password: "",
+        clearPassword: false,
         database: profile.database ?? "",
         authMode: profile.authMode ?? "sql",
         clientId: profile.clientId ?? "",
         tenantId: profile.tenantId ?? "",
         folderId: profile.folderId ?? defaults.folderId,
-        tag: profile.tag ?? "other",
+        tag: profile.tag ?? "",
         ssl: profile.ssl ?? defaults.ssl,
         notes: profile.notes ?? "",
         color: profile.color,
@@ -388,6 +482,16 @@ export function canSubmitDraft(draft: ConnectionDraft, hasStoredSecret: boolean)
 }
 
 /**
+ * @description Seule une base distante peut être partagée : un fichier SQLite local
+ * n'est accessible qu'à son poste, le partager reviendrait à envoyer le fichier.
+ * @param profile Profil de connexion.
+ * @returns `true` pour un serveur, une URI MongoDB ou une base SQLite distante.
+ */
+export function isShareableProfile(profile: ConnectionProfile): boolean {
+    return profile.connectionType !== "file";
+}
+
+/**
  * @description Indique si le brouillon utilise l'authentification Azure par principal de service.
  * @param draft Brouillon du formulaire.
  * @returns `true` pour Azure SQL + `service-principal`.
@@ -398,13 +502,14 @@ export function isServicePrincipalDraft(draft: ConnectionDraft): boolean {
 
 /**
  * @description Convertit le brouillon en données de profil pour le main. Le mot de passe
- * est « write-only » : en édition, un champ vide signifie « inchangé ».
+ * est « write-only » : en édition, un champ vide signifie « inchangé », sauf si
+ * `clearPassword` demande de retirer le secret enregistré.
  * @param draft Brouillon du formulaire.
  * @param editing Édition d'un profil existant (sinon création).
  * @returns Les données à envoyer à `connCreate` / `connUpdate`.
  */
 export function buildProfileInput(draft: ConnectionDraft, editing: boolean): ConnectionProfileInput {
-    const unchangedPassword = editing && draft.password === "";
+    const unchangedPassword = editing && draft.password === "" && !draft.clearPassword;
     const notes = draft.notes.trim();
 
     const input: ConnectionProfileInput = {
@@ -413,7 +518,7 @@ export function buildProfileInput(draft: ConnectionDraft, editing: boolean): Con
         driverType: draft.driverType,
         connectionType: "network",
         folderId: draft.folderId || undefined,
-        tag: draft.tag,
+        tag: draft.tag || undefined,
         notes: notes || undefined,
         password: unchangedPassword ? undefined : draft.password,
     };

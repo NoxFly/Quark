@@ -28,14 +28,11 @@
         </div>
         <div class="cm-field">
             <label for="cf-folder">{{ 'connections.form.folder' | translate }}</label>
-            <select id="cf-folder" class="cm-input" [ngModel]="d.folderId" (ngModelChange)="patch('folderId', $event)">
-                @if (folders().length === 0) {
-                    <option value="">—</option>
-                }
+            <ui-select id="cf-folder" class="cm-select" placeholder="—" [ngModel]="d.folderId" (ngModelChange)="patch('folderId', $event)">
                 @for (folder of folders(); track folder.id) {
-                    <option [value]="folder.id">{{ folder.name }}</option>
+                    <ui-select-option [value]="folder.id">{{ folder.name }}</ui-select-option>
                 }
-            </select>
+            </ui-select>
         </div>
     </div>
 
@@ -94,10 +91,10 @@
         @if (isAzure()) {
             <div class="cm-field">
                 <label for="cf-auth">{{ 'connections.form.authMode' | translate }}</label>
-                <select id="cf-auth" class="cm-input" [ngModel]="d.authMode" (ngModelChange)="patch('authMode', $event)">
-                    <option value="sql">{{ 'connections.form.authSql' | translate }}</option>
-                    <option value="service-principal">{{ 'connections.form.authServicePrincipal' | translate }}</option>
-                </select>
+                <ui-select id="cf-auth" class="cm-select" [ngModel]="d.authMode" (ngModelChange)="patch('authMode', $event)">
+                    <ui-select-option value="sql">{{ 'connections.form.authSql' | translate }}</ui-select-option>
+                    <ui-select-option value="service-principal">{{ 'connections.form.authServicePrincipal' | translate }}</ui-select-option>
+                </ui-select>
             </div>
         }
     }
@@ -135,9 +132,17 @@
                     {{ 'connections.form.password' | translate }}
                 }
             </label>
-            <input id="cf-password" class="cm-input" type="password" autocomplete="new-password"
-                [placeholder]="passwordPlaceholder()"
-                [ngModel]="d.password" (ngModelChange)="patch('password', $event)" />
+            <div class="password-row">
+                <input id="cf-password" class="cm-input" type="password" autocomplete="new-password"
+                    [placeholder]="passwordPlaceholder()"
+                    [disabled]="d.clearPassword"
+                    [ngModel]="d.password" (ngModelChange)="patch('password', $event)" />
+                @if (canClearPassword()) {
+                    <button type="button" class="cm-btn" (click)="toggleClearPassword()">
+                        {{ (d.clearPassword ? 'connections.form.passwordKeep' : 'connections.form.passwordClear') | translate }}
+                    </button>
+                }
+            </div>
         </div>
 
         @if (!isSqliteFile()) {
@@ -153,11 +158,17 @@
         <div class="cm-field">
             <label>{{ 'connections.form.tag' | translate }}</label>
             <div class="tags">
-                @for (tag of tags; track tag) {
-                    <button type="button" class="tag" [class.selected]="d.tag === tag" (click)="patch('tag', tag)">
-                        <span class="dot" [style.background]="tagColor(tag)"></span>{{ tagLabelKey(tag) | translate }}
+                <button type="button" class="tag" [class.selected]="selectedTag() === ''" (click)="patch('tag', '')">
+                    <span class="dot" [style.background]="tagColor(null)"></span>{{ 'connections.tags.none' | translate }}
+                </button>
+                @for (tag of tags(); track tag.id) {
+                    <button type="button" class="tag" [class.selected]="selectedTag() === tag.id" (click)="patch('tag', tag.id)">
+                        <span class="dot" [style.background]="tagColor(tag)"></span>{{ tagName(tag) }}
                     </button>
                 }
+                <button type="button" class="tag manage" [title]="'connections.tags.title' | translate" (click)="manageTags.emit()">
+                    {{ 'connections.tags.manage' | translate }}
+                </button>
             </div>
         </div>
         @if (!isSqlite()) {

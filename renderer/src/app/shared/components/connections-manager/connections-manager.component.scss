@@ -56,6 +56,7 @@
 .icon-btn {
     width: 24px;
     height: 24px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -65,6 +66,11 @@
     color: var(--text-muted);
     font-size: 13px;
     cursor: pointer;
+
+    // Sans cela, l'icône rétrécit à zéro dans le bouton flex.
+    svg {
+        flex: none;
+    }
 
     &:hover {
         background: var(--bg-panel);
@@ -95,6 +101,8 @@
 
 .add-btn {
     flex: 1;
+    min-width: 0;
+    white-space: nowrap;
     height: 28px;
     padding: 0 8px;
     border: 1px solid var(--border-control);
@@ -111,59 +119,6 @@
     &:hover {
         border-color: var(--accent);
         color: var(--accent-hover);
-    }
-}
-
-.master {
-    padding: 10px 12px;
-    border-top: 1px solid var(--border-muted);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-.switch {
-    position: relative;
-    width: 34px;
-    height: 18px;
-    flex: none;
-    padding: 0;
-    border: none;
-    border-radius: 9px;
-    background: var(--border-control-hover);
-    cursor: pointer;
-    transition: background 0.15s;
-
-    .knob {
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 14px;
-        height: 14px;
-        border-radius: 7px;
-        background: var(--accent-fg);
-        box-shadow: var(--shadow-card);
-        transition: left 0.15s;
-    }
-
-    &.on {
-        background: var(--accent);
-
-        .knob {
-            left: 18px;
-        }
-    }
-
-    &:focus-visible {
-        outline: 2px solid var(--accent-ring);
-        outline-offset: 1px;
-    }
-
-    &:disabled {
-        opacity: 0.6;
-        cursor: default;
     }
 }
 

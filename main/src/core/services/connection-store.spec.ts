@@ -190,6 +190,80 @@ describe("ConnectionStore", () => {
         expect(connectedAt).toBeTypeOf("number");
     });
 
+    it("gives the application tags to a vault written before custom tags", async () => {
+        const legacy = [
+            "<connections version=\"2\">",
+            "  <folder id=\"f1\" name=\"Clients\" order=\"0\"></folder>",
+            "  <connection id=\"p1\" name=\"prod\" driverType=\"mysql\" connectionType=\"network\" tag=\"production\"",
+            "    folderId=\"f1\" createdAt=\"1\" updatedAt=\"2\"></connection>",
+            "</connections>",
+        ].join("\n");
+        writeFileSync(vaultFile, await encryptToXml(legacy, "master"), "utf-8");
+
+        expect(await store.unlock("master")).toBe(true);
+        expect(store.listTags().map(tag => tag.id)).toEqual(["production", "client", "local", "other"]);
+        expect(store.list()[0]?.tag).toBe("production");
+
+        // Les étiquettes sont écrites aussitôt : toutes supprimées, elles ne reviennent pas.
+        for (const tag of store.listTags()) {
+            await store.deleteTag(tag.id);
+        }
+
+        const reopened = new ConnectionStore(keychain);
+        await reopened.unlock("master");
+        expect(reopened.listTags()).toEqual([]);
+        expect(reopened.list()[0]?.tag).toBeUndefined();
+    });
+
+    it("creates, recolors and deletes tags, and keeps only known tags on profiles", async () => {
+        await store.initialize("master");
+
+        const custom = await store.createTag({ name: " Recette ", color: "#8E4EC6" });
+        expect(custom).toMatchObject({ name: "Recette", color: "#8e4ec6" });
+
+        await expect(store.createTag({ name: " " })).rejects.toThrow();
+        await expect(store.updateTag(custom.id, { color: "red" })).rejects.toThrow();
+        await expect(store.updateTag(custom.id, { name: "" })).rejects.toThrow();
+
+        // Une étiquette fournie retrouve son nom traduit et sa couleur de thème.
+        await store.updateTag("local", { name: "Poste", color: "#46a758" });
+        expect(await store.updateTag("local", { name: "", color: "" })).toEqual({ id: "local", order: 2 });
+
+        const tagged = await store.create({ name: "a", driverType: "mysql", connectionType: "network", tag: custom.id });
+        const unknown = await store.create({ name: "b", driverType: "mysql", connectionType: "network", tag: "nope" });
+        expect(tagged.tag).toBe(custom.id);
+        expect(unknown.tag).toBeUndefined();
+
+        await store.deleteTag(custom.id);
+        expect(store.getProfile(tagged.id)?.tag).toBeUndefined();
+    });
+
+    it("moves a profile to a position, in its folder or another one", async () => {
+        await store.initialize("master");
+        const [first] = store.listFolders();
+        const other = await store.createFolder({ name: "Autre" });
+
+        const a = await store.create({ name: "a", driverType: "mysql", connectionType: "network", folderId: first!.id });
+        const b = await store.create({ name: "b", driverType: "mysql", connectionType: "network", folderId: first!.id });
+        const c = await store.create({ name: "c", driverType: "mysql", connectionType: "network", folderId: other.id });
+
+        const inFolder = (folderId: string): string[] => store.list()
+            .filter(profile => profile.folderId === folderId)
+            .sort((x, y) => (x.order ?? 0) - (y.order ?? 0))
+            .map(profile => profile.name);
+
+        await store.moveProfile(b.id, first!.id, 0);
+        expect(inFolder(first!.id)).toEqual(["b", "a"]);
+
+        await store.moveProfile(c.id, first!.id, 1);
+        expect(inFolder(first!.id)).toEqual(["b", "c", "a"]);
+        expect(inFolder(other.id)).toEqual([]);
+
+        await store.moveProfile(a.id, other.id, 99);
+        expect(inFolder(other.id)).toEqual(["a"]);
+        await expect(store.moveProfile(a.id, "missing", 0)).rejects.toThrow();
+    });
+
     it("manages folders and moves the profiles of a deleted folder", async () => {
         await store.initialize("master");
         const [first] = store.listFolders();

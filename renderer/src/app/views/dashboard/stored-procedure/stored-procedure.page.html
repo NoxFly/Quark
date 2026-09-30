@@ -24,7 +24,7 @@
                 <ui-button
                     size="small"
                     icon="E74E"
-                    [disabled]="isSaving() || dbService.readOnly()"
+                    [disabled]="isSaving() || dbService.readOnly() || state.isShared()"
                     (click)="save()"
                     [tooltip]="i18n.t('storedProc.save')">
                     {{ i18n.t("storedProc.save") }}
@@ -32,7 +32,7 @@
                 <ui-button
                     color="primary"
                     size="small"
-                    [disabled]="isExecuting()"
+                    [disabled]="isExecuting() || state.isShared()"
                     (click)="execute()"
                     [tooltip]="i18n.t('storedProc.execute')">
                     ▶ {{ i18n.t("storedProc.execute") }}

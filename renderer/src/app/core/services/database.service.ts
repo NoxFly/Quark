@@ -20,6 +20,7 @@ import { Router } from "@angular/router";
 import type { DatabaseDriverType, DriverInfo } from "@shared/driver";
 import type { ConnectionProfile, ConnectionTestResult } from "@shared/connection";
 import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
+import type { R_ShareOpenResponse } from "@shared/share";
 import { describeConnectionUri } from "src/app/shared/helpers/connection-uri.helper";
 import { nextSortState } from "src/app/shared/helpers/data-grid.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
@@ -119,6 +120,13 @@ export class DatabaseService {
      * Les ouvertures via dialog ou drag-and-drop sont toujours SQLite.
      */
     public async openFile(filePath: string, driverType: import("@shared/driver").DatabaseDriverType = "sqlite"): Promise<void> {
+        // Un fichier de partage s'ouvre avec son mot de passe, quelle que soit la
+        // façon dont il arrive (dialogue, glisser-déposer, association de fichier).
+        if (isShareFile(filePath)) {
+            this.requestSharePassword(filePath);
+            return;
+        }
+
         try {
             await this.openFileOrThrow(filePath, driverType);
         }
@@ -133,6 +141,12 @@ export class DatabaseService {
      * @throws Si le fichier n'existe pas, n'est pas lisible, ou n'est pas une base valide.
      */
     public async openFileOrThrow(filePath: string, driverType: import("@shared/driver").DatabaseDriverType = "sqlite"): Promise<void> {
+        if (isShareFile(filePath)) {
+            this.requestSharePassword(filePath);
+            return;
+        }
+
+        this.leaveShare();
         this.loading.set(true);
 
         try {
@@ -161,6 +175,7 @@ export class DatabaseService {
      * @throws Si le fichier ne peut pas être ouvert ou si le mot de passe est incorrect.
      */
     public async openFileWithPassword(filePath: string, password: string, driverType: import("@shared/driver").DatabaseDriverType = "sqlite"): Promise<void> {
+        this.leaveShare();
         this.loading.set(true);
         try {
             await this.noxus.ipc.setDriverType(driverType);
@@ -179,6 +194,82 @@ export class DatabaseService {
         finally {
             this.loading.set(false);
         }
+    }
+
+    /**
+     * @description Ouvre un fichier de partage avec son mot de passe. La connexion devient
+     * une connexion partagée : ni SQL, ni export, ni modification du schéma, et en
+     * consultation seule si son auteur l'a voulu.
+     * @param filePath Chemin du fichier `.quarkshare`.
+     * @param password Mot de passe du partage.
+     * @returns Le résultat du main ; un refus y est décrit, sans lever.
+     */
+    public async openShare(filePath: string, password: string): Promise<R_ShareOpenResponse> {
+        this.loading.set(true);
+
+        try {
+            const response = await this.noxus.ipc.shareOpen(filePath, password);
+
+            if (!response.ok) {
+                return response;
+            }
+
+            this.leaveShare();
+            this.state.share.set(response.share);
+            this.sqlFilterMode.set(false);
+
+            if (response.database) {
+                this.onDatabaseOpened(response.database);
+            }
+            else {
+                this.applyNetworkConnectedState(response.driverType, response.share.name, response.share.name);
+            }
+
+            // Consultation seule : le mode édition ne peut pas être activé.
+            if (response.share.readOnly) {
+                this.readOnly.set(true);
+            }
+
+            return response;
+        }
+        finally {
+            this.loading.set(false);
+        }
+    }
+
+    /**
+     * @description Le main a fermé la connexion partagée arrivée à échéance : la fenêtre
+     * revient à l'accueil.
+     */
+    public onShareExpired(): void {
+        this.resetConnectionState();
+        this.router.navigate(["/open-database"]);
+    }
+
+    /**
+     * Demande le mot de passe d'un fichier de partage (modale de mot de passe).
+     */
+    private requestSharePassword(filePath: string): void {
+        const parts = filePath.split(/[\\/]/);
+        const detail: RecentDatabaseEntry = {
+            connectionType: "share",
+            driverType: "sqlite",
+            displayName: parts.pop() ?? filePath,
+            displaySubtitle: parts.join("/"),
+            lastOpened: Date.now(),
+            requiresPassword: true,
+            filePath,
+        };
+
+        document.dispatchEvent(new CustomEvent("open-password-prompt", { detail }));
+    }
+
+    /**
+     * Une connexion ordinaire remplace la connexion partagée : ses restrictions
+     * tombent avec elle (le main les lève de son côté).
+     */
+    private leaveShare(): void {
+        this.state.share.set(null);
     }
 
     /**
@@ -247,6 +338,7 @@ export class DatabaseService {
      */
     private resetConnectionState(): void {
         this.state.connected.set(false);
+        this.state.share.set(null);
         this.state.database.set(null);
         this.state.filePath.set(null);
         this.state.driverType.set(null);
@@ -756,6 +848,10 @@ export class DatabaseService {
      * Gère les actions de transaction.
      */
     public async transactionAction(action: R_TransactionAction): Promise<void> {
+        if (this.state.isShareReadOnly()) {
+            return;
+        }
+
         await this.noxus.ipc.transactionAction(action);
 
         switch (action) {
@@ -779,7 +875,7 @@ export class DatabaseService {
      */
     public async exportData(format: "json" | "csv" | "xlsx", selectedOnly = false): Promise<void> {
         const table = this.selectedTable();
-        if (!table) {
+        if (!table || this.state.isShared()) {
             return;
         }
 
@@ -822,13 +918,24 @@ export class DatabaseService {
      * Toggle le mode lecture seule / lecture-écriture.
      */
     public toggleReadOnly(): void {
+        // Un partage en consultation seule ne s'édite pas.
+        if (this.state.isShareReadOnly()) {
+            return;
+        }
+
         this.readOnly.update(v => !v);
     }
 
     /**
-     * Toggle le mode de filtre SQLite / full-text.
+     * Toggle le mode de filtre SQLite / full-text. Une connexion partagée reste en
+     * recherche plein texte : un filtre SQL est une clause libre.
      */
     public toggleSqlFilterMode(): void {
+        if (this.state.isShared()) {
+            this.sqlFilterMode.set(false);
+            return;
+        }
+
         this.sqlFilterMode.update(v => !v);
     }
 
@@ -958,6 +1065,8 @@ export class DatabaseService {
      * 2. Charge le schéma en arrière-plan avec un indicateur de chargement.
      */
     public async connectNetwork(body: R_NetworkConnectBody): Promise<void> {
+        this.leaveShare();
+
         // Phase 1 : connexion pure — peut lever une erreur si les credentials sont invalides
         await this.noxus.ipc.connectNetwork(body);
 
@@ -981,6 +1090,7 @@ export class DatabaseService {
      * @throws Si la connexion échoue (URL invalide, jeton refusé, délai dépassé).
      */
     public async connectRemoteSqlite(body: R_RemoteSqliteBody): Promise<void> {
+        this.leaveShare();
         await this.noxus.ipc.connectRemoteSqlite(body);
 
         const described = describeConnectionUri(body.url, "libsql");
@@ -1069,6 +1179,7 @@ export class DatabaseService {
      * Pour un fichier chiffré sans secret stocké, délègue au prompt de mot de passe standard.
      */
     public async connectFromProfile(profile: ConnectionProfile): Promise<void> {
+        this.leaveShare();
         this.loading.set(true);
         try {
             const result = await this.noxus.ipc.connConnect(profile.id);
@@ -1495,4 +1606,11 @@ export class DatabaseService {
             this.router.navigate(["/dashboard/no-table"]);
         }
     }
+}
+
+/**
+ * Un fichier de partage se reconnaît à son extension.
+ */
+function isShareFile(filePath: string): boolean {
+    return filePath.toLowerCase().endsWith(".quarkshare");
 }

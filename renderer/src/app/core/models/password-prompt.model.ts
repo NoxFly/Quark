@@ -19,6 +19,7 @@
  * Variante de la modale de mot de passe :
  * - `encrypted-file` : base SQLite chiffrée en attente de déverrouillage (`state.needsPassword`) ;
  * - `credentials` : reconnexion depuis l'historique à une base réseau ou distante
- *   dont le secret n'est pas conservé.
+ *   dont le secret n'est pas conservé ;
+ * - `share` : ouverture d'un fichier de partage, par son mot de passe de partage.
  */
-export type PasswordPromptMode = "encrypted-file" | "credentials";
+export type PasswordPromptMode = "encrypted-file" | "credentials" | "share";
