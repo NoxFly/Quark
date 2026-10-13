@@ -23,6 +23,7 @@ import type { RecentDatabaseEntry } from "@shared/ipc-renderer";
 import type { R_ShareOpenResponse } from "@shared/share";
 import { describeConnectionUri } from "src/app/shared/helpers/connection-uri.helper";
 import { nextSortState } from "src/app/shared/helpers/data-grid.helper";
+import { isForeignKeyError } from "src/app/shared/helpers/foreign-key-error.helper";
 import { extractIpcErrorMessage } from "src/app/shared/helpers/utils";
 import type {
     CreateTableColumnDef,
@@ -690,7 +691,10 @@ export class DatabaseService {
         const recordsToDelete = this.tableData().filter(r => rowids.includes(r["rowid"] as number));
 
         await this.ensureAutoTransaction();
-        await this.noxus.ipc.deleteRows({ table, rowids });
+
+        if (!await this.requestRowsDeletion(table, rowids)) {
+            return;
+        }
 
         for (const record of recordsToDelete) {
             this.mutationHistory.push({
@@ -707,6 +711,67 @@ export class DatabaseService {
         this.totalCount.update(c => c - rowids.length);
         this.selectedRowIds.set(new Set());
         this.updateSchemaRecordCount(table, -rowids.length);
+    }
+
+    /**
+     * @description Supprime des lignes côté base. Si une clé étrangère s'y oppose,
+     * propose de supprimer aussi les lignes qui les référencent ; toute autre
+     * erreur est montrée à l'utilisateur au lieu d'être avalée.
+     * @param table Table des lignes.
+     * @param rowids Identifiants des lignes à supprimer.
+     * @returns `true` si les lignes ont été supprimées.
+     */
+    private async requestRowsDeletion(table: string, rowids: number[]): Promise<boolean> {
+        try {
+            await this.noxus.ipc.deleteRows({ table, rowids });
+            return true;
+        }
+        catch (err) {
+            if (!isForeignKeyError(err)) {
+                await this.showDeletionError(err);
+                return false;
+            }
+        }
+
+        const cascade = await this.confirmDanger(
+            this.i18n.t("data.confirmCascade.title"),
+            this.i18n.t("data.confirmCascade.message"),
+            this.i18n.t("data.confirmCascade.confirm"),
+        );
+
+        if (!cascade) {
+            return false;
+        }
+
+        try {
+            await this.noxus.ipc.deleteRows({ table, rowids, cascade: true });
+        }
+        catch (err) {
+            await this.showDeletionError(err);
+            return false;
+        }
+
+        // Les lignes liées, dans d'autres tables, changent leurs compteurs.
+        void this.loadSchemaInBackground();
+
+        return true;
+    }
+
+    /**
+     * @description Affiche l'échec d'une suppression.
+     * @param err Erreur rattrapée.
+     */
+    private async showDeletionError(err: unknown): Promise<void> {
+        const alert = await this.alertCtrl.create({
+            title: this.i18n.t("data.deleteFailed.title"),
+            message: extractIpcErrorMessage(err),
+            color: "danger",
+            actions: [{ text: this.i18n.t("data.close"), role: "cancel" }],
+        });
+
+        await new Promise<void>(resolve => {
+            alert.didDismiss.subscribe(() => resolve());
+        });
     }
 
     /**
@@ -728,7 +793,10 @@ export class DatabaseService {
         const record = this.tableData().find(r => r["rowid"] === rowid);
 
         await this.ensureAutoTransaction();
-        await this.noxus.ipc.deleteRows({ table, rowids: [rowid] });
+
+        if (!await this.requestRowsDeletion(table, [rowid])) {
+            return;
+        }
 
         if (record) {
             this.mutationHistory.push({

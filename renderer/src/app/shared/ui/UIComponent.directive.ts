@@ -78,14 +78,16 @@ export abstract class UIComponent {
         }
 
         const onAnimationEnd = (): void => {
+            // Émis avant la destruction : `ngOnDestroy` passe `destroyed` à vrai et
+            // fermerait la sortie, si bien que `didDismiss` n'atteignait jamais ses abonnés.
+            if (!this.destroyed) {
+                this.didDismiss.emit(d);
+            }
+
             if (this.componentRef) {
                 this.componentRef?.destroy();
             } else {
                 this.ref.nativeElement.remove();
-            }
-            // Vérifier que le composant n'est pas détruit avant d'émettre
-            if (!this.destroyed) {
-                this.didDismiss.emit(d);
             }
         };
 

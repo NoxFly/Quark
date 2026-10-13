@@ -223,7 +223,7 @@ export class DbController {
     @Post("delete-rows")
     public async deleteRows(request: Request): Promise<void> {
         const body = request.body as R_DeleteRowsBody;
-        await this.window(request).deleteRows(body.table, body.rowids);
+        await this.window(request).deleteRows(body.table, body.rowids, body.cascade ?? false);
     }
 
     @Post("transaction")

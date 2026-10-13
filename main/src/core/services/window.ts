@@ -27,6 +27,7 @@ import type { SessionOpaqueCategory, SessionRevertResult, SessionRowRef } from "
 import type { ShareSessionState } from "@shared/share";
 import type { DatabaseSchema, DbRecord, R_TransactionAction } from "@shared/types";
 import { AppEnv } from "src/core/env.dto";
+import { planCascadeDelete } from "src/core/services/cascade-delete";
 import { SessionDiff } from "src/core/services/session-diff";
 import { SessionReverter } from "src/core/services/session-revert";
 
@@ -473,9 +474,23 @@ export class Window {
 
     /**
      * Supprime des lignes et enregistre l'effet dans le diff de session.
+     *
+     * @param cascade - Supprime aussi, enfants d'abord, les lignes qui les
+     * référencent par clé étrangère. Sans cela, une ligne référencée fait échouer
+     * la suppression.
      */
-    public async deleteRows(table: string, rowids: number[]): Promise<void> {
+    public async deleteRows(table: string, rowids: number[], cascade = false): Promise<void> {
         this.assertShareAllows("write");
+
+        if (cascade) {
+            const steps = await planCascadeDelete(this.database, table, rowids);
+
+            for (const step of steps) {
+                await this.deleteRows(step.table, step.rowids);
+            }
+
+            return;
+        }
 
         const before = await this.captureRows(table, rowids);
 

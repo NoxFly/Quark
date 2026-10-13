@@ -293,6 +293,22 @@ export abstract class SqliteDialectDriver implements DatabaseDriver {
         await this.run(`DELETE FROM ${this.escapeIdentifier(tableName)} WHERE _rowid_ IN (${placeholders})`, rowids);
     }
 
+    public async findRowids(tableName: string, column: string, values: unknown[]): Promise<number[]> {
+        this.ensureOpen();
+
+        if (values.length === 0) {
+            return [];
+        }
+
+        const placeholders = values.map(() => "?").join(",");
+        const rows = await this.queryAll(
+            `SELECT _rowid_ AS rowid FROM ${this.escapeIdentifier(tableName)} WHERE ${this.escapeIdentifier(column)} IN (${placeholders})`,
+            values,
+        );
+
+        return rows.map(row => Number(row["rowid"]));
+    }
+
     public async truncateTable(tableName: string): Promise<number> {
         this.ensureOpen();
 
