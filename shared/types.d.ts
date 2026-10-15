@@ -129,6 +129,8 @@ export type R_UpdateCellBody = {
 export type R_DeleteRowsBody = {
     table: string;
     rowids: number[];
+    /** Supprime aussi les lignes qui référencent celles-ci par clé étrangère. */
+    cascade?: boolean;
 };
 
 export type R_TransactionAction = "begin" | "commit" | "rollback";

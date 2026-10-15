@@ -121,6 +121,12 @@ export interface DatabaseDriver {
     /** Supprime des lignes par leurs identifiants. */
     deleteRows(tableName: string, rowids: number[]): Promise<void>;
 
+    /**
+     * Identifiants des lignes dont `column` vaut l'une des `values` : sert à
+     * retrouver les lignes qui référencent une ligne par clé étrangère.
+     */
+    findRowids(tableName: string, column: string, values: unknown[]): Promise<number[]>;
+
     /** Récupère une ligne par son identifiant. */
     getRow(tableName: string, rowid: number): Promise<DbRecord | null>;
 

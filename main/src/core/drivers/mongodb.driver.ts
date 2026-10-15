@@ -452,6 +452,11 @@ export class MongodbDriver implements DatabaseDriver {
         await collection.deleteMany({ _id: { $in: ids } });
     }
 
+    public async findRowids(): Promise<number[]> {
+        // Pas de clés étrangères dans MongoDB : rien ne référence une ligne.
+        return [];
+    }
+
     public async truncateTable(tableName: string): Promise<number> {
         this.ensureOpen();
         const result = await this.db!.collection(tableName).deleteMany({});

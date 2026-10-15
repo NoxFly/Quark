@@ -212,6 +212,10 @@ export class RemoteDriver implements DatabaseDriver {
         return this.invoke("deleteRows", tableName, rowids);
     }
 
+    public findRowids(tableName: string, column: string, values: unknown[]): Promise<number[]> {
+        return this.invoke("findRowids", tableName, column, values);
+    }
+
     public getRow(tableName: string, rowid: number): Promise<DbRecord | null> {
         return this.invoke("getRow", tableName, rowid);
     }

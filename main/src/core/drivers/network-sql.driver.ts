@@ -360,6 +360,20 @@ export abstract class NetworkSqlDriver implements DatabaseDriver {
         await this.execute(`DELETE FROM ${safeTable} WHERE ${this.escapeIdentifier(pkColumn)} IN (${placeholders})`, rowids);
     }
 
+    public async findRowids(tableName: string, column: string, values: unknown[]): Promise<number[]> {
+        this.ensureOpen();
+        if (values.length === 0) {
+            return [];
+        }
+        const pkColumn = await this.getPrimaryKeyColumn(tableName);
+        const placeholders = values.map(() => "?").join(",");
+        const result = await this.query(
+            `SELECT ${this.escapeIdentifier(pkColumn)} AS rowid FROM ${this.escapeIdentifier(tableName)} WHERE ${this.escapeIdentifier(column)} IN (${placeholders})`,
+            values,
+        );
+        return result.rows.map(row => Number((row as DbRecord)["rowid"]));
+    }
+
     public async truncateTable(tableName: string): Promise<number> {
         this.ensureOpen();
         const result = await this.execute(`DELETE FROM ${this.escapeIdentifier(tableName)}`);
