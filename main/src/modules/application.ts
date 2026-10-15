@@ -49,7 +49,12 @@ export class Application implements IApp {
      */
     public getFocusedWindow(): Window | null {
         const focusedWindow = BrowserWindow.getFocusedWindow();
-        return this.windows.get(focusedWindow?.id!) || null;
+
+        if (!focusedWindow) {
+            return null;
+        }
+
+        return this.windows.get(focusedWindow.id) ?? null;
     }
 
     /**
