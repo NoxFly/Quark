@@ -15,6 +15,7 @@
         "noPropertyAccessFromIndexSignature": false,
         "noUncheckedIndexedAccess": false,
         "paths": {
+            "better-sqlite3-multiple-ciphers": ["./node_modules/better-sqlite3-multiple-ciphers/index.d.ts"],
             "*": ["./main/*"],
             "@shared/*": ["./shared/*"],
         },
